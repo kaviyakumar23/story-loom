@@ -37,7 +37,7 @@ export async function openCheckout(
     order_id: order.razorpayOrderId,
     amount: order.amount,
     currency: order.currency,
-    name: 'MakeMyTales',
+    name: 'Plumtale',
     description: 'Personalized storybook',
     prefill: opts.email ? { email: opts.email } : undefined,
     theme: { color: '#9C3C6B' },
