@@ -3,7 +3,7 @@ import { AuthProvider } from '@/lib/auth';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Storyloom — Personalized Storybooks',
+  title: 'MakeMyTales — Personalized Storybooks',
   description: 'Make your child the hero of their own beautifully illustrated storybook.',
 };
 
