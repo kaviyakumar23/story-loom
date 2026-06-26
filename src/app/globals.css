@@ -198,3 +198,10 @@ p { margin: 0; }
 
 .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 .spinner-brand { border-color: var(--hairline); border-top-color: var(--brand); }
+
+/* Trust strip — wrapping badge row under the hero */
+.trust-strip { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 18px 40px; padding: 18px 40px; }
+.trust-strip-item { display: inline-flex; align-items: center; gap: 9px; }
+@media (max-width: 860px) {
+  .trust-strip { gap: 14px 22px; padding: 16px 22px; }
+}

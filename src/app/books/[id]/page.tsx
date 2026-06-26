@@ -184,6 +184,11 @@ function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
             <p className="trust" style={{ marginTop: 14, justifyContent: 'center' }}>
               <Icon name="lock" size={15} stroke="var(--brand)" /> Secure payment · {awaiting ? 'finishing your book…' : 'pay only when you love it'}
             </p>
+            <p style={{ marginTop: 12, fontSize: 12, lineHeight: 1.5, color: 'var(--ink-soft)', textAlign: 'center' }}>
+              Illustrations are AI-generated and may have small imperfections — please review your preview before
+              buying. See our{' '}
+              <Link href="/legal/ai-disclosure" style={{ color: 'var(--brand)', fontWeight: 600 }}>AI Disclosure</Link>.
+            </p>
           </div>
         </div>
       </div>

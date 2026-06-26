@@ -25,6 +25,7 @@ export function Header({ minimal }: { minimal?: boolean }) {
             {session ? (
               <>
                 <Link href="/books">My books</Link>
+                <Link href="/account">Account</Link>
                 <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>Sign out</button>
               </>
             ) : (
@@ -41,10 +42,33 @@ export function Header({ minimal }: { minimal?: boolean }) {
 }
 
 export function Footer() {
-  const cols = [
-    { h: 'Plumtale', items: ['How it works', 'Sample pages', 'Pricing'] },
-    { h: 'Trust', items: ['Privacy', 'Our promise', 'Terms'] },
-    { h: 'Help', items: ['FAQ', 'Contact'] },
+  const cols: { h: string; items: { label: string; href: string }[] }[] = [
+    {
+      h: 'Plumtale',
+      items: [
+        { label: 'How it works', href: '/#how' },
+        { label: 'Sample pages', href: '/#how' },
+        { label: 'Pricing', href: '/#faq' },
+      ],
+    },
+    {
+      h: 'Trust',
+      items: [
+        { label: 'Privacy', href: '/legal/privacy' },
+        { label: 'Terms', href: '/legal/terms' },
+        { label: 'AI Disclosure', href: '/legal/ai-disclosure' },
+        { label: 'Content Policy', href: '/legal/content-policy' },
+        { label: 'Cookies', href: '/legal/cookies' },
+      ],
+    },
+    {
+      h: 'Help',
+      items: [
+        { label: 'Refunds', href: '/legal/refunds' },
+        { label: 'Shipping', href: '/legal/shipping' },
+        { label: 'Contact', href: '/legal/contact' },
+      ],
+    },
   ];
   return (
     <footer style={{ background: 'var(--brand-deep)', color: '#F4E7EE' }}>
@@ -65,7 +89,9 @@ export function Footer() {
           <div key={c.h}>
             <h4 style={{ fontSize: 13, letterSpacing: '.1em', textTransform: 'uppercase', color: '#C99FB3', marginBottom: 14, fontWeight: 600 }}>{c.h}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {c.items.map((i) => <span key={i} style={{ color: '#F4E7EE', fontSize: 14, opacity: 0.88 }}>{i}</span>)}
+              {c.items.map((i) => (
+                <Link key={i.label} href={i.href} style={{ color: '#F4E7EE', fontSize: 14, opacity: 0.88 }}>{i.label}</Link>
+              ))}
             </div>
           </div>
         ))}

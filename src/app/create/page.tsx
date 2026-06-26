@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Header } from '@/components/chrome';
@@ -223,8 +224,12 @@ export default function Create() {
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3, width: 18, height: 18, accentColor: 'var(--brand)' }} />
                 <span style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)' }}>
                   I’m {nickname || 'this child'}’s parent or guardian and I consent to Plumtale creating a
-                  personalized book using these details. I understand no photos are collected and I can delete
-                  everything anytime.
+                  personalized book using these details. I understand the story and illustrations are
+                  AI-generated, that no photos are collected, and that I can delete everything anytime. I agree
+                  to the{' '}
+                  <Link href="/legal/terms" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Terms</Link>{' '}
+                  and{' '}
+                  <Link href="/legal/privacy" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Privacy Policy</Link>.
                 </span>
               </label>
             </div>

@@ -7,7 +7,10 @@ import { supabase } from './supabase';
  * on every request (the backend authenticates with it and owner-scopes data).
  * Throws ApiError on non-2xx so callers can show the backend's message.
  */
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
+// Same-origin now that the API lives in this Next app (no CORS). An override is
+// kept for flexibility (e.g. pointing at a separate backend), defaulting to the
+// app's own /api/v1.
+const BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 export class ApiError extends Error {
   code: string;
