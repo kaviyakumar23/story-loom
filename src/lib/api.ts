@@ -29,6 +29,8 @@ interface Options {
   headers?: Record<string, string>;
   /** Skip auth (none of our endpoints need this, but kept for flexibility). */
   anon?: boolean;
+  /** Abort in-flight work, e.g. on unmount. */
+  signal?: AbortSignal;
 }
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
@@ -40,18 +42,41 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     if (token) headers.authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    method: opts.method ?? 'GET',
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: opts.method ?? 'GET',
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
+    });
+  } catch (e) {
+    // Offline, DNS, aborted… Callers branch on ApiError, so a bare TypeError
+    // here would slip past every one of those checks.
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    throw new ApiError(0, 'network', 'Network problem. Please check your connection and try again.');
+  }
 
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();
-  const json = text ? JSON.parse(text) : {};
+  // A proxy 502 or an auth redirect returns HTML, not JSON. Parsing that used to
+  // throw SyntaxError — which is not an ApiError, so every `instanceof ApiError`
+  // branch silently degraded to a generic message.
+  let json: unknown = {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      if (!res.ok) {
+        throw new ApiError(res.status, 'error', `Request failed (${res.status}). Please try again.`);
+      }
+      throw new ApiError(res.status, 'bad_response', 'Unexpected response from the server.');
+    }
+  }
+
   if (!res.ok) {
-    const err = json?.error ?? {};
+    const err = (json as { error?: { code?: string; message?: string } })?.error ?? {};
     throw new ApiError(res.status, err.code ?? 'error', err.message ?? `Request failed (${res.status})`);
   }
   return json as T;

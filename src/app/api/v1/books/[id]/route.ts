@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { requireParent } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
-import { badRequest, forbidden, notFound } from '@/server/lib/errors';
+import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
 import { toBook, type BookRow } from '@/server/lib/mappers';
 import { jsonError } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -19,8 +19,10 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   try {
     const parent = await requireParent(req);
     const { id } = await ctx.params;
+    // loadOwnedBook has established this parent owns the book, so the signed
+    // download links are theirs to receive.
     const row = await loadOwnedBook(id, parent.id);
-    return Response.json(await toBook(row));
+    return Response.json(await toBook(row, { includeDelivery: true }));
   } catch (err) {
     return jsonError(err);
   }
@@ -47,7 +49,7 @@ async function loadOwnedBook(id: string, parentId: string): Promise<BookRow> {
     .select(BOOK_COLUMNS + ', parent_id, deleted_at')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw badRequest('Could not load book', error.message);
+  if (error) throw internal('Could not load book', error.message);
   const row = data as unknown as (BookRow & { parent_id: string; deleted_at: string | null }) | null;
   if (!row || row.deleted_at) throw notFound('Book not found');
   if (row.parent_id !== parentId) throw forbidden();

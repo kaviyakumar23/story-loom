@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireParent } from '@/server/auth';
 import { loadEnv } from '@/server/config/env';
 import { audit } from '@/server/lib/audit';
-import { badRequest, forbidden, notFound } from '@/server/lib/errors';
+import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
 import { jsonError } from '@/server/lib/route';
 import { hashShareToken } from '@/server/lib/share-token';
 import { serviceClient } from '@/server/lib/supabase';
@@ -32,7 +32,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       token_hash: hashShareToken(token),
       expires_at: expiresAt,
     });
-    if (error) throw badRequest('Could not create share link', error.message);
+    if (error) throw internal('Could not create share link', error.message);
 
     await audit({
       actor: 'parent',
@@ -65,7 +65,7 @@ export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
       .is('revoked_at', null)
       .gt('expires_at', new Date().toISOString())
       .select('id');
-    if (error) throw badRequest('Could not revoke share links', error.message);
+    if (error) throw internal('Could not revoke share links', error.message);
 
     const revoked = (data as { id: string }[] | null)?.length ?? 0;
     await audit({
@@ -89,7 +89,7 @@ async function loadOwnedShareableBook(id: string, parentId: string): Promise<{ i
     .select('id, parent_id, status, deleted_at')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw badRequest('Could not load book', error.message);
+  if (error) throw internal('Could not load book', error.message);
   const row = data as { id: string; parent_id: string; status: string; deleted_at: string | null } | null;
   if (!row || row.deleted_at) throw notFound('Book not found');
   if (row.parent_id !== parentId) throw forbidden();

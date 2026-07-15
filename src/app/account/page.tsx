@@ -16,6 +16,10 @@ export default function Account() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawn, setWithdrawn] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -52,6 +56,19 @@ export default function Account() {
     }
   }
 
+  async function withdrawConsent() {
+    setWithdrawing(true);
+    setWithdrawError(null);
+    try {
+      await api('/consent', { method: 'DELETE' });
+      setWithdrawn(true);
+    } catch (e) {
+      setWithdrawError(e instanceof ApiError ? e.message : 'Could not withdraw consent. Please try again.');
+    } finally {
+      setWithdrawing(false);
+    }
+  }
+
   async function deleteAccount() {
     setDeleting(true);
     setDeleteError(null);
@@ -68,7 +85,7 @@ export default function Account() {
   return (
     <div className="web" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header />
-      <main className="container-narrow" style={{ flex: 1, padding: '40px 40px 80px', maxWidth: 640 }}>
+      <main className="container-narrow page-pad" style={{ flex: 1, maxWidth: 640 }}>
         <span className="eyebrow"><Icon name="lock" size={13} stroke="var(--brand)" /> Your account</span>
         <h1 className="display" style={{ fontSize: 34, margin: '12px 0 6px', lineHeight: 1.1 }}>Account &amp; data</h1>
         <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 28 }}>
@@ -100,12 +117,37 @@ export default function Account() {
               {exportError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 12 }}>{exportError}</p>}
             </div>
 
+            {/* Withdraw consent — DPDP §6: as easy to take back as it was to give. */}
+            <div className="card" style={{ padding: '24px 26px' }}>
+              <h2 className="display" style={{ fontSize: 22, marginBottom: 6 }}>Withdraw consent</h2>
+              <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginBottom: 16, lineHeight: 1.6 }}>
+                Stops us using your child&apos;s details to make any new books. The books you already have stay
+                in your account — to remove those as well, use Delete below.
+              </p>
+              {withdrawn ? (
+                <p style={{ fontSize: 14, color: 'var(--ink)', fontWeight: 600 }}>
+                  <Icon name="check" size={16} stroke="var(--success)" /> Consent withdrawn. We&apos;ll ask again
+                  if you ever want to make another book.
+                </p>
+              ) : (
+                <button className="btn btn-ghost" onClick={() => void withdrawConsent()} disabled={withdrawing}>
+                  {withdrawing ? <><span className="spinner" /> Withdrawing…</> : 'Withdraw consent'}
+                </button>
+              )}
+              {withdrawError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 12 }}>{withdrawError}</p>}
+            </div>
+
             {/* Delete */}
             <div className="card" style={{ padding: '24px 26px', border: '1.5px solid #F6D5CC' }}>
               <h2 className="display" style={{ fontSize: 22, marginBottom: 6 }}>Delete my account &amp; data</h2>
               <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginBottom: 16, lineHeight: 1.6 }}>
-                This permanently removes your account, your child&apos;s details, and all book assets. Purchased
-                books will no longer be available to download. This cannot be undone.
+                This permanently removes your account, your child&apos;s details, and all book assets. You will be
+                signed out and will not be able to sign in again with this email. Purchased books will no longer
+                be available to download. This cannot be undone.
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 16, lineHeight: 1.6 }}>
+                If you&apos;ve bought a book, we keep the order amount and date as an anonymous financial record —
+                tax law requires it — with your name and contact details removed.
               </p>
               {!confirming ? (
                 <button className="btn btn-ghost" style={{ color: 'var(--error)', borderColor: '#F6D5CC' }} onClick={() => setConfirming(true)} disabled={deleting}>

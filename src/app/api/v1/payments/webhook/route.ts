@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { audit } from '@/server/lib/audit';
 import { sendAdminAlert, sendOrderReceived } from '@/server/lib/email';
-import { badRequest, notFound } from '@/server/lib/errors';
+import { badRequest, internal, notFound } from '@/server/lib/errors';
 import { verifyWebhookSignature } from '@/server/lib/razorpay';
 import { jsonError } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -59,7 +59,7 @@ export async function POST(req: Request): Promise<Response> {
       if (payErr.code === '23505' || /duplicate key/i.test(payErr.message ?? '')) {
         return Response.json({ ok: true, deduped: true });
       }
-      throw badRequest('Could not record payment', payErr.message);
+      throw internal('Could not record payment', payErr.message);
     }
 
     if (!amountOk) {
@@ -135,7 +135,7 @@ async function handlePaymentFailed(event: RazorpayWebhook): Promise<Response> {
     if (payErr.code === '23505' || /duplicate key/i.test(payErr.message ?? '')) {
       return Response.json({ ok: true, deduped: true });
     }
-    throw badRequest('Could not record failed payment', payErr.message);
+    throw internal('Could not record failed payment', payErr.message);
   }
   await audit({ actor: 'system', action: 'payment.failed', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, reason: payment.error_description ?? null } });
   return Response.json({ ok: true });

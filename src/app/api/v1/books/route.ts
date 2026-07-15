@@ -4,8 +4,9 @@ import { loadEnv } from '@/server/config/env';
 import { requireParent } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
 import { assertBetaAccess } from '@/server/lib/beta-access';
-import { badRequest } from '@/server/lib/errors';
+import { badRequest, internal } from '@/server/lib/errors';
 import { toListItem, type BookRow } from '@/server/lib/mappers';
+import { assertRateLimit } from '@/server/lib/rate-limit';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { isPdfSafe } from '@/server/lib/text';
@@ -16,6 +17,7 @@ import {
   LANGUAGES,
   OCCASION_PACKS,
   READING_LEVELS,
+  type BookStatus,
   type CreateBookResponse,
 } from '@/server/types/api';
 
@@ -61,6 +63,9 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const parent = await requireParent(req);
     assertBetaAccess(req);
+    // Defence in depth over the daily cap: keep a burst from spending money
+    // faster than the cap's re-check can withdraw it.
+    assertRateLimit(`books:${parent.id}`, 10, 60_000);
     const parsed = createSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid book payload', parsed.error.issues);
     const input = parsed.data;
@@ -71,33 +76,40 @@ export async function POST(req: Request): Promise<Response> {
     const idempotencyKey = header?.trim() || deriveKey(parent.id, input);
     const { data: existing } = await db
       .from('books')
-      .select('id')
+      .select('id, status')
       .eq('parent_id', parent.id)
       .eq('idempotency_key', idempotencyKey)
       .maybeSingle();
     if (existing) {
-      return Response.json({ bookId: existing.id, status: 'generating' } satisfies CreateBookResponse, { status: 202 });
+      const row = existing as { id: string; status: BookStatus };
+      return Response.json({ bookId: row.id, status: row.status } satisfies CreateBookResponse, { status: 202 });
     }
 
-    // Abuse control (§6): cap previews per account per day.
+    // Abuse control (§6): cap previews per account per day. This read is only
+    // advisory — see the authoritative re-check after the insert below.
+    const cap = loadEnv().PREVIEW_DAILY_CAP;
     const since = new Date(Date.now() - 86_400_000).toISOString();
     const { count } = await db
       .from('books')
       .select('id', { count: 'exact', head: true })
       .eq('parent_id', parent.id)
       .gte('created_at', since);
-    if ((count ?? 0) >= loadEnv().PREVIEW_DAILY_CAP) {
+    if ((count ?? 0) >= cap) {
       throw badRequest('Daily preview limit reached. Please try again tomorrow.');
     }
 
-    // Consent must exist and belong to this parent (§9).
+    // Consent must exist, belong to this parent, and still stand (§9). A
+    // withdrawn consent authorizes nothing further (DPDP §6).
     const { data: consent } = await db
       .from('consent_records')
-      .select('id')
+      .select('id, withdrawn_at')
       .eq('id', input.consentId)
       .eq('parent_id', parent.id)
       .maybeSingle();
     if (!consent) throw badRequest('consentId is missing, invalid, or not yours');
+    if ((consent as { withdrawn_at: string | null }).withdrawn_at) {
+      throw badRequest('This consent has been withdrawn. Please give consent again to make a new book.');
+    }
 
     const { data: hero, error: heroErr } = await db
       .from('heroes')
@@ -110,7 +122,7 @@ export async function POST(req: Request): Promise<Response> {
       })
       .select('id')
       .single();
-    if (heroErr || !hero) throw badRequest('Could not create hero', heroErr?.message);
+    if (heroErr || !hero) throw internal('Could not create hero', heroErr?.message);
 
     const { data: book, error: bookErr } = await db
       .from('books')
@@ -128,7 +140,44 @@ export async function POST(req: Request): Promise<Response> {
       })
       .select('id')
       .single();
-    if (bookErr || !book) throw badRequest('Could not create book', bookErr?.message);
+    if (bookErr || !book) {
+      // Lost the idempotency race. uq_books_idempotency means a concurrent
+      // request for the same key already made this book — double-submit is
+      // exactly what the key is for, so return theirs instead of a 400.
+      if (bookErr?.code === '23505') {
+        await db.from('heroes').delete().eq('id', hero.id);
+        const { data: winner } = await db
+          .from('books')
+          .select('id, status')
+          .eq('parent_id', parent.id)
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+        if (winner) {
+          const row = winner as { id: string; status: BookStatus };
+          return Response.json({ bookId: row.id, status: row.status } satisfies CreateBookResponse, { status: 202 });
+        }
+      }
+      await db.from('heroes').delete().eq('id', hero.id);
+      throw internal('Could not create book', bookErr?.message);
+    }
+
+    // Authoritative cap check. The pre-check is a read, so N parallel requests
+    // can all pass it; this asks a question they all answer identically — "is my
+    // book among the oldest `cap` in the window?" — so the losers withdraw
+    // themselves rather than each burning a preview's worth of model spend.
+    const { data: withinCap } = await db
+      .from('books')
+      .select('id')
+      .eq('parent_id', parent.id)
+      .gte('created_at', since)
+      .order('created_at', { ascending: true })
+      .limit(cap);
+    if (!((withinCap ?? []) as { id: string }[]).some((b) => b.id === book.id)) {
+      // Order matters: books.hero_id is ON DELETE RESTRICT.
+      await db.from('books').delete().eq('id', book.id);
+      await db.from('heroes').delete().eq('id', hero.id);
+      throw badRequest('Daily preview limit reached. Please try again tomorrow.');
+    }
 
     await audit({ actor: 'parent', action: 'book.created', entity: 'books', entityId: book.id, metadata: { goal: input.goal } });
     await inngest.send({ name: EVENTS.previewRequested, data: { bookId: book.id, correlationId: randomUUID() } });
@@ -154,7 +203,7 @@ export async function GET(req: Request): Promise<Response> {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    if (error) throw badRequest('Could not list books', error.message);
+    if (error) throw internal('Could not list books', error.message);
     const items = (data as BookRow[]).map(toListItem);
     return Response.json({ books: items, nextOffset: items.length === limit ? offset + limit : null });
   } catch (err) {

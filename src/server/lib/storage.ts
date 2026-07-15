@@ -39,17 +39,22 @@ export async function downloadAsset(storageKey: string): Promise<Buffer | null> 
 }
 
 /**
- * Delete objects from storage (erasure + retention purges, §9/§11). Best-effort
- * and chunked; never throws — the caller already decided to remove these.
+ * Delete objects from storage (erasure + retention purges, §9/§11). Chunked, and
+ * it THROWS on failure.
+ *
+ * Both callers delete the rows holding these keys immediately afterwards, and
+ * those rows are the only index of them. Swallowing a failure here would strand
+ * a child's likeness in the bucket — unfindable, and so undeletable forever.
+ * Failing loudly lets erasure be retried instead.
  */
 export async function removeAssets(storageKeys: string[]): Promise<void> {
   if (!storageKeys.length) return;
   const client = serviceClient();
   for (let i = 0; i < storageKeys.length; i += 100) {
-    const { error } = await client.storage.from(BUCKET).remove(storageKeys.slice(i, i + 100));
+    const chunk = storageKeys.slice(i, i + 100);
+    const { error } = await client.storage.from(BUCKET).remove(chunk);
     if (error) {
-      // eslint-disable-next-line no-console
-      console.error('storage remove failed', error.message);
+      throw new Error(`Storage purge failed for ${chunk.length} object(s): ${error.message}`);
     }
   }
 }

@@ -13,7 +13,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
   return (
     <div className="web" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header />
-      <main className="container-narrow" style={{ flex: 1, padding: '40px 40px 80px', maxWidth: 760 }}>
+      <main className="container-narrow page-pad" style={{ flex: 1, maxWidth: 760 }}>
         {!BUSINESS_DETAILS_COMPLETE && (
           <div
             role="alert"

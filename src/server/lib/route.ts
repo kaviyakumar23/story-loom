@@ -4,6 +4,10 @@ import { captureError } from './observability';
 /** Turn a thrown error into the standard JSON ApiError response. */
 export function jsonError(err: unknown): Response {
   if (err instanceof ApiError) {
+    // `diagnostic` stays server-side by construction — only `details` ships.
+    if (err.diagnostic !== undefined) {
+      captureError(err, { code: err.code, diagnostic: err.diagnostic });
+    }
     return Response.json(
       { error: { code: err.code, message: err.message, details: err.details } },
       { status: err.statusCode },

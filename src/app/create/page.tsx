@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -73,6 +73,9 @@ export default function Create() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** One key for this form session, so a retry replays rather than duplicates. */
+  const idempotencyKey = useRef<string>('');
+  if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
 
   useEffect(() => {
     if (!ready) return;
@@ -155,7 +158,10 @@ export default function Create() {
       });
       const { bookId } = await api<CreateBookResponse>('/books', {
         method: 'POST',
-        headers: { 'Idempotency-Key': crypto.randomUUID() },
+        // Stable for this form session. Minting a fresh key per attempt meant a
+        // retry after a timeout looked like a brand-new book — the exact
+        // double-submit the header exists to prevent.
+        headers: { 'Idempotency-Key': idempotencyKey.current },
         body: {
           child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests },
           goal,
@@ -185,7 +191,7 @@ export default function Create() {
     return (
       <div className="web" style={{ minHeight: '100vh' }}>
         <Header minimal />
-        <div className="container-narrow" style={{ padding: '64px 40px', display: 'flex', justifyContent: 'center' }}>
+        <div className="container-narrow page-pad" style={{ display: 'flex', justifyContent: 'center' }}>
           <div className="card" style={{ padding: '40px 36px', maxWidth: 460, width: '100%' }}>
             <div style={{ width: 58, height: 58, borderRadius: '50%', background: 'var(--brand-tint)', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
               <Icon name="lock" size={27} stroke="var(--brand)" />
@@ -222,7 +228,7 @@ export default function Create() {
   return (
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header minimal />
-      <div className="container-narrow" style={{ padding: '40px 40px 80px', maxWidth: 600 }}>
+      <div className="container-narrow page-pad" style={{ maxWidth: 600 }}>
         <Progress step={step} />
         <div className="card" style={{ padding: '36px 40px' }}>
           {step === 1 && (

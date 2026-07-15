@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { requireParent } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
-import { badRequest, conflict, forbidden, notFound } from '@/server/lib/errors';
+import { badRequest, conflict, forbidden, internal, notFound } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { EVENTS, inngest } from '@/server/pipeline/client';
@@ -44,7 +44,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       .single();
     if (revisionErr || !revision) {
       if (revisionErr?.code === '23505') throw conflict('This preview already used its free tweak.');
-      throw badRequest('Could not request preview tweak', revisionErr?.message);
+      throw internal('Could not request preview tweak', revisionErr?.message);
     }
 
     const { error: bookErr } = await db
@@ -56,7 +56,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         preview_ready_at: null,
       })
       .eq('id', book.id);
-    if (bookErr) throw badRequest('Could not restart preview generation', bookErr.message);
+    if (bookErr) throw internal('Could not restart preview generation', bookErr.message);
 
     await audit({
       actor: 'parent',
@@ -86,7 +86,7 @@ async function loadOwnedRevisionableBook(id: string, parentId: string): Promise<
     .select('id, parent_id, status, deleted_at')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw badRequest('Could not load book', error.message);
+  if (error) throw internal('Could not load book', error.message);
   const row = data as { id: string; parent_id: string; status: string; deleted_at: string | null } | null;
   if (!row || row.deleted_at) throw notFound('Book not found');
   if (row.parent_id !== parentId) throw forbidden();

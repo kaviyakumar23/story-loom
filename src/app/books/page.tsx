@@ -39,7 +39,7 @@ export default function Dashboard() {
   return (
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header />
-      <div className="container" style={{ padding: '40px 40px 80px' }}>
+      <div className="container page-pad">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
           <h1 className="display" style={{ fontSize: 36 }}>Your storybooks</h1>
           <Link href="/create" className="btn btn-primary" style={{ padding: '14px 22px' }}>

@@ -109,7 +109,8 @@ export interface CreateBookRequest {
 }
 export interface CreateBookResponse {
   bookId: string;
-  status: 'generating';
+  /** Usually 'generating'; an idempotent replay returns the real status. */
+  status: BookStatus;
 }
 export interface ListBooksResponse {
   books: BookListItem[];

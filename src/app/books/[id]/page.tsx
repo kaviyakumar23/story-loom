@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
@@ -13,6 +13,7 @@ import {
   TIER_META,
   TIER_ORDER,
   type Book,
+  type BookStatus,
   type BookEventName,
   type CreateBookEventRequest,
   type CreateBookFeedbackRequest,
@@ -26,6 +27,10 @@ import {
 } from '@/lib/types';
 
 const POLL_MS = 2500;
+/** Ceiling for the back-off applied after a failed poll. */
+const POLL_MAX_MS = 20_000;
+/** Stop polling and say so, rather than spin forever on a dead job. */
+const POLL_GIVE_UP_MS = 15 * 60 * 1000;
 const PAYMENTS_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === 'true';
 const FEEDBACK_ISSUES: { id: FeedbackIssueType; label: string }[] = [
   { id: 'none', label: 'No issue' },
@@ -49,6 +54,9 @@ export default function BookPage() {
   const [paying, setPaying] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [revisionRequested, setRevisionRequested] = useState(false);
+  const [stalled, setStalled] = useState(false);
+  /** Bumped to restart the polling effect (manual retry). */
+  const [pollNonce, setPollNonce] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewViewedBook = useRef<string | null>(null);
 
@@ -56,6 +64,7 @@ export default function BookPage() {
     try {
       const b = await api<Book>(`/books/${bookId}`);
       setBook(b);
+      setError(null); // a recovered blip shouldn't leave its error on screen
       if (b.status !== 'generating') setRevisionRequested(false);
       return b;
     } catch (e) {
@@ -82,17 +91,59 @@ export default function BookPage() {
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
+    let delay = POLL_MS;
+    const startedAt = Date.now();
+    setStalled(false);
+
     const tick = async () => {
       const b = await load();
-      const polling = b && (b.status === 'generating' || b.status === 'paid' || (awaitingPayment && b.status === 'preview_ready'));
-      if (!cancelled && polling) timer.current = setTimeout(tick, POLL_MS);
+      if (cancelled) return;
+
+      if (b === null) {
+        // A failed fetch is NOT a reason to stop: this used to end the loop, so
+        // one blip on mobile data stranded the parent on a spinner forever.
+        // Back off and keep trying.
+        delay = Math.min(delay * 2, POLL_MAX_MS);
+      } else {
+        delay = POLL_MS;
+        const active =
+          b.status === 'generating' || b.status === 'paid' || (awaitingPayment && b.status === 'preview_ready');
+        if (!active) return; // terminal state — nothing left to wait for
+      }
+
+      if (Date.now() - startedAt > POLL_GIVE_UP_MS) {
+        // A worker can die without ever writing `failed`. Say so instead of
+        // spinning until the parent gives up on us.
+        setStalled(true);
+        return;
+      }
+      timer.current = setTimeout(tick, delay);
     };
+
     void tick();
     return () => {
       cancelled = true;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [ready, load, awaitingPayment, revisionRequested]);
+  }, [ready, load, awaitingPayment, revisionRequested, pollNonce]);
+
+  const retryNow = useCallback(() => setPollNonce((n) => n + 1), []);
+
+  const previewPanel = () =>
+    book && (
+      <Preview
+        book={book}
+        tier={tier}
+        setTier={setTier}
+        onBuy={buy}
+        onAlphaSave={saveAlphaPreview}
+        onEvent={trackEvent}
+        onRevisionStarted={refreshAfterRevision}
+        paying={paying || awaitingPayment}
+        awaiting={awaitingPayment || book.status === 'paid'}
+        paymentsEnabled={PAYMENTS_ENABLED}
+      />
+    );
 
   async function buy() {
     setPaying(true);
@@ -137,42 +188,82 @@ export default function BookPage() {
   return (
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header minimal />
-      <div className="container" style={{ padding: '40px 40px 80px' }}>
+      <div className="container page-pad">
         {error && <p style={{ color: 'var(--error)', marginBottom: 16 }}>{error}</p>}
-        {book && book.status === 'generating' && <Generating book={book} />}
-        {book && book.status === 'failed' && <Failed />}
-        {book && (book.status === 'preview_ready' || ((book.status === 'paid' || book.status === 'complete') && !book.pdfUrl)) && book.status !== 'complete' && (
-          <Preview
-            book={book}
-            tier={tier}
-            setTier={setTier}
-            onBuy={buy}
-            onAlphaSave={saveAlphaPreview}
-            onEvent={trackEvent}
-            onRevisionStarted={refreshAfterRevision}
-            paying={paying || awaitingPayment}
-            awaiting={awaitingPayment || book.status === 'paid'}
-            paymentsEnabled={PAYMENTS_ENABLED}
-          />
-        )}
-        {book && book.status === 'complete' && <Delivered book={book} onEvent={trackEvent} />}
+        {book &&
+          renderStatus(book.status, {
+            generating: () => <Generating book={book} stalled={stalled} onRetry={retryNow} />,
+            failed: () => <Failed />,
+            // `paid` means we're building the full book: same preview, with the
+            // panel in its "finishing up" state. It must render whether or not
+            // the PDF asset happens to exist yet — the old condition matched
+            // neither branch once it did, leaving a paying parent a blank page.
+            preview_ready: () => previewPanel(),
+            paid: () => previewPanel(),
+            complete: () =>
+              book.pdfUrl ? <Delivered book={book} onEvent={trackEvent} /> : <DeliveredPending onRetry={retryNow} />,
+          })}
       </div>
     </div>
   );
 }
 
-function Generating({ book }: { book: Book }) {
+/**
+ * One branch per status, keyed by the status itself. A new BookStatus now fails
+ * to compile instead of rendering nothing — which is how `paid` with a signed
+ * PDF used to match no branch at all and leave a paying parent a blank page.
+ */
+function renderStatus(status: BookStatus, branches: Record<BookStatus, () => ReactNode>): ReactNode {
+  return branches[status]();
+}
+
+function Generating({ book, stalled, onRetry }: { book: Book; stalled: boolean; onRetry: () => void }) {
   return (
     <div style={{ maxWidth: 560, margin: '40px auto', textAlign: 'center' }}>
-      <div style={{ animation: 'floaty 3s ease-in-out infinite', marginBottom: 20 }}>
+      <div style={{ animation: stalled ? undefined : 'floaty 3s ease-in-out infinite', marginBottom: 20 }}>
         <Sparkle size={48} color="var(--brand)" />
       </div>
-      <h1 className="display" style={{ fontSize: 34, marginBottom: 10 }}>Weaving the story…</h1>
-      <p className="d-lead" style={{ color: 'var(--ink-soft)' }}>Crafting characters and painting the first pages. This takes a minute or two.</p>
-      <div style={{ height: 12, borderRadius: 999, background: 'var(--bg-2)', marginTop: 28, overflow: 'hidden' }}>
-        <div style={{ width: `${Math.max(5, book.progress)}%`, height: '100%', background: 'var(--coral)', transition: 'width .6s ease' }} />
-      </div>
-      <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 10 }}>{book.progress}%</p>
+      {stalled ? (
+        <>
+          <h1 className="display" style={{ fontSize: 34, marginBottom: 10 }}>This is taking longer than usual</h1>
+          <p className="d-lead" style={{ color: 'var(--ink-soft)', marginBottom: 20 }}>
+            Your story is still queued on our side. Nothing is lost — check again in a moment.
+          </p>
+          <button className="btn btn-brand" onClick={onRetry}>Check again</button>
+          <p style={{ marginTop: 14, fontSize: 12.5, color: 'var(--ink-soft)' }}>
+            Still stuck? <Link href="/legal/contact" style={{ color: 'var(--brand)', fontWeight: 600 }}>Tell us</Link> and we&apos;ll sort it out.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 className="display" style={{ fontSize: 34, marginBottom: 10 }}>Weaving the story…</h1>
+          <p className="d-lead" style={{ color: 'var(--ink-soft)' }}>Crafting characters and painting the first pages. This takes a minute or two.</p>
+          <div style={{ height: 12, borderRadius: 999, background: 'var(--bg-2)', marginTop: 28, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.max(5, book.progress)}%`, height: '100%', background: 'var(--coral)', transition: 'width .6s ease' }} />
+          </div>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 10 }}>{book.progress}%</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Finished, but no download link came back (signing failed, or the asset is
+ * missing). This used to fall through to <Delivered/>, which told the parent
+ * their book was ready and then offered no way to get it.
+ */
+function DeliveredPending({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div style={{ maxWidth: 560, margin: '40px auto', textAlign: 'center' }}>
+      <h1 className="display" style={{ fontSize: 34, marginBottom: 10 }}>Your book is finished</h1>
+      <p className="d-lead" style={{ color: 'var(--ink-soft)', marginBottom: 20 }}>
+        We&apos;re still fetching your download link. Give it a moment and try again.
+      </p>
+      <button className="btn btn-brand" onClick={onRetry}>Try again</button>
+      <p style={{ marginTop: 14, fontSize: 12.5, color: 'var(--ink-soft)' }}>
+        If this keeps happening, <Link href="/legal/contact" style={{ color: 'var(--brand)', fontWeight: 600 }}>contact us</Link> — we&apos;ll send your book over directly.
+      </p>
     </div>
   );
 }
@@ -208,7 +299,7 @@ function Preview({ book, tier, setTier, onBuy, onAlphaSave, onEvent, onRevisionS
         {book.theme && <p className="d-lead" style={{ color: 'var(--ink-soft)' }}>{book.theme}</p>}
       </div>
 
-      <div className="grid-2" style={{ gridTemplateColumns: '1.5fr 1fr', alignItems: 'start', gap: 48 }}>
+      <div className="book-layout">
         {/* viewer */}
         <div>
           <div className="card" style={{ overflow: 'hidden', aspectRatio: '1', position: 'relative', border: '8px solid var(--surface)' }}>

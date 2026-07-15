@@ -3,7 +3,7 @@ import { loadEnv } from '@/server/config/env';
 import { requireAdmin } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
 import { sendBookReady } from '@/server/lib/email';
-import { badRequest, notFound } from '@/server/lib/errors';
+import { badRequest, internal, notFound } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 
@@ -15,6 +15,18 @@ const deliverSchema = z.object({
   audioStorageKey: z.string().min(1).optional(),
 });
 
+/**
+ * A storage key must live under the book it is being attached to. Without this,
+ * any key would bind — including another family's `books/{other}/book.pdf`,
+ * which mappers would then sign for THIS book's parent. One typo behind a single
+ * shared admin secret should not be able to hand one family another's book.
+ */
+function assertKeyBelongsToBook(key: string, bookId: string, label: string): void {
+  if (!key.startsWith(`books/${bookId}/`) || key.includes('..')) {
+    throw badRequest(`${label} must be a storage key under books/${bookId}/`);
+  }
+}
+
 // ---- POST /api/v1/admin/books/:id/deliver — complete manual fulfillment ----
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
@@ -23,6 +35,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!z.string().uuid().safeParse(id).success) throw badRequest('Invalid id');
     const parsed = deliverSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid deliver payload', parsed.error.issues);
+    assertKeyBelongsToBook(parsed.data.pdfStorageKey, id, 'pdfStorageKey');
+    if (parsed.data.audioStorageKey) {
+      assertKeyBelongsToBook(parsed.data.audioStorageKey, id, 'audioStorageKey');
+    }
     const db = serviceClient();
 
     const { data: book } = await db.from('books').select('id, parent_id, purchased_tier').eq('id', id).maybeSingle();
@@ -34,7 +50,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       assetRows.push({ book_id: id, type: 'audio', storage_key: parsed.data.audioStorageKey, mime: 'audio/mpeg' });
     }
     const { error: assetErr } = await db.from('assets').insert(assetRows);
-    if (assetErr) throw badRequest('Could not persist assets', assetErr.message);
+    if (assetErr) throw internal('Could not persist assets', assetErr.message);
 
     await db
       .from('books')

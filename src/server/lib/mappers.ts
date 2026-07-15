@@ -46,8 +46,13 @@ export function toListItem(row: BookRow): BookListItem {
  * Build the full Book response, including the preview (once preview_ready) and
  * signed delivery URLs (once paid/complete). All asset URLs are short-lived and
  * issued on demand (§11).
+ *
+ * `includeDelivery` must be left off for anyone who is not the owner. The shared
+ * preview page renders a Book too, and signing the purchased PDF/audio for every
+ * anonymous link holder — even unrendered — puts the paid product one
+ * serialization change away from being handed out.
  */
-export async function toBook(row: BookRow): Promise<Book> {
+export async function toBook(row: BookRow, { includeDelivery = false } = {}): Promise<Book> {
   const revisionCount = await loadRevisionCount(row.id);
   const book: Book = {
     id: row.id,
@@ -73,7 +78,7 @@ export async function toBook(row: BookRow): Promise<Book> {
     book.readingGuide = await loadReadingGuide(row.id);
   }
 
-  if (row.status === 'paid' || row.status === 'complete') {
+  if (includeDelivery && (row.status === 'paid' || row.status === 'complete')) {
     const assets = await loadDeliveryAssets(row.id);
     book.pdfUrl = assets.pdf ? await signAsset(assets.pdf) : null;
     book.audioUrl = assets.audio ? await signAsset(assets.audio) : null;

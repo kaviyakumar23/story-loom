@@ -171,7 +171,11 @@ export interface CreateBookRequest {
 }
 export interface CreateBookResponse {
   bookId: string;
-  status: Extract<BookStatus, 'generating'>;
+  /**
+   * Usually 'generating'. An idempotent replay returns the book's real current
+   * status — by then it may already be preview_ready, or failed.
+   */
+  status: BookStatus;
 }
 
 export interface ListBooksResponse {

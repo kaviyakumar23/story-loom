@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { requireParent } from '@/server/auth';
-import { badRequest, forbidden, notFound } from '@/server/lib/errors';
+import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { FEEDBACK_ISSUE_TYPES } from '@/server/types/api';
@@ -33,7 +33,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       .select('id, parent_id, deleted_at')
       .eq('id', id)
       .maybeSingle();
-    if (bookErr) throw badRequest('Could not load book', bookErr.message);
+    if (bookErr) throw internal('Could not load book', bookErr.message);
 
     const row = book as { id: string; parent_id: string; deleted_at: string | null } | null;
     if (!row || row.deleted_at) throw notFound('Book not found');
@@ -48,7 +48,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       comments,
       wants_full_book: parsed.data.wantsFullBook,
     });
-    if (error) throw badRequest('Could not record feedback', error.message);
+    if (error) throw internal('Could not record feedback', error.message);
 
     return Response.json({ ok: true }, { status: 201 });
   } catch (err) {

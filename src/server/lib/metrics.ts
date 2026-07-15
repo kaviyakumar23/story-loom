@@ -20,6 +20,11 @@ const COST_PER_BOOK_ALERT_USD = 1.0;
 const ATTEMPTS_PER_IMAGE_ALERT = 1.5;
 const MODERATION_QUEUE_ALERT = 25;
 
+// Row caps, surfaced as `truncated` rather than quietly skewing the averages.
+const ROW_CAP = 5000;
+const EVENT_ROW_CAP = 5000;
+const PRODUCT_EVENT_ROW_CAP = 10_000;
+
 export interface Metrics {
   windowDays: number;
   booksStarted: number;
@@ -44,12 +49,17 @@ export interface Metrics {
   feedbackIssueCount: number;
   supportIssueCount: number;
   wantsFullBookCount: number;
-  booksCompleted: number;
+  /** Distinct books with generation activity in the window — the denominator
+   *  for avgCostPerBookUsd. Not the same as `completedBooks`. */
+  booksWithGenerationActivity: number;
   avgCostPerBookUsd: number;
   avgAttemptsPerImage: number;
+  /** Books blocked by a moderation gate in this window and awaiting review. */
   moderationQueueDepth: number;
   webhookAmountMismatches: number;
   paymentsTotal: number;
+  /** True when a query hit its row cap, so the numbers above under-count. */
+  truncated: boolean;
 }
 
 export async function computeMetrics(windowDays = 7): Promise<Metrics> {
@@ -68,22 +78,43 @@ export async function computeMetrics(windowDays = 7): Promise<Metrics> {
       .from('generation_events')
       .select('book_id, stage, images, cost_usd, status')
       .gte('finished_at', since)
-      .limit(5000),
-    db.from('books').select('id', { count: 'exact', head: true }).eq('status', 'failed'),
-    db.from('payments').select('status').gte('captured_at', since).limit(5000),
+      .limit(ROW_CAP),
+    // Books actually blocked by a moderation gate, within the window. Counting
+    // every `failed` book all-time conflated provider errors and PDF failures
+    // with safety blocks, and — never being windowed — only ever grew, so the
+    // alert was guaranteed to fire eventually and mean nothing when it did.
+    db
+      .from('books')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'failed')
+      .eq('error->>code', 'moderation_blocked')
+      .gte('updated_at', since),
+    db.from('payments').select('status').gte('captured_at', since).limit(ROW_CAP),
     db
       .from('books')
       .select('id, status, created_at, updated_at, preview_ready_at, paid_at, completed_at')
       .gte('created_at', since)
       .is('deleted_at', null)
-      .limit(5000),
-    db.from('book_events').select('book_id, event, created_at').gte('created_at', since).limit(10000),
+      .limit(ROW_CAP),
+    db.from('book_events').select('book_id, event, created_at').gte('created_at', since).limit(PRODUCT_EVENT_ROW_CAP),
     db
       .from('book_feedback')
       .select('book_id, rating, issue_type, wants_full_book, created_at')
       .gte('created_at', since)
-      .limit(5000),
+      .limit(ROW_CAP),
   ]);
+
+  // Every query above is capped. Say so when a cap is hit: a silently truncated
+  // cost average reads exactly like a healthy one.
+  const truncated =
+    (events ?? []).length >= EVENT_ROW_CAP ||
+    (payments ?? []).length >= ROW_CAP ||
+    (books ?? []).length >= ROW_CAP ||
+    (productEvents ?? []).length >= PRODUCT_EVENT_ROW_CAP ||
+    (feedback ?? []).length >= ROW_CAP;
+  if (truncated) {
+    alert('Metrics query hit its row cap — figures under-count', { windowDays });
+  }
 
   const rows = (events ?? []) as {
     book_id: string;
@@ -155,10 +186,11 @@ export async function computeMetrics(windowDays = 7): Promise<Metrics> {
     feedbackIssueCount,
     supportIssueCount: feedbackIssueCount,
     wantsFullBookCount: feedbackRows.filter((f) => f.wants_full_book).length,
-    booksCompleted: costByBook.size,
+    booksWithGenerationActivity: costByBook.size,
     avgCostPerBookUsd: round(avgCostPerBookUsd),
     avgAttemptsPerImage: round(avgAttemptsPerImage),
     moderationQueueDepth: failedCount ?? 0,
+    truncated,
     webhookAmountMismatches: mismatches,
     paymentsTotal: pays.length,
   };
@@ -174,13 +206,13 @@ export async function buildAlphaMetricsCsv(windowDays = 30): Promise<string> {
       .gte('created_at', since)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(10000),
+      .limit(PRODUCT_EVENT_ROW_CAP),
     db.from('book_events').select('book_id, event, created_at').gte('created_at', since).limit(30000),
     db
       .from('book_feedback')
       .select('book_id, rating, issue_type, comments, wants_full_book, created_at')
       .gte('created_at', since)
-      .limit(10000),
+      .limit(PRODUCT_EVENT_ROW_CAP),
   ]);
 
   const eventRows = (events ?? []) as ProductEventRow[];

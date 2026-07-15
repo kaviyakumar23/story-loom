@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/chrome';
@@ -9,6 +10,12 @@ import { serviceClient } from '@/server/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// A parent shares this link with family, not with the internet. It holds a
+// child's name and story: it must never be indexed, however far it gets forwarded.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
 
 const BOOK_COLUMNS =
   'id, status, progress, goal, occasion_pack, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
@@ -37,13 +44,14 @@ export default async function SharedPreviewPage({ params }: { params: Promise<{ 
     notFound();
   }
 
+  // No includeDelivery: a link holder sees the preview, never the purchased PDF.
   const book = await toBook(bookRow);
   const pages = book.preview?.pages ?? [];
 
   return (
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header minimal />
-      <main className="container" style={{ padding: '40px 40px 80px' }}>
+      <main className="container page-pad">
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
           <span className="eyebrow" style={{ justifyContent: 'center' }}><Sparkle size={13} /> Shared preview</span>
           <h1 className="display" style={{ fontSize: 40, margin: '12px 0 8px' }}>{book.title ?? 'A Plumtale preview'}</h1>
@@ -53,7 +61,7 @@ export default async function SharedPreviewPage({ params }: { params: Promise<{ 
           </p>
         </div>
 
-        <div className="grid-2" style={{ gridTemplateColumns: '1.45fr .9fr', alignItems: 'start', gap: 44 }}>
+        <div className="book-layout">
           <section style={{ display: 'grid', gap: 18 }}>
             {pages.map((page) => (
               <article

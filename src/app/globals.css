@@ -190,6 +190,13 @@ p { margin: 0; }
 .d-h2 { font-size: 42px; line-height: 1.06; }
 .d-lead { font-size: 20px; line-height: 1.6; }
 
+/* Vertical rhythm for an app page inside .container. Use this instead of an
+   inline `padding`: inline styles outrank the mobile rules below, which is how
+   phones ended up with 40px side gutters. */
+.page-pad { padding: 40px 0 80px; }
+/* Preview + order panel. Class, not inline, for the same reason. */
+.book-layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 34px; align-items: start; }
+
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
 .shared-preview-card {
@@ -218,6 +225,8 @@ p { margin: 0; }
   .d-lead { font-size: 17px; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; gap: 32px; }
   .shared-preview-card { grid-template-columns: 1fr !important; }
+  .book-layout { grid-template-columns: 1fr; gap: 28px; }
+  .page-pad { padding: 26px 0 64px; }
   .hide-mobile { display: none !important; }
 }
 

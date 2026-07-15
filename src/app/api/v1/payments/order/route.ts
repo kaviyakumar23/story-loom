@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { loadEnv } from '@/server/config/env';
 import { priceFor } from '@/server/config/pricing';
 import { requireParent } from '@/server/auth';
-import { badRequest, forbidden, notFound } from '@/server/lib/errors';
+import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
 import { createOrder } from '@/server/lib/razorpay';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -42,7 +42,7 @@ export async function POST(req: Request): Promise<Response> {
       .insert({ parent_id: parent.id, book_id: bookId, tier, amount: price.amount, currency: price.currency, status: 'created' })
       .select('id')
       .single();
-    if (orderErr || !order) throw badRequest('Could not create order', orderErr?.message);
+    if (orderErr || !order) throw internal('Could not create order', orderErr?.message);
 
     const rzp = await createOrder({ amount: price.amount, currency: price.currency, receipt: order.id, notes: { orderId: order.id, bookId, tier } });
     await db.from('orders').update({ razorpay_order_id: rzp.id }).eq('id', order.id);

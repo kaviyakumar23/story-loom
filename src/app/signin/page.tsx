@@ -46,7 +46,7 @@ function SignInInner() {
   return (
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header minimal />
-      <div className="container-narrow" style={{ padding: '64px 40px', display: 'flex', justifyContent: 'center' }}>
+      <div className="container-narrow page-pad" style={{ display: 'flex', justifyContent: 'center' }}>
         <div className="card" style={{ padding: '40px 36px', maxWidth: 440, width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
             <Sparkle size={20} color="var(--brand)" />

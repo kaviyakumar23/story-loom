@@ -5,6 +5,7 @@ import {
   betaAccessStatus,
   isValidBetaCode,
 } from '@/server/lib/beta-access';
+import { assertRateLimit, clientIp } from '@/server/lib/rate-limit';
 import { jsonError, readJson } from '@/server/lib/route';
 import type { BetaAccessResponse } from '@/server/types/api';
 
@@ -27,6 +28,9 @@ export async function GET(req: Request): Promise<Response> {
 // ---- POST /api/v1/beta/access — validate invite code and grant this browser ----
 export async function POST(req: Request): Promise<Response> {
   try {
+    // One shared secret guards the whole beta, and this route is unauthenticated
+    // — without a limit it can be guessed at network speed.
+    assertRateLimit(`beta:${clientIp(req)}`, 5, 60_000);
     const parsed = schema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid invite code payload', parsed.error.issues);
     if (!isValidBetaCode(parsed.data.code)) throw forbidden('That invite code is not valid.');
