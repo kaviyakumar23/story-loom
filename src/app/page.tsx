@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Footer, Header } from '@/components/chrome';
-import { Icon, Sparkle, Stars, Uline } from '@/components/ui';
+import { Icon, Sparkle, Uline } from '@/components/ui';
 
 const TRUST = [
   { name: 'sparkles' as const, t: 'Free preview', c: 'var(--teal)' },
@@ -25,12 +26,24 @@ const FEATURES = [
 ];
 
 const SPREADS = [
-  { t: 'Title page', c: '#FCD9A6', tilt: 'tilt-l' },
-  { t: 'Meeting the hero', c: '#D8EAF4', tilt: 'tilt-r' },
-  { t: 'The adventure', c: '#DCEBD3', tilt: 'tilt-l' },
-  { t: 'A brave moment', c: '#FBDDD0', tilt: 'tilt-r' },
-  { t: 'The lesson lands', c: '#ECE2F3', tilt: 'tilt-l' },
-  { t: 'Happy ending', c: '#FBE6B6', tilt: 'tilt-r' },
+  {
+    t: 'Brave bedtime',
+    d: 'A gentle story for sleeping alone',
+    src: '/landing/sample-bedtime.webp',
+    tilt: 'tilt-l',
+  },
+  {
+    t: 'Starting school',
+    d: 'A warm first-day confidence boost',
+    src: '/landing/sample-school.webp',
+    tilt: 'tilt-r',
+  },
+  {
+    t: 'Kindness & patience',
+    d: 'A values-led story that still feels playful',
+    src: '/landing/sample-kindness.webp',
+    tilt: 'tilt-l',
+  },
 ];
 
 const OCCASIONS = [
@@ -43,8 +56,8 @@ const OCCASIONS = [
 
 const TIERS = [
   { name: 'Digital PDF', price: '₹299', tag: 'Most popular', highlight: true, items: ['Full personalized storybook', 'AI illustrations, your child as hero', 'Instant PDF download', 'Read on any device or print at home'] },
-  { name: 'PDF + Audio & Guide', price: '₹499', tag: 'Bedtime favourite', highlight: false, items: ['Everything in Digital PDF', 'Warm read-aloud narration', 'Parent discussion guide', 'Great for car rides & bedtime'] },
-  { name: '7-Day Story Pack', price: '₹999', tag: 'Best value', highlight: false, items: ['A week of personalized stories', 'A different gentle goal each day', 'All as downloadable PDFs', 'Perfect as a gift'] },
+  { name: 'PDF + Audio & Guide', price: '₹499', tag: 'Coming soon', highlight: false, items: ['Everything in Digital PDF', 'Warm read-aloud narration', 'Parent discussion guide', 'Great for car rides & bedtime'] },
+  { name: '7-Day Story Pack', price: '₹999', tag: 'Coming soon', highlight: false, items: ['A week of personalized stories', 'A different gentle goal each day', 'All as downloadable PDFs', 'Perfect as a gift'] },
 ];
 
 const FAQS = [
@@ -65,31 +78,38 @@ export default function Landing() {
       <section className="dband" style={{ paddingTop: 84, paddingBottom: 56 }}>
         <div className="container grid-2">
           <div style={{ animation: 'fadeUp .6s ease both' }}>
-            <span className="eyebrow"><Sparkle size={14} /> A keepsake made just for them</span>
+          <span className="eyebrow"><Sparkle size={14} /> Private alpha for first families</span>
             <h1 className="display d-h1" style={{ marginTop: 18 }}>
               Make your child the <Uline>hero</Uline> of their own storybook
             </h1>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 22, maxWidth: 480 }}>
-              Describe them, choose a gentle life lesson, and watch them step into a beautifully
-              illustrated adventure — ready to read in minutes.
+              Describe them with simple attributes, choose a gentle life lesson, and get a
+              personalized illustrated preview before the full book is made.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 32, flexWrap: 'wrap' }}>
               <Link href="/create" className="btn btn-primary" style={{ padding: '18px 28px', fontSize: 17 }}>
                 <Sparkle size={18} color="var(--accent-ink)" /> Create your free preview
               </Link>
-              <span style={{ fontSize: 14.5, color: 'var(--ink-soft)' }}>Free preview · from ₹299</span>
+              <span style={{ fontSize: 14.5, color: 'var(--ink-soft)' }}>Free preview · no photos · India-first</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-              <Stars size={18} />
-              <span style={{ fontWeight: 600, fontSize: 15 }}>Loved by families</span>
+              <Sparkle size={18} color="var(--gold)" />
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Built for known-family testing</span>
               <span className="trust" style={{ marginLeft: 4 }}>
                 <Icon name="shield" size={15} stroke="var(--brand)" /> No photos · India-first · ₹ &amp; UPI
               </span>
             </div>
           </div>
           <div style={{ position: 'relative', animation: 'fadeUp .6s ease .14s both' }}>
-            <div className="card tilt-l" style={{ aspectRatio: '1', border: '9px solid var(--surface)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
-              <div className="ph" style={{ position: 'absolute', inset: 0, borderRadius: 0, backgroundColor: '#FCD9A6' }} />
+            <div className="card tilt-l hero-media" style={{ aspectRatio: '1', border: '9px solid var(--surface)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
+              <Image
+                src="/landing/hero-reading.webp"
+                alt="A parent and child reading a personalized picture book together at bedtime"
+                fill
+                priority
+                sizes="(max-width: 860px) 90vw, 520px"
+                style={{ objectFit: 'cover' }}
+              />
               <div style={{ position: 'absolute', left: '50%', top: '46%', transform: 'translate(-50%,-50%)' }}>
                 <span className="pill" style={{ background: 'var(--teal)', color: '#fff', border: 'none', boxShadow: 'var(--shadow)', fontSize: 14, padding: '8px 16px' }}>
                   <Sparkle size={15} color="#fff" /> their adventure
@@ -162,22 +182,28 @@ export default function Landing() {
             <span className="eyebrow"><Icon name="book" size={15} stroke="var(--teal)" /> Sample spreads</span>
             <h2 className="display d-h2" style={{ marginTop: 14 }}>A peek inside the pages</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 14 }}>
-              Every book is illustrated from scratch around your child — here’s the shape a story takes.
+              Each preview is generated around a nickname, age band, interests, and the goal you choose.
             </p>
           </div>
           <div className="grid-3">
             {SPREADS.map((s) => (
               <div key={s.t} className={`card ${s.tilt} lift`} style={{ padding: 14 }}>
-                <div className="ph" style={{ aspectRatio: '4 / 3', backgroundColor: s.c, flexDirection: 'column', gap: 8 }}>
-                  <Sparkle size={26} color="rgba(58,42,34,.32)" />
-                  <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'rgba(58,42,34,.45)' }}>sample spread</span>
+                <div className="sample-media">
+                  <Image
+                    src={s.src}
+                    alt={`${s.t} sample storybook illustration`}
+                    fill
+                    sizes="(max-width: 860px) 90vw, 330px"
+                    style={{ objectFit: 'cover' }}
+                  />
                 </div>
-                <p style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 16, marginTop: 12, paddingLeft: 4 }}>{s.t}</p>
+                <p style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 17, marginTop: 12, paddingLeft: 4 }}>{s.t}</p>
+                <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', paddingLeft: 4, marginTop: 3 }}>{s.d}</p>
               </div>
             ))}
           </div>
           <p style={{ textAlign: 'center', fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 26 }}>
-            Illustrations are AI-generated. Placeholders shown — your preview is made from your own details.
+            Sample illustrations shown. Your beta preview is made from the details you provide.
           </p>
         </div>
       </section>
@@ -208,11 +234,11 @@ export default function Landing() {
       {/* SOCIAL PROOF */}
       <section className="dband dband-soft">
         <div className="container-narrow" style={{ textAlign: 'center' }}>
-          <Stars size={26} />
-          <h2 className="display d-h2" style={{ marginTop: 18 }}>Loved by families across India</h2>
+          <Sparkle size={34} color="var(--gold)" />
+          <h2 className="display d-h2" style={{ marginTop: 18 }}>Ready for a small circle of first families</h2>
           <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 16 }}>
-            Parents tell us the moment a child spots themselves on the page — that little gasp of
-            “that’s me!” — is what makes a Plumtale special. A bedtime story that’s truly theirs.
+            The alpha is designed for known parents who can try the flow, share honest feedback,
+            and help us polish the story quality before a wider beta.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 28, flexWrap: 'wrap' }}>
             <span className="pill"><Icon name="heart" size={15} stroke="var(--coral)" /> A keepsake to revisit</span>
@@ -229,7 +255,7 @@ export default function Landing() {
             <span className="eyebrow"><Sparkle size={14} /> Simple pricing</span>
             <h2 className="display d-h2" style={{ marginTop: 14 }}>From ₹299 — pay only after your free preview</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 14 }}>
-              Prices in rupees, UPI and cards welcome. Final price shown at checkout.
+              Target launch pricing in rupees. Checkout is paused during the internal alpha.
             </p>
           </div>
           <div className="grid-3">
@@ -276,7 +302,7 @@ export default function Landing() {
             <Link href="/create" className="btn btn-brand" style={{ padding: '17px 30px', fontSize: 17 }}>
               <Sparkle size={18} color="#fff" /> Start with a free preview
             </Link>
-            <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 14 }}>No payment until you’ve seen the story and love it.</p>
+            <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 14 }}>Alpha testers can create previews first; payment checkout comes after quality validation.</p>
           </div>
         </div>
       </section>

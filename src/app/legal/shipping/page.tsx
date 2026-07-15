@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Shipping & Delivery — Plumtale' };
 
@@ -15,7 +16,7 @@ export default function Shipping() {
   return (
     <>
       <h1 className="display" style={h1}>Shipping &amp; Delivery</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <h2 className="display" style={h2}>Digital delivery (at launch)</h2>
       <p style={p}>
@@ -31,18 +32,9 @@ export default function Shipping() {
 
       <h2 className="display" style={h2}>Printed books (coming later)</h2>
       <p style={p}>
-        Printed, physical books are not offered yet. We hope to add them in the future. When we do, the intended
-        terms below will apply and this page will be updated:
-      </p>
-      <ul style={ul}>
-        <li style={li}><strong>Coverage:</strong> [PLACEHOLDER: shipping regions, e.g. across India to start].</li>
-        <li style={li}><strong>Processing &amp; printing time:</strong> [PLACEHOLDER: e.g. 2–4 business days].</li>
-        <li style={li}><strong>Delivery time:</strong> [PLACEHOLDER: estimated delivery window].</li>
-        <li style={li}><strong>Shipping charges:</strong> [PLACEHOLDER: shipping fees / free-shipping threshold].</li>
-        <li style={li}><strong>Tracking:</strong> [PLACEHOLDER: tracking details, if available].</li>
-      </ul>
-      <p style={p}>
-        For printed orders, cancellations, damage, and misprints will be handled under our{' '}
+        Printed, physical books are not offered yet. We hope to add them in the future. Before we take any
+        printed order, this page will be updated with shipping coverage, printing and delivery timelines,
+        charges, and tracking details, and cancellations, damage, and misprints will be handled under our{' '}
         <Link href="/legal/refunds" style={link}>Refund &amp; Cancellation Policy</Link>.
       </p>
 

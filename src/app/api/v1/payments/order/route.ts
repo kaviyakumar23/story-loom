@@ -16,6 +16,10 @@ const orderSchema = z.object({ bookId: z.string().uuid(), tier: z.enum(TIERS) })
 // ---- POST /api/v1/payments/order — server-priced Razorpay order (§8) ----
 export async function POST(req: Request): Promise<Response> {
   try {
+    // Server-side kill switch — the client flag only hides the buy button.
+    if (loadEnv().NEXT_PUBLIC_PAYMENTS_ENABLED !== 'true') {
+      throw forbidden('Payments are not enabled');
+    }
     const parent = await requireParent(req);
     const parsed = orderSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid order payload', parsed.error.issues);
@@ -32,6 +36,7 @@ export async function POST(req: Request): Promise<Response> {
 
     // NEVER trust a client amount — price server-side from the tier.
     const price = priceFor(tier);
+    if (!price.enabled) throw badRequest('This tier is not available yet');
     const { data: order, error: orderErr } = await db
       .from('orders')
       .insert({ parent_id: parent.id, book_id: bookId, tier, amount: price.amount, currency: price.currency, status: 'created' })

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Privacy Policy — Plumtale' };
 
@@ -24,7 +25,7 @@ export default function Privacy() {
   return (
     <>
       <h1 className="display" style={h1}>Privacy Policy</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · Data fiduciary: [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · Data fiduciary: {BUSINESS.legalName}.</p>
 
       <p style={p}>
         This Privacy Policy explains how Plumtale (&quot;we&quot;, &quot;us&quot;) handles personal data when
@@ -131,13 +132,13 @@ export default function Privacy() {
       <p style={p}>
         You can exercise access, export, and erasure yourself from your{' '}
         <Link href="/account" style={link}>account page</Link> (Download my data and Delete my account &amp;
-        data). You may also email us at [PLACEHOLDER: support email].
+        data). You may also email us at {BUSINESS.supportEmail}.
       </p>
 
       <h2 className="display" style={h2}>11. Grievance officer</h2>
       <p style={p}>
-        Grievance Officer: [PLACEHOLDER: grievance officer name] · [PLACEHOLDER: grievance officer email] ·
-        [PLACEHOLDER: registered address]. See our{' '}
+        Grievance Officer: {BUSINESS.grievanceOfficerName} · {BUSINESS.grievanceOfficerEmail} ·
+        {BUSINESS.registeredAddress}. See our{' '}
         <Link href="/legal/contact" style={link}>Contact &amp; Grievance Redressal</Link> page for the process
         and timelines.
       </p>

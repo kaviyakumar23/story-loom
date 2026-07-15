@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Contact & Grievance Redressal — Plumtale' };
 
@@ -23,7 +24,7 @@ export default function Contact() {
   return (
     <>
       <h1 className="display" style={h1}>Contact &amp; Grievance Redressal</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate}.</p>
 
       <p style={p}>
         We are here to help. This page tells you who we are and how to reach us, including how to raise a formal
@@ -32,23 +33,23 @@ export default function Contact() {
 
       <h2 className="display" style={h2}>Who we are</h2>
       <div style={card}>
-        <div><strong>Business name:</strong> [PLACEHOLDER: legal/business name]</div>
-        <div><strong>Registered address:</strong> [PLACEHOLDER: registered address]</div>
-        <div><strong>Support email:</strong> [PLACEHOLDER: support email]</div>
+        <div><strong>Business name:</strong> {BUSINESS.legalName}</div>
+        <div><strong>Registered address:</strong> {BUSINESS.registeredAddress}</div>
+        <div><strong>Support email:</strong> {BUSINESS.supportEmail}</div>
       </div>
 
       <h2 className="display" style={h2}>Grievance officer</h2>
       <div style={card}>
-        <div><strong>Name:</strong> [PLACEHOLDER: grievance officer name]</div>
-        <div><strong>Email:</strong> [PLACEHOLDER: grievance officer email]</div>
-        <div><strong>Address:</strong> [PLACEHOLDER: registered address]</div>
+        <div><strong>Name:</strong> {BUSINESS.grievanceOfficerName}</div>
+        <div><strong>Email:</strong> {BUSINESS.grievanceOfficerEmail}</div>
+        <div><strong>Address:</strong> {BUSINESS.registeredAddress}</div>
       </div>
 
       <h2 className="display" style={h2}>How to raise a complaint</h2>
       <ul style={ul}>
         <li style={li}>Email our support address or grievance officer with your account email, order details (if any), and a clear description of the issue.</li>
-        <li style={li}>We will acknowledge your complaint within [PLACEHOLDER: e.g. 48 hours] of receipt.</li>
-        <li style={li}>We aim to resolve grievances within [PLACEHOLDER: e.g. 30 days] (or sooner where required by applicable rules), and we will keep you updated on progress.</li>
+        <li style={li}>We will acknowledge your complaint within {BUSINESS.grievanceAckWindow} of receipt.</li>
+        <li style={li}>We aim to resolve grievances within {BUSINESS.grievanceResolveWindow} (or sooner where required by applicable rules), and we will keep you updated on progress.</li>
         <li style={li}>For data-protection matters (access, correction, export, erasure, or withdrawing consent), you can also use your <Link href="/account" style={link}>account page</Link> directly.</li>
       </ul>
 

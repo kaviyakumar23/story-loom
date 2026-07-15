@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'AI Disclosure — Plumtale' };
 
@@ -15,7 +16,7 @@ export default function AiDisclosure() {
   return (
     <>
       <h1 className="display" style={h1}>AI Disclosure</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
         We believe in being open about how Plumtale works. Your child&apos;s book is created with the help of

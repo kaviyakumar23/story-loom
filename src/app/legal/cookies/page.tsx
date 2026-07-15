@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BUSINESS } from '@/lib/business';
 import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Cookie Policy — Plumtale' };
@@ -15,7 +16,7 @@ export default function Cookies() {
   return (
     <>
       <h1 className="display" style={h1}>Cookie Policy</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
         This Cookie Policy explains how Plumtale uses cookies and similar technologies. It works alongside our{' '}
@@ -31,9 +32,9 @@ export default function Cookies() {
 
       <h2 className="display" style={h2}>Analytics cookies</h2>
       <p style={p}>
-        [PLACEHOLDER: analytics provider, if/when added.] We do not currently use third-party advertising or
-        cross-site tracking cookies. If we add analytics in the future to understand how the service is used, we
-        will update this policy and, where required, ask for your consent before non-essential cookies are set.
+        We do not currently use analytics cookies, third-party advertising cookies, or cross-site tracking
+        cookies. If we add analytics in the future to understand how the service is used, we will update this
+        policy and, where required, ask for your consent before non-essential cookies are set.
       </p>
 
       <h2 className="display" style={h2}>How to control cookies</h2>

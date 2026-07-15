@@ -29,9 +29,7 @@ export function tokenizeOutbound(
 ): { text: string; map: TokenMap } {
   const map: TokenMap = { [HERO_TOKEN]: realName };
   if (!realName.trim()) return { text, map };
-  // Word-boundary, case-insensitive replacement of the name.
-  const pattern = new RegExp(`\\b${escapeRegExp(realName)}\\b`, 'gi');
-  return { text: text.replace(pattern, HERO_TOKEN), map };
+  return { text: text.replace(namePattern(realName), HERO_TOKEN), map };
 }
 
 /**
@@ -42,7 +40,7 @@ export function tokenizeOutbound(
  */
 export function scrub(text: string, realName: string): string {
   if (!realName.trim()) return text;
-  return text.replace(new RegExp(`\\b${escapeRegExp(realName)}\\b`, 'gi'), HERO_TOKEN);
+  return text.replace(namePattern(realName), HERO_TOKEN);
 }
 
 /** Scrub every value in a list. */
@@ -66,13 +64,25 @@ export function detokenizeLocal(text: string, map: TokenMap): string {
 export function assertNoSensitive(payload: string, sensitive: string[]): void {
   for (const value of sensitive) {
     if (!value.trim()) continue;
-    if (new RegExp(`\\b${escapeRegExp(value)}\\b`, 'i').test(payload)) {
+    if (namePattern(value, '').test(payload)) {
       throw new Error(
         'Refusing outbound request: sensitive value present in payload. ' +
           'All identifying text must be tokenized first (see lib/tokenize).',
       );
     }
   }
+}
+
+/**
+ * Case-insensitive matcher for a name. `\b` is ASCII-word based, so it is
+ * applied per edge and only where it can match: a name ending in punctuation
+ * ("Anu (junior)") or written in an Indic script would otherwise silently
+ * never match — and leak to vendors. Over-matching is the safe direction here.
+ */
+function namePattern(name: string, flags = 'g'): RegExp {
+  const lead = /^\w/.test(name) ? '\\b' : '';
+  const trail = /\w$/.test(name) ? '\\b' : '';
+  return new RegExp(`${lead}${escapeRegExp(name)}${trail}`, `${flags}i`);
 }
 
 function escapeRegExp(s: string): string {

@@ -13,7 +13,9 @@ let _client: Resend | null = null;
 
 function client(): Resend {
   if (_client) return _client;
-  _client = new Resend(loadEnv().RESEND_API_KEY);
+  const key = loadEnv().RESEND_API_KEY;
+  if (!key) throw new Error('Resend is not configured');
+  _client = new Resend(key);
   return _client;
 }
 
@@ -23,7 +25,14 @@ async function send(to: string, subject: string, html: string): Promise<void> {
   if (error) throw new Error(`Email send failed: ${error.message}`);
 }
 
-export async function sendOrderReceived(to: string, tier: string): Promise<void> {
+export interface OrderReceipt {
+  orderId: string;
+  /** Smallest currency unit (paise for INR), as stored on the order. */
+  amount: number;
+  currency: string;
+}
+
+export async function sendOrderReceived(to: string, tier: string, receipt: OrderReceipt): Promise<void> {
   await send(
     to,
     'We received your order — your storybook is on its way',
@@ -32,8 +41,34 @@ export async function sendOrderReceived(to: string, tier: string): Promise<void>
       heading: 'Your storybook is being woven',
       body: `<p style="margin:0 0 14px">Thank you! We've received your
                <strong style="color:${COLORS.ink}">${escapeHtml(prettyTier(tier))}</strong> order.</p>
+             <p style="margin:0 0 14px;font-size:14px;color:${COLORS.inkSoft};">
+               Order <strong style="color:${COLORS.ink}">${escapeHtml(receipt.orderId)}</strong>
+               · Amount paid: <strong style="color:${COLORS.ink}">${escapeHtml(formatAmount(receipt.amount, receipt.currency))}</strong></p>
              <p style="margin:0">Our little workshop is personalising every page right now.
-               We'll email you the moment it's ready to read — usually within a few minutes.</p>`,
+               We'll email you the moment it's ready to read — usually within a few minutes.
+               Keep this email as your payment receipt.</p>`,
+    }),
+  );
+}
+
+/**
+ * Operational alert to ALERT_EMAIL (amount mismatches, cost overruns…).
+ * Silently no-ops when alerting or Resend isn't configured — callers must
+ * never fail because an alert couldn't be sent.
+ */
+export async function sendAdminAlert(subject: string, context?: Record<string, unknown>): Promise<void> {
+  const env = loadEnv();
+  if (!env.ALERT_EMAIL || !env.RESEND_API_KEY) return;
+  const details = context
+    ? `<pre style="margin:12px 0 0;padding:12px;background:${COLORS.bg2};border-radius:8px;font-size:12.5px;white-space:pre-wrap;">${escapeHtml(JSON.stringify(context, null, 2))}</pre>`
+    : '';
+  await send(
+    env.ALERT_EMAIL,
+    `[Plumtale alert] ${subject}`,
+    layout({
+      eyebrow: 'Ops alert',
+      heading: subject,
+      body: `<p style="margin:0">Triggered at ${escapeHtml(new Date().toISOString())}.</p>${details}`,
     }),
   );
 }
@@ -120,6 +155,12 @@ function layout({ eyebrow, heading, body, cta }: LayoutOpts): string {
     </td></tr>
   </table>
 </body></html>`;
+}
+
+function formatAmount(amount: number, currency: string): string {
+  const major = amount / 100;
+  const rendered = Number.isInteger(major) ? String(major) : major.toFixed(2);
+  return currency === 'INR' ? `₹${rendered}` : `${rendered} ${currency}`;
 }
 
 function prettyTier(tier: string): string {

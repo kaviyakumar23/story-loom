@@ -4,64 +4,58 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Storyloom — Frontend
+# Plumtale (repo: story-loom) — full-stack app
 
-Next.js 16 (App Router, TypeScript) web app for Storyloom — personalized AI
-children's storybooks, India-first. This repo is the **frontend only**; it talks
-to the backend API over HTTP.
+Next.js 16 (App Router, TypeScript) app for **Plumtale** (plumtale.com) —
+personalized AI children's storybooks, India-first. Since June 2026 this repo is
+the **whole product**: web app, `/api/v1/*` route handlers, Supabase data layer,
+and the Inngest generation pipeline in one deployable app. (The old separate
+backend repo at `~/products/storyloom` is superseded; its docs are historical.)
 
-> The **backend + full product docs, the master checklist (`CHECKLIST.md`), the
-> API contract (`API_CONTRACT.md`), and the specialized subagents
-> (`.claude/agents/`)** live in the backend repo at
-> `/Users/kaviya/products/storyloom`. Read those for the system-wide picture.
+## Map
 
-## What this app does
-
-Parent journey: sign in → describe the child + pick a story goal → free preview →
-checkout (Razorpay) → download. Routes:
-
-| Route | Purpose |
-|---|---|
-| `/` | Landing |
-| `/signin` + `/auth/callback` | Supabase auth (magic link + Google) |
-| `/create` | Multi-step form → `POST /consent` + `POST /books` |
-| `/books` | Dashboard |
-| `/books/[id]` | Poll generation → preview → checkout → download |
-
-## Rules that mirror the backend (don't break)
-
-- **No photos.** Children are described by attributes (skin tone, hair, glasses),
-  a **nickname** (not a legal name), and an **age band**.
-- **Poll, don't trust callbacks.** Generation and payment unlocking are async —
-  poll `GET /books/:id` and `GET /payments/:orderId`. The Razorpay client
-  `handler` is a hint; the backend webhook is the source of truth.
-- **Consent is explicit** — `POST /consent` only after the parent ticks the box.
-- **Signed URLs expire** (~10 min) — re-fetch the book to refresh download links.
-- **No secrets in the client.** Only `NEXT_PUBLIC_*` (API URL + Supabase URL/anon
-  key). No service-role key, no Razorpay secret.
-
-## Layout
-
-- `src/app/` — routes. `globals.css` = the design system (cream `#FBEFD6`, berry
-  `#9C3C6B`, coral `#EE6C45`, Baloo 2 + Hanken Grotesk, sticker buttons). Reuse
+- `src/app/` — pages + API routes. `globals.css` is the design system (cream
+  `#FBEFD6`, berry `#9C3C6B`, coral `#EE6C45`, Baloo 2 + Hanken Grotesk). Reuse
   `.btn/.card/.pill/.chip/.input/.eyebrow` — don't invent new styles.
-- `src/components/` — `ui` (Sparkle/Icon), `chrome` (Header/Footer).
-- `src/lib/` — `types` (mirror of backend `src/types/api.ts` — keep in sync),
-  `api` (bearer client), `supabase` + `auth` (session/guard), `razorpay`.
+- `src/app/legal/*` — policy pages; business identity comes from
+  `src/lib/business.ts` (fill every `[TODO]` before charging money).
+- `src/server/` — pipeline (`pipeline/`), providers (`providers/`), config
+  (`config/env.ts`, `config/pricing.ts`), libs (auth, email, razorpay, metrics,
+  erasure, tokenize).
+- `src/lib/types.ts` mirrors `src/server/types/api.ts` — keep in sync (including
+  `TIER_META.enabled` ↔ pricing table `enabled`).
+- Migrations: `src/server/db/migrations/*.sql` (runner: `npm run migrate`,
+  needs `DATABASE_URL`) mirrored in `supabase/migrations/` for `supabase db push`.
 
-## Run / build
+## Non-negotiables (child safety + payments)
+
+- **No photos; no legal names to vendors.** Attributes + nickname + age band;
+  `src/server/lib/tokenize.ts` swaps the name for `{{HERO}}` before any AI call
+  and every provider calls `assertNoSensitive` before egress.
+- **Consent before processing** (`POST /api/v1/consent`, enforced at book create).
+- **Moderation fails closed**; blocked images route to human review, never
+  auto-deliver.
+- **Webhook is the source of truth for payment** — the client Razorpay handler
+  only starts polling. Prices come from `src/server/config/pricing.ts`; never
+  trust client amounts.
+- **Signed URLs only** for generated assets (~10 min expiry; re-fetch to refresh).
+- Parent-scoped queries + RLS defense in depth; export/erasure must keep working.
+
+## Run / validate
 
 ```bash
-cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL + Supabase URL/anon key
-npm install
-npm run dev        # http://localhost:3000  (backend must run on :8080 + Inngest dev)
-npm run build      # must pass before shipping
+npm install && cp .env.local.example .env.local   # fill Supabase + AI keys
+npm run dev                                        # app on :3000
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest  # pipeline
+npm run typecheck && npm test && npm run build     # must pass before shipping
 ```
+
+`npm test` = typecheck + vitest unit tests (`src/**/*.test.ts`). Handle every
+book status (`generating/preview_ready/paid/complete/failed`) plus
+loading/empty/error in UI — never dead-end the parent.
 
 ## Conventions
 
-- TypeScript strict. Client components for interactive/polling pages.
-- Handle every status (`generating`/`preview_ready`/`paid`/`complete`/`failed`)
-  plus loading/empty/error — never dead-end the parent.
-- Commit only when asked; never push without asking. End commit messages with the
-  `Co-Authored-By: Claude Opus 4.8 (1M context)` trailer.
+- TypeScript strict; client components only for interactive/polling pages.
+- Commit only when asked; never push without asking. End commit messages with
+  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.

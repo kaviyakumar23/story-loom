@@ -13,8 +13,11 @@ export function captureError(err: unknown, context?: Record<string, unknown>): v
   console.error('[captureError]', err instanceof Error ? (err.stack ?? err.message) : err, context ?? {});
 }
 
-/** A threshold alert — structured log for now (route to Sentry/Slack later). */
+/** A threshold alert — structured log + best-effort email to ALERT_EMAIL. */
 export function alert(message: string, context?: Record<string, unknown>): void {
   // eslint-disable-next-line no-console
   console.warn(`[alert] ${message}`, context ?? {});
+  // Fire-and-forget: alerts must never break the caller. Serverless may cut
+  // this short after the response; critical paths should await sendAdminAlert.
+  void import('./email').then(({ sendAdminAlert }) => sendAdminAlert(message, context)).catch(() => {});
 }

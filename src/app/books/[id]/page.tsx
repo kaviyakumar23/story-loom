@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/chrome';
+import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, useRequireAuth } from '@/lib/auth';
@@ -12,16 +13,34 @@ import {
   TIER_META,
   TIER_ORDER,
   type Book,
+  type BookEventName,
+  type CreateBookEventRequest,
+  type CreateBookFeedbackRequest,
+  type CreateBookRevisionRequest,
+  type CreateBookRevisionResponse,
+  type CreateBookShareResponse,
   type CreateOrderResponse,
+  type FeedbackIssueType,
+  type RevokeBookShareResponse,
   type Tier,
 } from '@/lib/types';
 
 const POLL_MS = 2500;
+const PAYMENTS_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === 'true';
+const FEEDBACK_ISSUES: { id: FeedbackIssueType; label: string }[] = [
+  { id: 'none', label: 'No issue' },
+  { id: 'story_quality', label: 'Story quality' },
+  { id: 'image_quality', label: 'Image quality' },
+  { id: 'safety', label: 'Safety concern' },
+  { id: 'technical', label: 'Technical issue' },
+  { id: 'other', label: 'Other' },
+];
 
 export default function BookPage() {
   const { ready } = useRequireAuth();
   const { session } = useAuth();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const bookId = params.id;
 
   const [book, setBook] = useState<Book | null>(null);
@@ -29,18 +48,35 @@ export default function BookPage() {
   const [tier, setTier] = useState<Tier>('pdf');
   const [paying, setPaying] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
+  const [revisionRequested, setRevisionRequested] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewViewedBook = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const b = await api<Book>(`/books/${bookId}`);
       setBook(b);
+      if (b.status !== 'generating') setRevisionRequested(false);
       return b;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load this book.');
       return null;
     }
   }, [bookId]);
+
+  const trackEvent = useCallback(
+    async (event: BookEventName, metadata: Record<string, unknown> = {}) => {
+      try {
+        await api<{ ok: true }>(`/books/${bookId}/events`, {
+          method: 'POST',
+          body: { event, metadata } satisfies CreateBookEventRequest,
+        });
+      } catch {
+        // Measurement should never block the parent journey.
+      }
+    },
+    [bookId],
+  );
 
   // Poll while the book is actively progressing (generating, or after payment).
   useEffect(() => {
@@ -56,7 +92,7 @@ export default function BookPage() {
       cancelled = true;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [ready, load, awaitingPayment]);
+  }, [ready, load, awaitingPayment, revisionRequested]);
 
   async function buy() {
     setPaying(true);
@@ -74,6 +110,22 @@ export default function BookPage() {
     }
   }
 
+  async function saveAlphaPreview() {
+    await trackEvent('alpha_preview_saved', { tier });
+    router.push('/books');
+  }
+
+  async function refreshAfterRevision() {
+    setRevisionRequested(true);
+    await load();
+  }
+
+  useEffect(() => {
+    if (!book || book.status !== 'preview_ready' || previewViewedBook.current === book.id) return;
+    previewViewedBook.current = book.id;
+    void trackEvent('preview_viewed', { pageCount: book.preview?.pages.length ?? 0 });
+  }, [book, trackEvent]);
+
   if (!ready || (!book && !error)) {
     return (
       <div className="web" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -90,9 +142,20 @@ export default function BookPage() {
         {book && book.status === 'generating' && <Generating book={book} />}
         {book && book.status === 'failed' && <Failed />}
         {book && (book.status === 'preview_ready' || ((book.status === 'paid' || book.status === 'complete') && !book.pdfUrl)) && book.status !== 'complete' && (
-          <Preview book={book} tier={tier} setTier={setTier} onBuy={buy} paying={paying || awaitingPayment} awaiting={awaitingPayment || book.status === 'paid'} />
+          <Preview
+            book={book}
+            tier={tier}
+            setTier={setTier}
+            onBuy={buy}
+            onAlphaSave={saveAlphaPreview}
+            onEvent={trackEvent}
+            onRevisionStarted={refreshAfterRevision}
+            paying={paying || awaitingPayment}
+            awaiting={awaitingPayment || book.status === 'paid'}
+            paymentsEnabled={PAYMENTS_ENABLED}
+          />
         )}
-        {book && book.status === 'complete' && <Delivered book={book} />}
+        {book && book.status === 'complete' && <Delivered book={book} onEvent={trackEvent} />}
       </div>
     </div>
   );
@@ -114,12 +177,26 @@ function Generating({ book }: { book: Book }) {
   );
 }
 
-function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
-  book: Book; tier: Tier; setTier: (t: Tier) => void; onBuy: () => void; paying: boolean; awaiting: boolean;
+function Preview({ book, tier, setTier, onBuy, onAlphaSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled }: {
+  book: Book;
+  tier: Tier;
+  setTier: (t: Tier) => void;
+  onBuy: () => void;
+  onAlphaSave: () => void;
+  onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>;
+  onRevisionStarted: () => Promise<void>;
+  paying: boolean;
+  awaiting: boolean;
+  paymentsEnabled: boolean;
 }) {
   const pages = book.preview?.pages ?? [];
   const [page, setPage] = useState(0);
   const current = pages[Math.min(page, pages.length - 1)];
+  const changePage = (next: number) => {
+    const bounded = Math.max(0, Math.min(pages.length - 1, next));
+    setPage(bounded);
+    void onEvent('preview_page_changed', { pageIndex: pages[bounded]?.pageIndex ?? bounded });
+  };
 
   return (
     <div>
@@ -147,9 +224,9 @@ function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
           </div>
           {pages.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 16 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}><Icon name="arrowL" size={16} stroke="var(--brand)" /></button>
+              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page - 1)} disabled={page === 0}><Icon name="arrowL" size={16} stroke="var(--brand)" /></button>
               <span style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{Math.min(page, pages.length - 1) + 1} / {pages.length}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))} disabled={page >= pages.length - 1}><Icon name="arrow" size={16} stroke="var(--brand)" /></button>
+              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page + 1)} disabled={page >= pages.length - 1}><Icon name="arrow" size={16} stroke="var(--brand)" /></button>
             </div>
           )}
         </div>
@@ -157,10 +234,12 @@ function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
         {/* order panel */}
         <div style={{ position: 'sticky', top: 96 }}>
           <div className="card" style={{ padding: '28px 26px' }}>
-            <h2 className="display" style={{ fontSize: 26, marginBottom: 4 }}>Make it real</h2>
-            <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 20 }}>Unlock the full book — yours instantly.</p>
+            <h2 className="display" style={{ fontSize: 26, marginBottom: 4 }}>{paymentsEnabled ? 'Make it real' : 'Private alpha preview'}</h2>
+            <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 20 }}>
+              {paymentsEnabled ? 'Unlock the full book — yours instantly.' : 'Checkout is paused while we test story quality with known families.'}
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {TIER_ORDER.map((t) => {
+              {TIER_ORDER.filter((t) => TIER_META[t].enabled).map((t) => {
                 const m = TIER_META[t];
                 const active = tier === t;
                 return (
@@ -178,17 +257,27 @@ function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
                 );
               })}
             </div>
-            <button className="btn btn-primary btn-block" style={{ marginTop: 20 }} onClick={onBuy} disabled={paying}>
-              {awaiting ? <><span className="spinner" /> Confirming payment…</> : paying ? <span className="spinner" /> : <><Icon name="heart" size={18} stroke="var(--accent-ink)" /> Unlock the full book</>}
-            </button>
+            {paymentsEnabled ? (
+              <button className="btn btn-primary btn-block" style={{ marginTop: 20 }} onClick={onBuy} disabled={paying}>
+                {awaiting ? <><span className="spinner" /> Confirming payment…</> : paying ? <span className="spinner" /> : <><Icon name="heart" size={18} stroke="var(--accent-ink)" /> Unlock the full book</>}
+              </button>
+            ) : (
+              <button className="btn btn-brand btn-block" style={{ marginTop: 20 }} onClick={onAlphaSave}>
+                <Icon name="book" size={18} stroke="#fff" /> Save this preview
+              </button>
+            )}
             <p className="trust" style={{ marginTop: 14, justifyContent: 'center' }}>
-              <Icon name="lock" size={15} stroke="var(--brand)" /> Secure payment · {awaiting ? 'finishing your book…' : 'pay only when you love it'}
+              <Icon name="lock" size={15} stroke="var(--brand)" /> {paymentsEnabled ? <>Secure payment · {awaiting ? 'finishing your book…' : 'pay only when you love it'}</> : 'No payment in internal alpha'}
             </p>
             <p style={{ marginTop: 12, fontSize: 12, lineHeight: 1.5, color: 'var(--ink-soft)', textAlign: 'center' }}>
-              Illustrations are AI-generated and may have small imperfections — please review your preview before
-              buying. See our{' '}
+              Illustrations are AI-generated and may have small imperfections — please review your preview {paymentsEnabled ? 'before buying' : 'and share feedback during alpha'}. See our{' '}
               <Link href="/legal/ai-disclosure" style={{ color: 'var(--brand)', fontWeight: 600 }}>AI Disclosure</Link>.
             </p>
+            <PreviewTrustList />
+            <ReadingGuidePanel guide={book.readingGuide} />
+            <PreviewShare bookId={book.id} onEvent={onEvent} />
+            <PreviewTweak book={book} onEvent={onEvent} onRevisionStarted={onRevisionStarted} />
+            {!paymentsEnabled && <AlphaFeedback bookId={book.id} />}
           </div>
         </div>
       </div>
@@ -196,7 +285,260 @@ function Preview({ book, tier, setTier, onBuy, paying, awaiting }: {
   );
 }
 
-function Delivered({ book }: { book: Book }) {
+function PreviewTrustList() {
+  return (
+    <div style={{ marginTop: 18, paddingTop: 18, borderTop: '2px solid var(--hairline)', display: 'grid', gap: 10 }}>
+      {[
+        ['No photos', 'The character is built from attributes, not uploads.'],
+        ['Adult review', 'Please check the story and images before sharing.'],
+        ['Private assets', 'Images use short-lived signed links.'],
+      ].map(([title, text]) => (
+        <p key={title} className="trust" style={{ alignItems: 'flex-start' }}>
+          <Icon name="shield" size={15} stroke="var(--teal)" style={{ flex: 'none', marginTop: 1 }} />
+          <span><strong style={{ color: 'var(--ink)' }}>{title}.</strong> {text}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function PreviewShare({ bookId, onEvent }: { bookId: string; onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void> }) {
+  const [shareUrl, setShareUrl] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function copyLink(url: string) {
+    if (!navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      await onEvent('preview_share_copied');
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  async function createShare() {
+    setBusy(true);
+    setError(null);
+    setCopied(false);
+    try {
+      const result = await api<CreateBookShareResponse>(`/books/${bookId}/share`, { method: 'POST' });
+      setShareUrl(result.shareUrl);
+      setExpiresAt(result.expiresAt);
+      await onEvent('preview_share_created');
+      await copyLink(result.shareUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not create a preview link.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeShares() {
+    setRevoking(true);
+    setError(null);
+    try {
+      await api<RevokeBookShareResponse>(`/books/${bookId}/share`, { method: 'DELETE' });
+      setShareUrl('');
+      setExpiresAt('');
+      setCopied(false);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not revoke preview links.');
+    } finally {
+      setRevoking(false);
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid var(--hairline)' }}>
+      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>Private preview link</h3>
+      <p style={{ fontSize: 13.5, lineHeight: 1.45, color: 'var(--ink-soft)', marginBottom: 14 }}>
+        Share this preview with one family member or tester. Links expire in 7 days.
+      </p>
+      {shareUrl ? (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <input className="input" value={shareUrl} readOnly onFocus={(e) => e.currentTarget.select()} style={{ fontSize: 13 }} />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-ghost btn-block" onClick={() => void copyLink(shareUrl)}>
+              <Icon name="mail" size={17} stroke="var(--brand)" /> {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={revokeShares} disabled={revoking}>
+              {revoking ? <span className="spinner spinner-brand" /> : <><Icon name="x" size={17} stroke="var(--brand)" /> Revoke</>}
+            </button>
+          </div>
+          {expiresAt && <p className="trust"><Icon name="lock" size={14} stroke="var(--brand)" /> Expires {new Date(expiresAt).toLocaleDateString()}</p>}
+        </div>
+      ) : (
+        <button className="btn btn-ghost btn-block" onClick={createShare} disabled={busy}>
+          {busy ? <span className="spinner spinner-brand" /> : <><Icon name="mail" size={18} stroke="var(--brand)" /> Create private link</>}
+        </button>
+      )}
+      {error && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 10 }}>{error}</p>}
+    </section>
+  );
+}
+
+function PreviewTweak({ book, onEvent, onRevisionStarted }: {
+  book: Book;
+  onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>;
+  onRevisionStarted: () => Promise<void>;
+}) {
+  const [instruction, setInstruction] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function requestRevision() {
+    const trimmed = instruction.trim();
+    if (trimmed.length < 8) {
+      setError('Add a little more detail for the tweak.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api<CreateBookRevisionResponse>(`/books/${book.id}/revisions`, {
+        method: 'POST',
+        body: { instruction: trimmed } satisfies CreateBookRevisionRequest,
+      });
+      await onEvent('preview_tweak_requested', { length: trimmed.length });
+      await onRevisionStarted();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not request a preview tweak.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid var(--hairline)' }}>
+      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>One free tweak</h3>
+      {book.canRequestRevision ? (
+        <>
+          <textarea
+            className="input"
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            maxLength={400}
+            rows={3}
+            placeholder="Make it calmer, more playful, or closer to our bedtime routine..."
+            style={{ resize: 'vertical', minHeight: 92 }}
+          />
+          <button className="btn btn-brand btn-block" style={{ marginTop: 12 }} onClick={requestRevision} disabled={saving || instruction.trim().length < 8}>
+            {saving ? <span className="spinner" /> : <><Sparkle size={17} color="#fff" /> Regenerate preview</>}
+          </button>
+        </>
+      ) : (
+        <p className="trust">
+          <Icon name="check" size={15} stroke="var(--success)" /> Free tweak used for this preview.
+        </p>
+      )}
+      {error && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 10 }}>{error}</p>}
+    </section>
+  );
+}
+
+function AlphaFeedback({ bookId }: { bookId: string }) {
+  const [rating, setRating] = useState<number | null>(null);
+  const [issueType, setIssueType] = useState<FeedbackIssueType>('none');
+  const [comments, setComments] = useState('');
+  const [wantsFullBook, setWantsFullBook] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submitFeedback() {
+    if (!rating) {
+      setError('Choose a rating first.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api<{ ok: true }>(`/books/${bookId}/feedback`, {
+        method: 'POST',
+        body: { rating, issueType, comments, wantsFullBook } satisfies CreateBookFeedbackRequest,
+      });
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not save feedback.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid var(--hairline)' }}>
+      <h3 className="display" style={{ fontSize: 21, marginBottom: 10 }}>Alpha feedback</h3>
+      <label className="label">Preview rating</label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`chip ${rating === n ? 'sel' : ''}`}
+            onClick={() => setRating(n)}
+            disabled={sent}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
+      <label className="label" htmlFor="feedback-issue">Issue type</label>
+      <select
+        id="feedback-issue"
+        className="input"
+        value={issueType}
+        onChange={(e) => setIssueType(e.target.value as FeedbackIssueType)}
+        disabled={sent}
+        style={{ marginBottom: 12 }}
+      >
+        {FEEDBACK_ISSUES.map((issue) => (
+          <option key={issue.id} value={issue.id}>{issue.label}</option>
+        ))}
+      </select>
+
+      <label className="label" htmlFor="feedback-comments">Notes</label>
+      <textarea
+        id="feedback-comments"
+        className="input"
+        value={comments}
+        onChange={(e) => setComments(e.target.value)}
+        disabled={sent}
+        maxLength={1000}
+        rows={3}
+        style={{ resize: 'vertical', minHeight: 92 }}
+      />
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 14, color: 'var(--ink-soft)' }}>
+        <input
+          type="checkbox"
+          checked={wantsFullBook}
+          onChange={(e) => setWantsFullBook(e.target.checked)}
+          disabled={sent}
+          style={{ width: 18, height: 18, accentColor: 'var(--brand)' }}
+        />
+        I would like the full book when alpha opens.
+      </label>
+
+      {error && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 10 }}>{error}</p>}
+      {sent ? (
+        <p className="trust" style={{ marginTop: 14, color: 'var(--success)' }}>
+          <Icon name="check" size={15} stroke="var(--success)" /> Feedback saved
+        </p>
+      ) : (
+        <button className="btn btn-ghost btn-block" style={{ marginTop: 16 }} onClick={submitFeedback} disabled={saving}>
+          {saving ? <span className="spinner spinner-brand" /> : <><Icon name="heart" size={18} stroke="var(--brand)" /> Send feedback</>}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Delivered({ book, onEvent }: { book: Book; onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void> }) {
   return (
     <div style={{ maxWidth: 560, margin: '20px auto', textAlign: 'center' }}>
       <div style={{ width: 84, height: 84, borderRadius: '50%', background: 'var(--soft-2)', margin: '0 auto 22px', display: 'grid', placeItems: 'center', animation: 'floaty 3s ease-in-out infinite' }}>
@@ -206,12 +548,12 @@ function Delivered({ book }: { book: Book }) {
       <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 28px' }}>Download it below — we’ve also emailed you the link.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360, margin: '0 auto' }}>
         {book.pdfUrl && (
-          <a className="btn btn-primary btn-block" href={book.pdfUrl} target="_blank" rel="noopener noreferrer">
+          <a className="btn btn-primary btn-block" href={book.pdfUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_pdf_clicked')}>
             <Icon name="download" size={18} stroke="var(--accent-ink)" /> Download the PDF
           </a>
         )}
         {book.audioUrl && (
-          <a className="btn btn-brand btn-block" href={book.audioUrl} target="_blank" rel="noopener noreferrer">
+          <a className="btn btn-brand btn-block" href={book.audioUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_audio_clicked')}>
             <Icon name="book" size={18} stroke="#fff" /> Listen to the narration
           </a>
         )}

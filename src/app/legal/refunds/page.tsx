@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Refund & Cancellation Policy — Plumtale' };
 
@@ -15,7 +16,7 @@ export default function Refunds() {
   return (
     <>
       <h1 className="display" style={h1}>Refund &amp; Cancellation Policy</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
         We want you to love your book before you pay for it — that&apos;s why every book starts with a free
@@ -53,9 +54,9 @@ export default function Refunds() {
 
       <h2 className="display" style={h2}>4. How to request a refund or cancellation</h2>
       <p style={p}>
-        Email [PLACEHOLDER: support email] with your account email and order details, and a short description
-        of the issue. We aim to acknowledge requests within [PLACEHOLDER: e.g. 2 business days] and to resolve
-        eligible requests within [PLACEHOLDER: e.g. 7 business days]. Approved refunds are returned to your
+        Email {BUSINESS.supportEmail} with your account email and order details, and a short description
+        of the issue. We aim to acknowledge requests within {BUSINESS.refundAckWindow} and to resolve
+        eligible requests within {BUSINESS.refundResolveWindow}. Approved refunds are returned to your
         original payment method through Razorpay; the time for the amount to appear depends on your bank or card
         provider.
       </p>

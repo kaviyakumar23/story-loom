@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { loadEnv } from './config/env';
 import { forbidden, unauthorized } from './lib/errors';
 import { serviceClient, verifyUserToken } from './lib/supabase';
@@ -33,5 +34,10 @@ export async function requireParent(req: Request): Promise<Parent> {
 /** Gate /api/v1/admin/* with the static admin secret (§5). */
 export function requireAdmin(req: Request): void {
   const token = bearer(req);
-  if (!token || token !== loadEnv().ADMIN_API_SECRET) throw forbidden('Admin access required');
+  const secret = loadEnv().ADMIN_API_SECRET;
+  if (!secret) throw forbidden('Admin API is not configured');
+  // Hash both sides so the comparison is constant-time and length-independent.
+  const a = createHash('sha256').update(token ?? '').digest();
+  const b = createHash('sha256').update(secret).digest();
+  if (!token || !timingSafeEqual(a, b)) throw forbidden('Admin access required');
 }

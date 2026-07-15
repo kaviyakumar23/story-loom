@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Content & Acceptable Use Policy — Plumtale' };
 
@@ -15,7 +16,7 @@ export default function ContentPolicy() {
   return (
     <>
       <h1 className="display" style={h1}>Content &amp; Acceptable Use Policy</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
         Plumtale makes warm, age-appropriate stories for children. To keep it safe, every request is checked by

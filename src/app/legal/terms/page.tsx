@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Terms of Service — Plumtale' };
 
@@ -15,7 +16,7 @@ export default function Terms() {
   return (
     <>
       <h1 className="display" style={h1}>Terms of Service</h1>
-      <p style={meta}>Effective date: [PLACEHOLDER: effective date] · Operated by [PLACEHOLDER: legal/business name].</p>
+      <p style={meta}>Effective date: {BUSINESS.effectiveDate} · Operated by {BUSINESS.legalName}.</p>
 
       <p style={p}>
         These Terms of Service (&quot;Terms&quot;) govern your use of Plumtale (&quot;Plumtale&quot;,
@@ -44,7 +45,7 @@ export default function Terms() {
       <p style={p}>
         You access Plumtale through a parent account tied to your email address. You are responsible for
         keeping access to your email and account secure and for activity that occurs under your account.
-        Please tell us promptly at [PLACEHOLDER: support email] if you believe your account has been used
+        Please tell us promptly at {BUSINESS.supportEmail} if you believe your account has been used
         without your permission.
       </p>
 
@@ -132,15 +133,14 @@ export default function Terms() {
 
       <h2 className="display" style={h2}>13. Governing law and disputes</h2>
       <p style={p}>
-        These Terms are governed by the laws of India, and the courts of [PLACEHOLDER: governing-law
-        state/city in India] will have jurisdiction, subject to any mandatory consumer protections.
+        These Terms are governed by the laws of India, and the courts of {BUSINESS.governingLawCity} will
+        have jurisdiction, subject to any mandatory consumer protections.
       </p>
 
       <h2 className="display" style={h2}>14. Grievance contact</h2>
       <p style={p}>
-        For complaints or questions about these Terms, contact our grievance officer, [PLACEHOLDER: grievance
-        officer name], at [PLACEHOLDER: grievance officer email], or write to us at [PLACEHOLDER: registered
-        address]. See our{' '}
+        For complaints or questions about these Terms, contact our grievance officer, {BUSINESS.grievanceOfficerName},
+        at {BUSINESS.grievanceOfficerEmail}, or write to us at {BUSINESS.registeredAddress}. See our{' '}
         <Link href="/legal/contact" style={link}>Contact &amp; Grievance Redressal</Link> page for the full
         process and timelines.
       </p>
