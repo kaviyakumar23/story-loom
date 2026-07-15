@@ -10,7 +10,7 @@ import type { Story, StoryRequest, TextProvider, TextResult } from '../types';
  * Outputs (`response_format: json_schema`, strict) to force schema-valid story
  * JSON. Re-confirm the model at build time; swap the constant to change it.
  */
-const MODEL = 'gpt-4o';
+const DEFAULT_MODEL = 'gpt-4o';
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 interface ChatResponse {
@@ -20,10 +20,15 @@ interface ChatResponse {
 }
 
 export class OpenAITextProvider implements TextProvider {
-  readonly name = MODEL;
+  readonly name: string;
+
+  constructor(private readonly model = DEFAULT_MODEL) {
+    this.name = model;
+  }
 
   async generateStory(req: StoryRequest): Promise<TextResult<Story>> {
     const env = loadEnv();
+    if (!env.OPENAI_API_KEY) throw new Error('OpenAI is not configured');
     const system = storySystemPrompt();
     const user = storyUserPrompt(req);
 
@@ -39,7 +44,8 @@ export class OpenAITextProvider implements TextProvider {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: this.model,
+          temperature: env.STORY_TEMPERATURE,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
@@ -61,12 +67,12 @@ export class OpenAITextProvider implements TextProvider {
     if (message?.refusal) throw new Error(`OpenAI refused the request: ${message.refusal}`);
     const text = message?.content ?? '';
     if (!text) throw new Error('OpenAI returned empty story content');
-    const value: Story = parseStory(JSON.parse(text));
+    const value: Story = parseStory(JSON.parse(text), req.pageCount);
 
     return {
       value,
       usage: {
-        model: data.model ?? MODEL,
+        model: data.model ?? this.model,
         tokensIn: data.usage?.prompt_tokens ?? 0,
         tokensOut: data.usage?.completion_tokens ?? 0,
       },

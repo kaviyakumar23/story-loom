@@ -6,7 +6,9 @@ import type {
   BookStatus,
   Goal,
   Language,
+  OccasionPackId,
   PreviewPage,
+  ReadingGuide,
   ReadingLevel,
   Tier,
 } from '../types/api';
@@ -17,6 +19,7 @@ export interface BookRow {
   status: BookStatus;
   progress: number;
   goal: Goal;
+  occasion_pack: OccasionPackId | null;
   language: Language;
   reading_level: ReadingLevel;
   title: string | null;
@@ -45,11 +48,13 @@ export function toListItem(row: BookRow): BookListItem {
  * issued on demand (§11).
  */
 export async function toBook(row: BookRow): Promise<Book> {
+  const revisionCount = await loadRevisionCount(row.id);
   const book: Book = {
     id: row.id,
     status: row.status,
     progress: row.progress,
     goal: row.goal,
+    occasionPack: row.occasion_pack ?? null,
     language: row.language,
     readingLevel: row.reading_level,
     title: row.title,
@@ -58,10 +63,14 @@ export async function toBook(row: BookRow): Promise<Book> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     error: row.error,
+    revisionCount,
+    revisionLimit: 1,
+    canRequestRevision: row.status === 'preview_ready' && revisionCount < 1,
   };
 
-  if (row.status === 'preview_ready') {
+  if (row.status === 'preview_ready' || row.status === 'paid' || row.status === 'complete') {
     book.preview = { pages: await loadPreviewPages(row.id) };
+    book.readingGuide = await loadReadingGuide(row.id);
   }
 
   if (row.status === 'paid' || row.status === 'complete') {
@@ -71,6 +80,33 @@ export async function toBook(row: BookRow): Promise<Book> {
   }
 
   return book;
+}
+
+async function loadReadingGuide(bookId: string): Promise<ReadingGuide | null> {
+  const { data } = await serviceClient()
+    .from('book_reading_guides')
+    .select('vocabulary, discussion_questions, activity')
+    .eq('book_id', bookId)
+    .maybeSingle();
+  const row = data as {
+    vocabulary: string[] | null;
+    discussion_questions: string[] | null;
+    activity: string | null;
+  } | null;
+  if (!row) return null;
+  return {
+    vocabulary: row.vocabulary ?? [],
+    discussionQuestions: row.discussion_questions ?? [],
+    activity: row.activity,
+  };
+}
+
+async function loadRevisionCount(bookId: string): Promise<number> {
+  const { count } = await serviceClient()
+    .from('book_revision_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('book_id', bookId);
+  return count ?? 0;
 }
 
 async function loadPreviewPages(bookId: string): Promise<PreviewPage[]> {

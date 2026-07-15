@@ -34,6 +34,9 @@ export class OpenAIModerator implements Moderator {
 
   private async call(input: unknown[]): Promise<ModerationResult> {
     const env = loadEnv();
+    if (!env.OPENAI_API_KEY) {
+      return { allowed: false, reasons: ['openai_not_configured'] };
+    }
     let data: ModerationApiResponse;
     try {
       const res = await fetchWithTimeout(

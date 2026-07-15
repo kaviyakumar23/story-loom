@@ -14,6 +14,9 @@ let _client: Razorpay | null = null;
 export function razorpay(): Razorpay {
   if (_client) return _client;
   const env = loadEnv();
+  if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
+    throw new Error('Razorpay is not configured');
+  }
   _client = new Razorpay({
     key_id: env.RAZORPAY_KEY_ID,
     key_secret: env.RAZORPAY_KEY_SECRET,
@@ -78,6 +81,9 @@ export async function refundPayment(opts: {
  */
 export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
   const env = loadEnv();
+  if (!env.RAZORPAY_WEBHOOK_SECRET) {
+    throw new Error('Razorpay webhook secret is not configured');
+  }
   const expected = crypto
     .createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
     .update(rawBody)

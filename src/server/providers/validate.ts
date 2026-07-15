@@ -24,12 +24,25 @@ const storySchema = z.object({
   activity: z.string().default(''),
 });
 
-export function parseStory(raw: unknown): Story {
+export function parseStory(raw: unknown, expectedPageCount?: number): Story {
   const result = storySchema.safeParse(raw);
   if (!result.success) {
     throw new Error(`Model returned an invalid story: ${result.error.issues.map((i) => i.path.join('.') + ' ' + i.message).join('; ')}`);
   }
   // Normalize page order and re-index defensively.
   const pages = [...result.data.pages].sort((a, b) => a.index - b.index);
+  if (expectedPageCount !== undefined) {
+    if (pages.length !== expectedPageCount) {
+      throw new Error(`Model returned ${pages.length} pages; expected ${expectedPageCount}`);
+    }
+    const seen = new Set<number>();
+    for (let i = 0; i < expectedPageCount; i += 1) {
+      const page = pages[i];
+      if (!page || page.index !== i || seen.has(page.index)) {
+        throw new Error(`Model returned invalid page indexes; expected 0 through ${expectedPageCount - 1}`);
+      }
+      seen.add(page.index);
+    }
+  }
   return { ...result.data, pages };
 }

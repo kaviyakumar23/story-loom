@@ -7,8 +7,9 @@ import { retentionPurge } from '@/server/pipeline/retention';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Generation steps (image gen, PDF assembly) can run tens of seconds.
-export const maxDuration = 60;
+// Generation steps call external AI providers; alpha hosting should allow room
+// for slow-but-successful image and PDF stages.
+export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
   client: inngest,

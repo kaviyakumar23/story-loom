@@ -44,6 +44,40 @@ export type Tier = (typeof TIERS)[number];
 export const LANGUAGES = ['en'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
+export const OCCASION_PACKS = [
+  'first_day_school',
+  'braver_bedtime',
+  'new_sibling',
+  'kindness_reset',
+  'reading_win',
+  'big_move',
+  'english_practice',
+  'try_again',
+] as const;
+export type OccasionPackId = (typeof OCCASION_PACKS)[number];
+
+export const BOOK_EVENT_NAMES = [
+  'preview_viewed',
+  'preview_page_changed',
+  'alpha_preview_saved',
+  'preview_share_created',
+  'preview_share_copied',
+  'preview_tweak_requested',
+  'download_pdf_clicked',
+  'download_audio_clicked',
+] as const;
+export type BookEventName = (typeof BOOK_EVENT_NAMES)[number];
+
+export const FEEDBACK_ISSUE_TYPES = [
+  'none',
+  'story_quality',
+  'image_quality',
+  'safety',
+  'technical',
+  'other',
+] as const;
+export type FeedbackIssueType = (typeof FEEDBACK_ISSUE_TYPES)[number];
+
 // ---- Domain shapes ----
 
 /**
@@ -75,11 +109,18 @@ export interface PreviewPage {
   imageUrl: string | null;
 }
 
+export interface ReadingGuide {
+  vocabulary: string[];
+  discussionQuestions: string[];
+  activity: string | null;
+}
+
 export interface Book {
   id: string;
   status: BookStatus;
   progress: number;
   goal: Goal;
+  occasionPack: OccasionPackId | null;
   language: Language;
   readingLevel: ReadingLevel;
   title: string | null;
@@ -89,6 +130,10 @@ export interface Book {
   updatedAt: string;
   /** Present once status reaches preview_ready. */
   preview?: { pages: PreviewPage[] };
+  readingGuide?: ReadingGuide | null;
+  revisionCount: number;
+  revisionLimit: number;
+  canRequestRevision: boolean;
   /** Signed URLs present once complete/paid (§11). */
   pdfUrl?: string | null;
   audioUrl?: string | null;
@@ -119,6 +164,7 @@ export interface CreateConsentResponse {
 export interface CreateBookRequest {
   child: ChildInput;
   goal: Goal;
+  occasionPack?: OccasionPackId | null;
   language: Language;
   readingLevel: ReadingLevel;
   consentId: string;
@@ -150,6 +196,41 @@ export interface OrderStatusResponse {
   status: 'created' | 'paid' | 'failed' | 'refunded';
   bookId: string;
   tier: Tier;
+}
+
+export interface BetaAccessResponse {
+  enabled: boolean;
+  granted: boolean;
+}
+
+export interface CreateBookEventRequest {
+  event: BookEventName;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateBookFeedbackRequest {
+  rating: number;
+  issueType: FeedbackIssueType;
+  comments?: string;
+  wantsFullBook: boolean;
+}
+
+export interface CreateBookShareResponse {
+  shareUrl: string;
+  expiresAt: string;
+}
+
+export interface RevokeBookShareResponse {
+  revoked: number;
+}
+
+export interface CreateBookRevisionRequest {
+  instruction: string;
+}
+
+export interface CreateBookRevisionResponse {
+  ok: true;
+  revisionId: string;
 }
 
 export interface ApiError {

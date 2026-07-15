@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const BOOK_COLUMNS =
-  'id, status, progress, goal, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
+  'id, status, progress, goal, occasion_pack, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
 
 type Ctx = { params: Promise<{ id: string }> };
 

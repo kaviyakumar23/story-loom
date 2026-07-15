@@ -19,6 +19,7 @@ const TEXT_PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
 // Note: OpenAI's moderation endpoint (omni-moderation-latest) is free — no entry.
 const IMAGE_PRICE: Record<string, number> = {
   'gemini-2.5-flash-image': 0.039,
+  'gemini-3-pro-image': 0.134,
   'gemini-3-pro-image-preview': 0.134,
 };
 

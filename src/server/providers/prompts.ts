@@ -13,9 +13,12 @@ export function storySystemPrompt(): string {
     `Never invent or use a real name — always write "${HERO_TOKEN}" where the child is named.`,
     'Write age-appropriate, kind, emotionally safe stories with a clear, gentle arc that',
     'serves the requested goal. No violence, fear-mongering, scary imagery, or unsafe',
-    'behavior. Each page must include a concrete illustration prompt describing the scene',
+    'behavior. Do not make medical, diagnostic, or therapy claims; keep it fictional and',
+    'supportive. Avoid shame, punishment, manipulative obedience, and stereotypes.',
+    'Each page must include a concrete illustration prompt describing the scene',
     `(setting, action, mood) WITHOUT restating ${HERO_TOKEN}'s physical appearance — the`,
-    'illustrator works from a fixed character reference.',
+    'illustrator works from a fixed character reference. Illustration prompts must avoid',
+    'text, letters, signage, brand logos, weapons, unsafe acts, and scary imagery.',
   ].join(' ');
 }
 
@@ -23,7 +26,11 @@ export function storyUserPrompt(req: StoryRequest): string {
   return [
     `Write a ${req.pageCount}-page picture book for a child in the ${req.ageBand} age band.`,
     `Reading level: ${req.readingLevel}. Story goal: ${req.goal.replace(/_/g, ' ')}.`,
+    req.occasionPack ? `Occasion pack: ${req.occasionPack.replace(/_/g, ' ')}.` : '',
     req.interests.length ? `Weave in these interests where natural: ${req.interests.join(', ')}.` : '',
+    req.revisionInstruction
+      ? `This is one parent-requested preview revision. Keep the original goal, but adjust the new version this way: ${req.revisionInstruction}.`
+      : '',
     'Match vocabulary and sentence length to the reading level.',
     'Return a title, a one-line theme, exactly one entry per page (0-indexed),',
     'a short vocabulary list, 3 discussion questions for a parent, and one simple activity.',
@@ -46,6 +53,8 @@ export function storyJsonSchema(pageCount: number): Record<string, unknown> {
       theme: { type: 'string' },
       pages: {
         type: 'array',
+        minItems: pageCount,
+        maxItems: pageCount,
         items: {
           type: 'object',
           additionalProperties: false,

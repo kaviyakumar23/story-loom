@@ -43,8 +43,16 @@ export const fulfillmentPipeline = inngest.createFunction(
         return loadContext(bookId);
       });
 
-      // 8–9. Remaining interior pages (each moderated in renderAndStorePage).
-      await step.run('remaining-pages', async () => renderRemaining(ctx));
+      // 8–9. Remaining interior pages, one provider call per step.
+      const pending = await step.run('remaining-pages-list', async () => loadPendingPages(ctx.bookId));
+      let done = 0;
+      for (const page of pending) {
+        await step.run(`render-page-${page.page_index}`, async () => renderRemainingPage(ctx, page));
+        done += 1;
+        if (pending.length) {
+          await setProgress(bookId, 20 + Math.round((done / pending.length) * 50));
+        }
+      }
       await setProgress(bookId, 70);
 
       // 10. Assemble print-quality PDF.
@@ -69,35 +77,38 @@ export const fulfillmentPipeline = inngest.createFunction(
   },
 );
 
-async function renderRemaining(ctx: BookContext): Promise<void> {
-  const db = serviceClient();
-  const { data } = await db
+interface PendingPage {
+  page_index: number;
+  illustration_prompt: string | null;
+}
+
+async function loadPendingPages(bookId: string): Promise<PendingPage[]> {
+  const { data } = await serviceClient()
     .from('book_pages')
     .select('page_index, illustration_prompt, image_asset_id')
-    .eq('book_id', ctx.bookId)
+    .eq('book_id', bookId)
     .is('image_asset_id', null)
     .order('page_index', { ascending: true });
 
-  const pending = (data ?? []) as { page_index: number; illustration_prompt: string | null }[];
-  if (!pending.length) return;
+  return (data ?? []) as PendingPage[];
+}
 
+async function renderRemainingPage(ctx: BookContext, page: PendingPage): Promise<void> {
   const reference = await resolveCharacterSheet(ctx);
-  for (const p of pending) {
-    const { model } = await renderAndStorePage(
-      ctx,
-      p.page_index,
-      p.illustration_prompt ?? '',
-      reference,
-    );
-    await recordEvent({
-      bookId: ctx.bookId,
-      stage: 'images',
-      model,
-      images: 1,
-      costUsd: imageCost(model, 1),
-      status: 'ok',
-    });
-  }
+  const { model } = await renderAndStorePage(
+    ctx,
+    page.page_index,
+    page.illustration_prompt ?? '',
+    reference,
+  );
+  await recordEvent({
+    bookId: ctx.bookId,
+    stage: 'images',
+    model,
+    images: 1,
+    costUsd: imageCost(model, 1),
+    status: 'ok',
+  });
 }
 
 async function assemble(ctx: BookContext): Promise<void> {
@@ -157,7 +168,10 @@ async function synthesizeAudio(ctx: BookContext): Promise<void> {
 
 async function deliver(ctx: BookContext): Promise<void> {
   const db = serviceClient();
-  await db.from('books').update({ status: 'complete', progress: 100 }).eq('id', ctx.bookId);
+  await db
+    .from('books')
+    .update({ status: 'complete', progress: 100, completed_at: new Date().toISOString() })
+    .eq('id', ctx.bookId);
   await audit({ actor: 'system', action: 'book.delivered', entity: 'books', entityId: ctx.bookId });
 
   const { data } = await db.auth.admin.getUserById(ctx.parentId);

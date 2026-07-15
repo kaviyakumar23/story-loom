@@ -6,6 +6,7 @@ import { EVENTS, inngest } from './client';
 import {
   gateText,
   loadContext,
+  markLatestRevision,
   markFailed,
   pageCountFor,
   persistStory,
@@ -35,6 +36,7 @@ export const previewPipeline = inngest.createFunction(
       // 1. Intake
       const ctx = await step.run('intake', async () => {
         await setProgress(bookId, 5, 'generating');
+        await markLatestRevision(bookId, 'running');
         return loadContext(bookId);
       });
 
@@ -42,15 +44,33 @@ export const previewPipeline = inngest.createFunction(
       const plan = await step.run('story', async () => buildStory(ctx));
       await setProgress(bookId, 35);
 
-      // 3–6. Character sheet + cover + preview pages + Gate #3 (rendered images).
-      //  Kept in one step so the (large, base64) reference pack stays in memory
-      //  rather than being serialized across step boundaries.
-      await step.run('render-preview', async () => {
+      // 3. Character sheet. Kept separate so slow image providers do not force
+      // the entire preview render into one long serverless invocation.
+      await step.run('character-sheet', async () => {
+        await resolveCharacterSheet(ctx);
+        await setProgress(bookId, 45);
+      });
+
+      // 4. Cover + Gate #3 (rendered image moderation).
+      await step.run('render-cover', async () => {
         const reference = await resolveCharacterSheet(ctx);
-        await renderAndStorePage(ctx, -1, plan.coverPrompt, reference, true);
+        const { model } = await renderAndStorePage(ctx, -1, plan.coverPrompt, reference, true);
+        await recordEvent({
+          bookId,
+          stage: 'images',
+          model,
+          images: 1,
+          costUsd: imageCost(model, 1),
+          status: 'ok',
+        });
         await setProgress(bookId, 55);
-        let done = 0;
-        for (const page of plan.previewPages) {
+      });
+
+      // 5–6. Preview pages + Gate #3, one provider call per step.
+      let done = 0;
+      for (const page of plan.previewPages) {
+        await step.run(`render-preview-page-${page.index}`, async () => {
+          const reference = await resolveCharacterSheet(ctx);
           const { model } = await renderAndStorePage(ctx, page.index, page.prompt, reference);
           await recordEvent({
             bookId,
@@ -60,13 +80,16 @@ export const previewPipeline = inngest.createFunction(
             costUsd: imageCost(model, 1),
             status: 'ok',
           });
-          done += 1;
-          await setProgress(bookId, 55 + Math.round((done / plan.previewPages.length) * 40));
-        }
-      });
+        });
+        done += 1;
+        await setProgress(bookId, 55 + Math.round((done / plan.previewPages.length) * 40));
+      }
 
       // 7. Preview ready
-      await step.run('finalize', async () => setProgress(bookId, 100, 'preview_ready'));
+      await step.run('finalize', async () => {
+        await setProgress(bookId, 100, 'preview_ready');
+        await markLatestRevision(bookId, 'completed');
+      });
       return { bookId, status: 'preview_ready' };
     } catch (err) {
       // Moderation blocks already mark failed; this catches anything else.
@@ -91,10 +114,12 @@ async function buildStory(ctx: BookContext): Promise<StoryPlan> {
     ageBand: ctx.ageBand,
     readingLevel: ctx.readingLevel,
     goal: ctx.goal,
+    occasionPack: ctx.occasionPack,
     // Scrub the child's name out of free-text interests before it reaches the
     // model, and guard the whole payload against it (§9).
     interests: scrubAll(ctx.interests, ctx.nickname),
     pageCount: pageCountFor(ctx.readingLevel),
+    revisionInstruction: ctx.revisionInstruction ? scrubAll([ctx.revisionInstruction], ctx.nickname)[0] : null,
     guard: [ctx.nickname],
   });
   const story = result.value;

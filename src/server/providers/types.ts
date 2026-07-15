@@ -17,6 +17,10 @@ export interface StoryRequest {
   interests: string[];
   /** Number of interior pages to plan for. */
   pageCount: number;
+  /** Optional curated beta pack selected during intake. */
+  occasionPack?: string | null;
+  /** Optional parent-requested revision, already scrubbed of sensitive text. */
+  revisionInstruction?: string | null;
   /** Sensitive terms (e.g. the nickname) the outbound payload must NOT contain. */
   guard: string[];
 }

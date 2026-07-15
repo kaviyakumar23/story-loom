@@ -27,10 +27,28 @@ export async function eraseParentData(parentId: string): Promise<void> {
       .update({ text: '[erased]', illustration_prompt: null })
       .in('book_id', bookIds);
     await db.from('books').update({ title: null, theme: null }).in('id', bookIds);
+    await db
+      .from('book_reading_guides')
+      .update({ vocabulary: [], discussion_questions: [], activity: null })
+      .in('book_id', bookIds);
+    await db.from('book_events').delete().in('book_id', bookIds);
+    await db.from('book_feedback').delete().in('book_id', bookIds);
+    await db.from('book_share_links').delete().in('book_id', bookIds);
+    await db
+      .from('book_revision_requests')
+      .update({ instruction: '[erased]', error: null })
+      .in('book_id', bookIds);
   }
 
   // Anonymize the hero records (nickname, attributes, interests).
   if (heroIds.length) {
+    const { data: sheets } = await db
+      .from('character_sheets')
+      .select('reference_pack')
+      .in('hero_id', heroIds);
+    await removeAssets(extractReferenceKeys(sheets ?? []));
+    await db.from('character_sheets').delete().in('hero_id', heroIds);
+
     await db
       .from('heroes')
       .update({ nickname: '[erased]', avatar: {}, interests: [] })
@@ -59,4 +77,18 @@ export async function eraseParentData(parentId: string): Promise<void> {
     entityId: parentId,
     metadata: { heroes: heroIds.length, books: bookIds.length },
   });
+}
+
+function extractReferenceKeys(rows: unknown[]): string[] {
+  const keys: string[] = [];
+  for (const row of rows) {
+    const pack = (row as { reference_pack?: unknown }).reference_pack;
+    const images = (pack as { images?: unknown[] } | null | undefined)?.images;
+    if (!Array.isArray(images)) continue;
+    for (const image of images) {
+      const storageKey = (image as { storageKey?: unknown }).storageKey;
+      if (typeof storageKey === 'string' && storageKey) keys.push(storageKey);
+    }
+  }
+  return keys;
 }

@@ -7,7 +7,7 @@ import { downloadAsset, signAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders } from '../providers/index';
 import type { CharacterReferencePack, Story } from '../providers/types';
-import type { AgeBand, Goal, ReadingLevel } from '../types/api';
+import type { AgeBand, Goal, OccasionPackId, ReadingLevel } from '../types/api';
 
 /** Cover + first N interior pages make the free preview (§6 phase A). */
 export const PREVIEW_PAGE_COUNT = 3;
@@ -25,15 +25,17 @@ export interface BookContext {
   avatar: Record<string, unknown>;
   interests: string[];
   goal: Goal;
+  occasionPack: OccasionPackId | null;
   readingLevel: ReadingLevel;
   purchasedTier: string | null;
+  revisionInstruction: string | null;
 }
 
 export async function loadContext(bookId: string): Promise<BookContext> {
   const db = serviceClient();
   const { data: book } = await db
     .from('books')
-    .select('id, parent_id, hero_id, goal, reading_level, purchased_tier')
+    .select('id, parent_id, hero_id, goal, occasion_pack, reading_level, purchased_tier')
     .eq('id', bookId)
     .maybeSingle();
   if (!book) throw new NonRetriableError(`Book ${bookId} not found`);
@@ -49,6 +51,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     parent_id: string;
     hero_id: string;
     goal: Goal;
+    occasion_pack: OccasionPackId | null;
     reading_level: ReadingLevel;
     purchased_tier: string | null;
   };
@@ -67,8 +70,10 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     avatar: h.avatar ?? {},
     interests: h.interests ?? [],
     goal: b.goal,
+    occasionPack: b.occasion_pack ?? null,
     readingLevel: b.reading_level,
     purchasedTier: b.purchased_tier,
+    revisionInstruction: await loadLatestRevisionInstruction(bookId),
   };
 }
 
@@ -78,7 +83,11 @@ export async function setProgress(
   status?: string,
 ): Promise<void> {
   const patch: Record<string, unknown> = { progress };
-  if (status) patch.status = status;
+  if (status) {
+    patch.status = status;
+    if (status === 'preview_ready') patch.preview_ready_at = new Date().toISOString();
+    if (status === 'complete') patch.completed_at = new Date().toISOString();
+  }
   await serviceClient().from('books').update(patch).eq('id', bookId);
 }
 
@@ -87,6 +96,7 @@ export async function markFailed(bookId: string, code: string, message: string):
     .from('books')
     .update({ status: 'failed', error: { code, message } })
     .eq('id', bookId);
+  await markLatestRevision(bookId, 'failed', message);
 }
 
 /**
@@ -97,6 +107,17 @@ export async function markFailed(bookId: string, code: string, message: string):
 export async function persistStory(ctx: BookContext, story: Story): Promise<void> {
   const db = serviceClient();
   await db.from('books').update({ title: story.title, theme: story.theme }).eq('id', ctx.bookId);
+  const { error: guideErr } = await db.from('book_reading_guides').upsert(
+    {
+      book_id: ctx.bookId,
+      vocabulary: story.vocabulary,
+      discussion_questions: story.discussionQuestions,
+      activity: story.activity,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'book_id' },
+  );
+  if (guideErr) throw new Error(`persistGuide failed: ${guideErr.message}`);
 
   const rows = story.pages.map((p) => ({
     book_id: ctx.bookId,
@@ -110,11 +131,47 @@ export async function persistStory(ctx: BookContext, story: Story): Promise<void
   if (error) throw new Error(`persistStory failed: ${error.message}`);
 }
 
+export async function markLatestRevision(
+  bookId: string,
+  status: 'running' | 'completed' | 'failed',
+  error?: string,
+): Promise<void> {
+  const db = serviceClient();
+  const { data } = await db
+    .from('book_revision_requests')
+    .select('id, status')
+    .eq('book_id', bookId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { id: string; status: string } | null;
+  if (!row || row.status === 'completed' || row.status === 'failed') return;
+
+  const patch: Record<string, unknown> = { status };
+  if (status === 'completed') patch.completed_at = new Date().toISOString();
+  if (status === 'failed') {
+    patch.completed_at = new Date().toISOString();
+    patch.error = error ?? 'Preview revision failed';
+  }
+  await db.from('book_revision_requests').update(patch).eq('id', row.id);
+}
+
+async function loadLatestRevisionInstruction(bookId: string): Promise<string | null> {
+  const { data } = await serviceClient()
+    .from('book_revision_requests')
+    .select('instruction')
+    .eq('book_id', bookId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return ((data as { instruction?: string } | null)?.instruction ?? null)?.trim() || null;
+}
+
 /**
  * Resolve the hero's character sheet: reuse the cached reference pack if present
  * (cheaper + more consistent for repeat books — §7), else generate and cache it.
- * Reference images are stored inline in the row for v1; moving them to object
- * storage is a later optimization.
+ * Reference images live in object storage; the DB row keeps only the keys so
+ * erasure can purge the underlying files.
  */
 export async function resolveCharacterSheet(ctx: BookContext): Promise<CharacterReferencePack> {
   const db = serviceClient();

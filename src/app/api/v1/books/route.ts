@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { loadEnv } from '@/server/config/env';
 import { requireParent } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
+import { assertBetaAccess } from '@/server/lib/beta-access';
 import { badRequest } from '@/server/lib/errors';
 import { toListItem, type BookRow } from '@/server/lib/mappers';
 import { jsonError, readJson } from '@/server/lib/route';
@@ -12,6 +13,7 @@ import {
   AGE_BANDS,
   GOALS,
   LANGUAGES,
+  OCCASION_PACKS,
   READING_LEVELS,
   type CreateBookResponse,
 } from '@/server/types/api';
@@ -20,7 +22,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const BOOK_COLUMNS =
-  'id, status, progress, goal, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
+  'id, status, progress, goal, occasion_pack, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
 
 const createSchema = z.object({
   child: z.object({
@@ -37,6 +39,7 @@ const createSchema = z.object({
     interests: z.array(z.string().max(40)).max(10),
   }),
   goal: z.enum(GOALS),
+  occasionPack: z.enum(OCCASION_PACKS).nullable().optional(),
   language: z.enum(LANGUAGES),
   readingLevel: z.enum(READING_LEVELS),
   consentId: z.string().uuid(),
@@ -46,6 +49,7 @@ const createSchema = z.object({
 export async function POST(req: Request): Promise<Response> {
   try {
     const parent = await requireParent(req);
+    assertBetaAccess(req);
     const parsed = createSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid book payload', parsed.error.issues);
     const input = parsed.data;
@@ -104,6 +108,7 @@ export async function POST(req: Request): Promise<Response> {
         hero_id: hero.id,
         consent_id: input.consentId,
         goal: input.goal,
+        occasion_pack: input.occasionPack ?? null,
         language: input.language,
         reading_level: input.readingLevel,
         status: 'generating',

@@ -9,8 +9,16 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request): Promise<Response> {
   try {
     requireAdmin(req);
-    return Response.json(await computeMetrics());
+    const windowDays = parseWindowDays(req.url);
+    return Response.json(await computeMetrics(windowDays));
   } catch (err) {
     return jsonError(err);
   }
+}
+
+function parseWindowDays(url: string): number {
+  const raw = new URL(url).searchParams.get('days');
+  if (!raw) return 7;
+  const days = Number(raw);
+  return Number.isFinite(days) && days > 0 && days <= 120 ? Math.floor(days) : 7;
 }

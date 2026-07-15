@@ -5,12 +5,13 @@ import { Suspense, useEffect, useState } from 'react';
 import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { safeNextPath } from '@/lib/navigation';
 import { supabase } from '@/lib/supabase';
 
 function SignInInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/create';
+  const next = safeNextPath(params.get('next'), '/create');
   const { session } = useAuth();
 
   const [email, setEmail] = useState('');

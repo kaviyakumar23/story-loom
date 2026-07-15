@@ -21,7 +21,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!book) throw notFound('Book not found');
 
     const paid = Boolean((book as { purchased_tier: string | null }).purchased_tier);
-    await db.from('books').update({ status: 'generating', progress: 0, error: null }).eq('id', id);
+    const patch: Record<string, unknown> = {
+      status: 'generating',
+      progress: 0,
+      error: null,
+      completed_at: null,
+    };
+    if (!paid) patch.preview_ready_at = null;
+    await db
+      .from('books')
+      .update(patch)
+      .eq('id', id);
     await inngest.send({ name: paid ? EVENTS.fulfillmentRequested : EVENTS.previewRequested, data: { bookId: id } });
     await audit({ actor: 'admin', action: 'book.rerun', entity: 'books', entityId: id, metadata: { paid } });
 

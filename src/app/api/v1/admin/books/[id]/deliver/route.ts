@@ -36,7 +36,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const { error: assetErr } = await db.from('assets').insert(assetRows);
     if (assetErr) throw badRequest('Could not persist assets', assetErr.message);
 
-    await db.from('books').update({ status: 'complete', progress: 100 }).eq('id', id);
+    await db
+      .from('books')
+      .update({ status: 'complete', progress: 100, completed_at: new Date().toISOString() })
+      .eq('id', id);
     await audit({ actor: 'admin', action: 'book.delivered', entity: 'books', entityId: id, metadata: { hasAudio: Boolean(parsed.data.audioStorageKey) } });
 
     const { data: user } = await db.auth.admin.getUserById((book as { parent_id: string }).parent_id);

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { safeNextPath } from '@/lib/navigation';
 import { supabase } from '@/lib/supabase';
 
 function CallbackInner() {
@@ -10,7 +11,7 @@ function CallbackInner() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const next = params.get('next') || '/books';
+    const next = safeNextPath(params.get('next'), '/books');
     const code = params.get('code');
     (async () => {
       if (code) {

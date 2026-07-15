@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -10,11 +10,14 @@ import { useRequireAuth } from '@/lib/auth';
 import {
   AGE_BANDS,
   GOAL_LABELS,
+  OCCASION_PACKS,
   READING_LEVELS,
+  type BetaAccessResponse,
   type AgeBand,
   type CreateBookResponse,
   type CreateConsentResponse,
   type Goal,
+  type OccasionPackId,
   type ReadingLevel,
 } from '@/lib/types';
 
@@ -59,14 +62,37 @@ export default function Create() {
   const [hair, setHair] = useState('');
   const [glasses, setGlasses] = useState(false);
   const [goal, setGoal] = useState<Goal | ''>('');
+  const [occasionPack, setOccasionPack] = useState<OccasionPackId | null>(null);
   const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>('');
   const [interests, setInterests] = useState<string[]>([]);
   const [interestDraft, setInterestDraft] = useState('');
   const [consent, setConsent] = useState(false);
+  const [access, setAccess] = useState<BetaAccessResponse | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!ready) {
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    api<BetaAccessResponse>('/beta/access', { anon: true })
+      .then((status) => {
+        if (!cancelled) setAccess(status);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccess({ enabled: true, granted: false });
+          setAccessError('Could not verify beta access. Please try again.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready]);
+
+  if (!ready || !access) {
     return (
       <div className="web" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <span className="spinner spinner-brand" style={{ width: 28, height: 28 }} />
@@ -78,10 +104,45 @@ export default function Create() {
   const step2ok = goal && readingLevel;
   const canContinue = step === 1 ? step1ok : step === 2 ? step2ok : consent;
 
+  async function unlockBetaAccess(e: React.FormEvent) {
+    e.preventDefault();
+    setAccessBusy(true);
+    setAccessError(null);
+    try {
+      const status = await api<BetaAccessResponse>('/beta/access', {
+        anon: true,
+        method: 'POST',
+        body: { code: inviteCode.trim() },
+      });
+      setAccess(status);
+      setInviteCode('');
+    } catch (err) {
+      setAccessError(err instanceof ApiError ? err.message : 'Could not unlock beta access.');
+    } finally {
+      setAccessBusy(false);
+    }
+  }
+
   function addInterest() {
     const v = interestDraft.trim();
     if (v && interests.length < 10 && !interests.includes(v)) setInterests([...interests, v]);
     setInterestDraft('');
+  }
+
+  function applyOccasionPack(id: OccasionPackId) {
+    const pack = OCCASION_PACKS.find((p) => p.id === id);
+    if (!pack) return;
+    setOccasionPack(pack.id);
+    setGoal(pack.goal);
+    if (pack.readingLevel) setReadingLevel(pack.readingLevel);
+    setInterests((current) => {
+      const merged = [...current];
+      for (const interest of pack.interests) {
+        if (merged.length >= 10) break;
+        if (!merged.includes(interest)) merged.push(interest);
+      }
+      return merged;
+    });
   }
 
   async function submit() {
@@ -98,6 +159,7 @@ export default function Create() {
         body: {
           child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests },
           goal,
+          occasionPack,
           language: 'en',
           readingLevel,
           consentId,
@@ -117,6 +179,44 @@ export default function Create() {
   function back() {
     if (step > 1) setStep(step - 1);
     else router.push('/');
+  }
+
+  if (access.enabled && !access.granted) {
+    return (
+      <div className="web" style={{ minHeight: '100vh' }}>
+        <Header minimal />
+        <div className="container-narrow" style={{ padding: '64px 40px', display: 'flex', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: '40px 36px', maxWidth: 460, width: '100%' }}>
+            <div style={{ width: 58, height: 58, borderRadius: '50%', background: 'var(--brand-tint)', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
+              <Icon name="lock" size={27} stroke="var(--brand)" />
+            </div>
+            <span className="eyebrow" style={{ color: 'var(--brand)', marginBottom: 8 }}>Private beta</span>
+            <h1 className="display" style={{ fontSize: 30, marginBottom: 8 }}>Enter your invite code</h1>
+            <p style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--ink-soft)', marginBottom: 22 }}>
+              Preview generation is open to invited families while we tune story quality and capacity.
+            </p>
+            <form onSubmit={unlockBetaAccess}>
+              <label className="label" htmlFor="invite-code">Invite code</label>
+              <input
+                id="invite-code"
+                className="input"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                autoComplete="off"
+                placeholder="Your beta code"
+              />
+              <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} disabled={accessBusy || !inviteCode.trim()}>
+                {accessBusy ? <span className="spinner" /> : <><Icon name="check" size={18} stroke="var(--accent-ink)" /> Unlock preview builder</>}
+              </button>
+            </form>
+            {accessError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 14 }}>{accessError}</p>}
+            <p className="trust" style={{ marginTop: 18 }}>
+              <Icon name="shield" size={15} stroke="var(--brand)" /> Children never sign in; parents stay in control.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -169,10 +269,29 @@ export default function Create() {
               <h2 className="display" style={{ fontSize: 25, marginBottom: 6 }}>Shape their story</h2>
               <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 22 }}>The goal and interests guide the whole adventure.</p>
 
+              <label className="label">Quick occasion packs</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+                {OCCASION_PACKS.map((pack) => (
+                  <button
+                    key={pack.id}
+                    className={`chip ${occasionPack === pack.id ? 'sel' : ''}`}
+                    onClick={() => applyOccasionPack(pack.id)}
+                    style={{ borderRadius: 'var(--r)', justifyContent: 'flex-start', alignItems: 'flex-start', padding: '12px 13px', whiteSpace: 'normal', textAlign: 'left' }}
+                    title={pack.note}
+                  >
+                    <Sparkle size={15} color={occasionPack === pack.id ? 'var(--brand)' : 'var(--gold)'} style={{ flex: 'none', marginTop: 2 }} />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 700 }}>{pack.label}</span>
+                      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>{pack.note}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               <label className="label">Story goal</label>
               <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
                 {(Object.keys(GOAL_LABELS) as Goal[]).map((g) => (
-                  <button key={g} className={`chip ${goal === g ? 'sel' : ''}`} onClick={() => setGoal(g)}>{GOAL_LABELS[g]}</button>
+                  <button key={g} className={`chip ${goal === g ? 'sel' : ''}`} onClick={() => { setGoal(g); setOccasionPack(null); }}>{GOAL_LABELS[g]}</button>
                 ))}
               </div>
 
@@ -210,6 +329,7 @@ export default function Create() {
                   ['Nickname', nickname || '—'],
                   ['Age', ageBand || '—'],
                   ['Looks', [skinTone, `${hair} hair`, glasses ? 'glasses' : null].filter(Boolean).join(', ')],
+                  ['Pack', occasionPack ? OCCASION_PACKS.find((p) => p.id === occasionPack)?.label ?? occasionPack : '—'],
                   ['Goal', goal ? GOAL_LABELS[goal] : '—'],
                   ['Reading level', readingLevel || '—'],
                   ['Interests', interests.length ? interests.join(', ') : '—'],
@@ -232,6 +352,18 @@ export default function Create() {
                   <Link href="/legal/privacy" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Privacy Policy</Link>.
                 </span>
               </label>
+              <div style={{ marginTop: 18, padding: '16px 0 0', borderTop: '2px solid var(--hairline)', display: 'grid', gap: 11 }}>
+                {[
+                  ['No photos', 'Only attributes and a nickname are used to make the character.'],
+                  ['One free tweak', 'After the preview, you can ask for one small adjustment before checkout opens.'],
+                  ['You stay in control', 'You can export or delete account data from the account page.'],
+                ].map(([title, text]) => (
+                  <p key={title} className="trust" style={{ alignItems: 'flex-start' }}>
+                    <Icon name="shield" size={15} stroke="var(--brand)" style={{ flex: 'none', marginTop: 1 }} />
+                    <span><strong style={{ color: 'var(--ink)' }}>{title}.</strong> {text}</span>
+                  </p>
+                ))}
+              </div>
             </div>
           )}
 

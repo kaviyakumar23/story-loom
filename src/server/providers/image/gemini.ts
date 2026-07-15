@@ -11,7 +11,7 @@ import type {
 
 /**
  * Gemini image provider (§3, §7). Cost tier = `gemini-2.5-flash-image`; quality
- * tier = `gemini-3-pro-image-preview`. Chosen for kids'-book quality, speed,
+ * tier = `gemini-3-pro-image`. Chosen for kids'-book quality, speed,
  * cost, and the privacy posture (no training on inputs by default).
  *
  * The flow is reference-anchored: generate the canonical character sheet ONCE,
@@ -82,6 +82,7 @@ export class GeminiImageProvider implements ImageProvider {
     references: { base64: string; mime: string }[],
   ): Promise<RenderedImage> {
     const env = loadEnv();
+    if (!env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
     const parts: InlinePart[] = [
       { text: prompt },
       ...references.map((r) => ({ inlineData: { mimeType: r.mime, data: r.base64 } })),

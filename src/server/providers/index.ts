@@ -21,12 +21,13 @@ let cached: Providers | null = null;
 
 export function getProviders(): Providers {
   if (cached) return cached;
-  const tier = loadEnv().MODEL_TIER;
+  const env = loadEnv();
+  const tier = env.MODEL_TIER;
 
   cached = {
-    text: tier === 'quality' ? new OpenAITextProvider() : new GeminiTextProvider(),
+    text: tier === 'quality' ? new OpenAITextProvider(env.OPENAI_TEXT_MODEL) : new GeminiTextProvider(env.GEMINI_TEXT_MODEL),
     image: new GeminiImageProvider(
-      tier === 'quality' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
+      tier === 'quality' ? env.GEMINI_IMAGE_MODEL_QUALITY : env.GEMINI_IMAGE_MODEL_COST,
     ),
     audio: new ElevenLabsAudioProvider(),
     // Moderation is independent of the generation tier (§10) — always on.

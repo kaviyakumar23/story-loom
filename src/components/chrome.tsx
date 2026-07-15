@@ -47,8 +47,8 @@ export function Footer() {
       h: 'Plumtale',
       items: [
         { label: 'How it works', href: '/#how' },
-        { label: 'Sample pages', href: '/#how' },
-        { label: 'Pricing', href: '/#faq' },
+        { label: 'Sample pages', href: '/#samples' },
+        { label: 'Pricing', href: '/#pricing' },
       ],
     },
     {
