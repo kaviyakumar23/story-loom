@@ -5,7 +5,7 @@ import { imageCost, recordEvent } from '../lib/cost';
 import { captureError } from '../lib/observability';
 import { sendBookReady } from '../lib/email';
 import { assemblePdf, type AssemblePage } from '../lib/pdf';
-import { uploadAsset } from '../lib/storage';
+import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders } from '../providers/index';
 import type { Tier } from '../types/api';
@@ -17,7 +17,6 @@ import {
   renderAndStorePage,
   resolveCharacterSheet,
   setProgress,
-  signKey,
   type BookContext,
 } from './helpers';
 
@@ -32,6 +31,10 @@ export const fulfillmentPipeline = inngest.createFunction(
     id: 'fulfillment-pipeline',
     name: 'Fulfillment generation',
     retries: 2,
+    // One run per book at a time. The reconcile cron re-enqueues books that look
+    // stuck, so without this a slow run and its reconciliation could render the
+    // same pages twice (double image spend, duplicate asset rows, two emails).
+    concurrency: { key: 'event.data.bookId', limit: 1 },
     triggers: [{ event: EVENTS.fulfillmentRequested }],
   },
   async ({ event, step }) => {
@@ -128,21 +131,31 @@ async function assemble(ctx: BookContext): Promise<void> {
     ((assetRows ?? []) as { id: string; storage_key: string }[]).map((a) => [a.id, a.storage_key]),
   );
 
-  const pages: AssemblePage[] = [];
-  for (const p of (pageRows ?? []) as {
-    page_index: number;
-    text: string;
-    image_asset_id: string | null;
-  }[]) {
-    const key = p.image_asset_id ? keyById.get(p.image_asset_id) : undefined;
-    pages.push({ text: p.text, imageUrl: key ? await signKey(key) : null });
-  }
+  // Every illustration must be present and readable. A missing one means an
+  // earlier step didn't finish, and the honest outcome is a failed book an admin
+  // can rerun — never a silently text-only PDF sent to someone who paid.
+  const fetchImage = async (assetId: string | null, label: string): Promise<Buffer> => {
+    const key = assetId ? keyById.get(assetId) : undefined;
+    if (!key) throw new Error(`Cannot assemble ${ctx.bookId}: ${label} has no illustration`);
+    const bytes = await downloadAsset(key);
+    if (!bytes) throw new Error(`Cannot assemble ${ctx.bookId}: ${label} image ${key} could not be read`);
+    return bytes;
+  };
 
-  const coverId = (book as { cover_asset_id: string | null }).cover_asset_id;
-  const coverKey = coverId ? keyById.get(coverId) : undefined;
+  const rows = (pageRows ?? []) as { page_index: number; text: string; image_asset_id: string | null }[];
+  const [coverImage, pages] = await Promise.all([
+    fetchImage((book as { cover_asset_id: string | null }).cover_asset_id, 'cover'),
+    Promise.all(
+      rows.map(async (p): Promise<AssemblePage> => ({
+        text: p.text,
+        image: await fetchImage(p.image_asset_id, `page ${p.page_index}`),
+      })),
+    ),
+  ]);
+
   const pdf = await assemblePdf({
     title: (book as { title: string | null }).title ?? 'Your Story',
-    coverImageUrl: coverKey ? await signKey(coverKey) : null,
+    coverImage,
     pages,
   });
 
@@ -168,6 +181,10 @@ async function synthesizeAudio(ctx: BookContext): Promise<void> {
 
 async function deliver(ctx: BookContext): Promise<void> {
   const db = serviceClient();
+  // Already delivered (a reconciled re-run of a finished book) — don't email twice.
+  const { data: current } = await db.from('books').select('status').eq('id', ctx.bookId).maybeSingle();
+  if ((current as { status: string } | null)?.status === 'complete') return;
+
   await db
     .from('books')
     .update({ status: 'complete', progress: 100, completed_at: new Date().toISOString() })

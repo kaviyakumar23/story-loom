@@ -45,11 +45,21 @@ export class GeminiImageProvider implements ImageProvider {
     assertNoSensitive(descriptor, req.guard);
     const images: CharacterReferencePack['images'] = [];
 
+    // The turnaround is the anchor: generate it first, then condition every
+    // other view on it. Generating the views independently from the same text
+    // would give three different-looking children — in the very pack whose job
+    // is to stop the hero drifting between pages.
+    let anchor: { base64: string; mime: string } | null = null;
     for (const view of CHARACTER_VIEWS) {
-      const prompt = `Children's picture-book character reference — ${view.replace(/_/g, ' ')}. ` +
+      const prompt =
+        `Children's picture-book character reference — ${view.replace(/_/g, ' ')}. ` +
         `${descriptor}. Consistent, friendly, soft illustrated style on a plain background. ` +
-        `No text, no logos.`;
-      const img = await this.callImage(prompt, []);
+        `No text, no logos.` +
+        (anchor
+          ? ` Draw the exact same child as the attached reference — identical face, hair, skin tone, palette, and outfit.`
+          : '');
+      const img = await this.callImage(prompt, anchor ? [anchor] : []);
+      anchor ??= { base64: img.base64, mime: img.mime };
       images.push({ view, base64: img.base64, mime: img.mime });
     }
 
@@ -88,10 +98,11 @@ export class GeminiImageProvider implements ImageProvider {
       ...references.map((r) => ({ inlineData: { mimeType: r.mime, data: r.base64 } })),
     ];
     const res = await fetchWithTimeout(
-      `${ENDPOINT}/${this.model}:generateContent?key=${env.GEMINI_API_KEY}`,
+      `${ENDPOINT}/${this.model}:generateContent`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // Key in a header, not the query string — URLs end up in logs and traces.
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
           generationConfig: { responseModalities: ['IMAGE'] },

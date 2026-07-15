@@ -8,6 +8,7 @@ import { badRequest } from '@/server/lib/errors';
 import { toListItem, type BookRow } from '@/server/lib/mappers';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
+import { isPdfSafe } from '@/server/lib/text';
 import { EVENTS, inngest } from '@/server/pipeline/client';
 import {
   AGE_BANDS,
@@ -26,7 +27,17 @@ const BOOK_COLUMNS =
 
 const createSchema = z.object({
   child: z.object({
-    nickname: z.string().min(1).max(40),
+    // The nickname is printed into the PDF, whose standard fonts encode WinAnsi
+    // only. Reject here, at the door, rather than after the parent has paid and
+    // fulfillment throws — and never silently mangle a child's name.
+    nickname: z
+      .string()
+      .min(1)
+      .max(40)
+      .refine(isPdfSafe, {
+        message:
+          'Nickname can only use Latin letters and common punctuation for now — we cannot print other scripts in the book yet.',
+      }),
     ageBand: z.enum(AGE_BANDS),
     avatar: z.object({
       skinTone: z.string().optional(),

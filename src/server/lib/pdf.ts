@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from 'pdf-lib';
-import { fetchWithTimeout } from './http';
 import { COLORS } from './brand';
+import { pdfSafe } from './text';
 
 /**
  * Print-quality PDF assembly (§6 step 10, §11) using pdf-lib — pure JS, no
@@ -10,17 +10,25 @@ import { COLORS } from './brand';
  * Square 8"×8" picture-book trim. Each interior page: illustration on top,
  * story text on a cream plate below. Standard fonts keep it dependency-free
  * (embedding the Baloo display font is a later enhancement).
+ *
+ * Illustrations arrive as BYTES, not URLs, and are non-optional: a book someone
+ * paid for must never be assembled with a missing picture, so fetching and the
+ * "is it there at all" decision live at the caller, and everything here throws
+ * rather than quietly degrading.
  */
 const PT = 72;
 const SIZE = 8 * PT; // 576pt square
+/** Illustration occupies the top ~68%; the text plate lives below it. */
+const IMAGE_BOTTOM = SIZE * 0.32;
+const PLATE_PAD = 14;
 
 export interface AssemblePage {
   text: string;
-  imageUrl: string | null;
+  image: Buffer;
 }
 export interface AssembleInput {
   title: string;
-  coverImageUrl: string | null;
+  coverImage: Buffer;
   pages: AssemblePage[];
 }
 
@@ -32,10 +40,8 @@ export async function assemblePdf(input: AssembleInput): Promise<Buffer> {
   // Cover
   const cover = doc.addPage([SIZE, SIZE]);
   paintBg(cover);
-  const coverImg = await embed(doc, input.coverImageUrl);
-  if (coverImg) drawContained(cover, coverImg, 0, 0, SIZE, SIZE);
-  // Title plate + text
-  const titleLines = wrap(input.title, display, 30, SIZE - 96);
+  drawContained(cover, await embed(doc, input.coverImage), 0, 0, SIZE, SIZE);
+  const titleLines = wrap(pdfSafe(input.title), display, 30, SIZE - 96);
   const plateH = titleLines.length * 38 + 32;
   cover.drawRectangle({ x: 36, y: 40, width: SIZE - 72, height: plateH, color: rgb(0.23, 0.16, 0.13), opacity: 0.82 });
   titleLines.forEach((line, i) => {
@@ -47,16 +53,17 @@ export async function assemblePdf(input: AssembleInput): Promise<Buffer> {
   for (const page of input.pages) {
     const p = doc.addPage([SIZE, SIZE]);
     paintBg(p);
-    const img = await embed(doc, page.imageUrl);
-    const imgBottom = SIZE * 0.32;
-    if (img) drawContained(p, img, 0, imgBottom, SIZE, SIZE - imgBottom);
-    // text plate
-    const lines = wrap(page.text, body, 16, SIZE - 120);
-    const ph = lines.length * 22 + 28;
-    p.drawRectangle({ x: 28, y: 28, width: SIZE - 56, height: Math.min(ph, imgBottom - 20), color: hex(COLORS.surface), borderColor: hex(COLORS.hairline), borderWidth: 1.5 });
+    drawContained(p, await embed(doc, page.image), 0, IMAGE_BOTTOM, SIZE, SIZE - IMAGE_BOTTOM);
+
+    // Fit the text to the plate. Page length is the model's choice, so a long
+    // page must shrink (then, at the floor, truncate) instead of spilling out
+    // over the illustration.
+    const { lines, size, lineHeight } = fitText(pdfSafe(page.text), body, SIZE - 120, IMAGE_BOTTOM - 20);
+    const ph = lines.length * lineHeight + PLATE_PAD * 2;
+    p.drawRectangle({ x: 28, y: 28, width: SIZE - 56, height: ph, color: hex(COLORS.surface), borderColor: hex(COLORS.hairline), borderWidth: 1.5 });
     lines.forEach((line, i) => {
-      const w = body.widthOfTextAtSize(line, 16);
-      p.drawText(line, { x: (SIZE - w) / 2, y: 28 + ph - 30 - i * 22, size: 16, font: body, color: hex(COLORS.ink) });
+      const w = body.widthOfTextAtSize(line, size);
+      p.drawText(line, { x: (SIZE - w) / 2, y: 28 + ph - PLATE_PAD - size - i * lineHeight, size, font: body, color: hex(COLORS.ink) });
     });
   }
 
@@ -67,18 +74,10 @@ function paintBg(page: { drawRectangle: (o: Record<string, unknown>) => void }) 
   page.drawRectangle({ x: 0, y: 0, width: SIZE, height: SIZE, color: hex(COLORS.bg) });
 }
 
-/** Fetch + embed an image (PNG or JPEG, sniffed by signature). */
-async function embed(doc: PDFDocument, url: string | null): Promise<PDFImage | null> {
-  if (!url) return null;
-  try {
-    const res = await fetchWithTimeout(url, {}, 30_000);
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes[0] === 0x89 && bytes[1] === 0x50) return await doc.embedPng(bytes);
-    return await doc.embedJpg(bytes);
-  } catch {
-    return null;
-  }
+/** Embed image bytes (PNG or JPEG, sniffed by signature). Throws if unusable. */
+async function embed(doc: PDFDocument, bytes: Buffer): Promise<PDFImage> {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return doc.embedPng(bytes);
+  return doc.embedJpg(bytes);
 }
 
 /** Draw an image "contained" (fit, centered) within a box — no overflow. */
@@ -94,6 +93,29 @@ function drawContained(
   const w = img.width * scale;
   const h = img.height * scale;
   page.drawImage(img, { x: bx + (bw - w) / 2, y: by + (bh - h) / 2, width: w, height: h });
+}
+
+interface FittedText {
+  lines: string[];
+  size: number;
+  lineHeight: number;
+}
+
+/** Largest size at which the text fits the plate; truncates at the floor. */
+function fitText(text: string, font: PDFFont, maxWidth: number, maxHeight: number): FittedText {
+  const sizes = [16, 15, 14, 13, 12, 11, 10];
+  for (const size of sizes) {
+    const lineHeight = Math.round(size * 1.375);
+    const lines = wrap(text, font, size, maxWidth);
+    if (lines.length * lineHeight + PLATE_PAD * 2 <= maxHeight) return { lines, size, lineHeight };
+  }
+
+  const size = sizes[sizes.length - 1];
+  const lineHeight = Math.round(size * 1.375);
+  const maxLines = Math.max(1, Math.floor((maxHeight - PLATE_PAD * 2) / lineHeight));
+  const lines = wrap(text, font, size, maxWidth).slice(0, maxLines);
+  lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[\s.,;:]+$/, '')}…`;
+  return { lines, size, lineHeight };
 }
 
 /** Greedy word-wrap to a pixel width. */

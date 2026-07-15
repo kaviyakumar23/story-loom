@@ -9,7 +9,14 @@ import { serviceClient } from './supabase';
  */
 
 // Alert thresholds — aligned to the validated COGS ranges (§15).
-const COST_PER_BOOK_ALERT_USD = 3.5;
+//
+// Cost is averaged over every book generated in the window, previews included
+// (a preview is 4 images, a full book ~16). At the cost image tier that's ~$0.16
+// and ~$0.62; $1.00 sits above both and below the ~$2.15 a full book costs on
+// the pro image model — so this fires if someone flips IMAGE_MODEL_TIER, or if
+// retries inflate. It must stay well under the ₹299 (~$3.40) sale price: the old
+// $3.50 was above it, so a book could never cost "too much" to trip the alarm.
+const COST_PER_BOOK_ALERT_USD = 1.0;
 const ATTEMPTS_PER_IMAGE_ALERT = 1.5;
 const MODERATION_QUEUE_ALERT = 25;
 

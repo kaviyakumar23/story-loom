@@ -48,6 +48,15 @@ export function scrubAll(values: string[], realName: string): string[] {
   return values.map((v) => scrub(v, realName));
 }
 
+/**
+ * Read the placeholder as prose. For payloads that must stay free of the real
+ * name (illustration prompts) but shouldn't carry a raw `{{HERO}}` either — a
+ * model given the literal token may letter it into the picture.
+ */
+export function humanizeHeroToken(text: string): string {
+  return text.split(HERO_TOKEN).join('the hero child');
+}
+
 /** Re-inject real values into tokenized text. Local render only — never sent out. */
 export function detokenizeLocal(text: string, map: TokenMap): string {
   let out = text;

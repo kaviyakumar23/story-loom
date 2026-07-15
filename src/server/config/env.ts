@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/** An unset override is `''` on Vercel as often as it is undefined. */
+const optionalTier = z.preprocess(
+  (v) => (v === '' || v === undefined ? undefined : v),
+  z.enum(['cost', 'quality']).optional(),
+);
+
 /**
  * Validated server environment. Next.js loads `.env.local` (local) and the
  * Vercel project env (prod) into process.env. loadEnv() is lazy — it only
@@ -34,6 +40,11 @@ const schema = z.object({
 
   // AI providers (§3, §7).
   MODEL_TIER: z.enum(['cost', 'quality']).default('cost'),
+  // Per-capability overrides, defaulting to MODEL_TIER. Images are ~90% of the
+  // cost of a book (a 12-page book is ~16 of them) while a quality story costs
+  // cents — so the tiers are worth setting independently rather than together.
+  TEXT_MODEL_TIER: optionalTier,
+  IMAGE_MODEL_TIER: optionalTier,
   OPENAI_API_KEY: z.string().default(''), // stories (quality) + moderation (always)
   GEMINI_API_KEY: z.string().default(''), // illustrations
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o'),

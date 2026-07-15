@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertNoSensitive, detokenizeLocal, HERO_TOKEN, scrub, scrubAll, tokenizeOutbound } from './tokenize';
+import { assertNoSensitive, detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrub, scrubAll, tokenizeOutbound } from './tokenize';
 
 // Tokenization is the guarantee that a child's real name never reaches an AI
 // vendor (§9) — test it like the safety boundary it is.
@@ -28,6 +28,13 @@ describe('tokenize', () => {
 
   it('leaves text alone when the name is blank', () => {
     expect(scrub('hello there', '  ')).toBe('hello there');
+  });
+
+  it('humanizes the token for image prompts, leaking no real name', () => {
+    expect(humanizeHeroToken(`${HERO_TOKEN} waves at the school gate`)).toBe(
+      'the hero child waves at the school gate',
+    );
+    expect(humanizeHeroToken('nothing to do here')).toBe('nothing to do here');
   });
 
   it('assertNoSensitive throws when a real name leaks into a payload', () => {

@@ -27,6 +27,9 @@ export const previewPipeline = inngest.createFunction(
     id: 'preview-pipeline',
     name: 'Preview generation',
     retries: 2,
+    // One run per book at a time — a double-submitted preview would otherwise
+    // pay for the same images twice.
+    concurrency: { key: 'event.data.bookId', limit: 1 },
     triggers: [{ event: EVENTS.previewRequested }],
   },
   async ({ event, step }) => {

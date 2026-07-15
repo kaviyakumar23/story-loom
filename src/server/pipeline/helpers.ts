@@ -2,8 +2,8 @@ import { NonRetriableError } from 'inngest';
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
 import { recordEvent } from '../lib/cost';
-import { detokenizeLocal, HERO_TOKEN, scrubAll } from '../lib/tokenize';
-import { downloadAsset, signAsset, uploadAsset } from '../lib/storage';
+import { detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrubAll } from '../lib/tokenize';
+import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders } from '../providers/index';
 import type { CharacterReferencePack, Story } from '../providers/types';
@@ -106,7 +106,11 @@ export async function markFailed(bookId: string, code: string, message: string):
  */
 export async function persistStory(ctx: BookContext, story: Story): Promise<void> {
   const db = serviceClient();
-  await db.from('books').update({ title: story.title, theme: story.theme }).eq('id', ctx.bookId);
+  // Title and theme carry {{HERO}} too — the model is told to always name the
+  // child that way. Localize them like page text, or the parent reads
+  // "{{HERO}}'s Big Day" on the dashboard, the cover, and the shared preview.
+  const local = (text: string) => detokenizeLocal(text, { [HERO_TOKEN]: ctx.nickname });
+  await db.from('books').update({ title: local(story.title), theme: local(story.theme) }).eq('id', ctx.bookId);
   const { error: guideErr } = await db.from('book_reading_guides').upsert(
     {
       book_id: ctx.bookId,
@@ -122,7 +126,7 @@ export async function persistStory(ctx: BookContext, story: Story): Promise<void
   const rows = story.pages.map((p) => ({
     book_id: ctx.bookId,
     page_index: p.index,
-    text: detokenizeLocal(p.text, { [HERO_TOKEN]: ctx.nickname }),
+    text: local(p.text),
     illustration_prompt: p.illustrationPrompt,
     is_preview: p.index < PREVIEW_PAGE_COUNT,
   }));
@@ -254,7 +258,10 @@ export async function renderAndStorePage(
 ): Promise<{ model: string; attempts: number }> {
   const provider = getProviders().image;
   const maxAttempts = loadEnv().MAX_IMAGE_ATTEMPTS;
-  let scenePrompt = prompt;
+  // Prompts come from the story model, which names the child {{HERO}} — read as
+  // prose before rendering, or the token is literal noise the illustrator may
+  // even try to letter onto the page.
+  let scenePrompt = humanizeHeroToken(prompt);
   let lastReasons: string[] = [];
 
   // Render → moderate (gate #3). On a moderation block, regenerate with tighter
@@ -345,16 +352,18 @@ export async function buildScript(bookId: string): Promise<string> {
   return ((data ?? []) as { text: string }[]).map((p) => p.text).join('\n\n');
 }
 
-/** Resolve a signed URL for a storage key, for PDF assembly. */
-export async function signKey(storageKey: string): Promise<string | null> {
-  return signAsset(storageKey, 60 * 30);
-}
-
-/** Scrub the child's name out of free-text avatar fields (features) (§9). */
+/**
+ * Scrub the child's name out of every free-text avatar field (§9).
+ *
+ * All of them, not just `features`: the descriptor built from these is passed
+ * to assertNoSensitive, so a field this misses would throw and fail the preview
+ * rather than leak — e.g. nickname "Sunny" with hair colour "sunny blonde".
+ */
 function scrubAvatar(avatar: Record<string, unknown>, name: string): Record<string, unknown> {
-  const features = avatar.features;
-  if (Array.isArray(features)) {
-    return { ...avatar, features: scrubAll(features.map(String), name) };
+  const out: Record<string, unknown> = { ...avatar };
+  for (const [key, value] of Object.entries(avatar)) {
+    if (typeof value === 'string') out[key] = scrubAll([value], name)[0];
+    else if (Array.isArray(value)) out[key] = scrubAll(value.map(String), name);
   }
-  return avatar;
+  return out;
 }

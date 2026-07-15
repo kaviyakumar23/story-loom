@@ -31,9 +31,10 @@ export class GeminiTextProvider implements TextProvider {
     const user = storyUserPrompt(req);
     assertNoSensitive(`${system}\n${user}\n${req.interests.join(' ')}`, req.guard);
 
-    const res = await fetchWithTimeout(`${ENDPOINT}/${this.model}:generateContent?key=${env.GEMINI_API_KEY}`, {
+    const res = await fetchWithTimeout(`${ENDPOINT}/${this.model}:generateContent`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      // Key in a header, not the query string — URLs end up in logs and traces.
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
