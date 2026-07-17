@@ -2,7 +2,7 @@ import { createSign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { loadEnv } from '../config/env';
+import { loadEnv, type Env } from '../config/env';
 import { fetchWithTimeout } from './http';
 
 /**
@@ -21,11 +21,19 @@ import { fetchWithTimeout } from './http';
  *    `gcloud auth application-default login`, read from the well-known ADC file.
  *    Best for local dev. Token via the refresh-token grant.
  *
- * Resolution order: inline env key → `GOOGLE_APPLICATION_CREDENTIALS` path →
- * the ADC well-known file.
+ *  - Workload Identity Federation — keyless. A runtime OIDC token (e.g. Vercel's
+ *    `VERCEL_OIDC_TOKEN`) is exchanged at Google STS for a federated token, then
+ *    optionally used to impersonate a service account. This is the path for
+ *    hosts where org policy forbids downloadable SA keys. Selected when
+ *    `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` is set — it takes precedence over keys.
+ *
+ * Key/ADC resolution order: inline env key → `GOOGLE_APPLICATION_CREDENTIALS`
+ * path → the ADC well-known file.
  */
 const SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
 const DEFAULT_TOKEN_URI = 'https://oauth2.googleapis.com/token';
+const STS_URL = 'https://sts.googleapis.com/v1/token';
+const IAM_CREDENTIALS = 'https://iamcredentials.googleapis.com/v1';
 
 interface ServiceAccount {
   type?: 'service_account';
@@ -163,25 +171,83 @@ async function exchange(tokenUri: string, body: string): Promise<{ token: string
   return { token: data.access_token, ttl: data.expires_in ?? 3600 };
 }
 
-/** A cloud-platform access token for Vertex, cached until ~5 min before expiry. */
-export async function getVertexAccessToken(): Promise<string> {
-  const now = Date.now();
-  if (cachedToken && now < cachedToken.expiresAt - 300_000) return cachedToken.token;
-
-  const creds = loadCredentials();
-  const tokenUri = creds.token_uri || DEFAULT_TOKEN_URI;
-  const { token, ttl } =
-    creds.type === 'authorized_user'
-      ? await exchange(tokenUri, buildRefreshTokenBody(creds))
-      : await exchange(tokenUri, buildJwtBearerBody(buildJwtAssertion(creds, Math.floor(now / 1000))));
-
-  cachedToken = { token, expiresAt: now + ttl * 1000 };
-  return cachedToken.token;
-}
-
 function buildJwtBearerBody(assertion: string): string {
   return new URLSearchParams({
     grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
     assertion,
   }).toString();
+}
+
+/** STS token-exchange body: trade an OIDC token for a federated Google token. */
+export function buildStsExchangeBody(audience: string, subjectToken: string): string {
+  return new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+    audience,
+    scope: SCOPE,
+    requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    subject_token: subjectToken,
+    subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+  }).toString();
+}
+
+/** Key/ADC path: mint a token from a service account or authorized_user creds. */
+async function mintCredentialToken(nowMs: number): Promise<{ token: string; ttl: number }> {
+  const creds = loadCredentials();
+  const tokenUri = creds.token_uri || DEFAULT_TOKEN_URI;
+  return creds.type === 'authorized_user'
+    ? exchange(tokenUri, buildRefreshTokenBody(creds))
+    : exchange(tokenUri, buildJwtBearerBody(buildJwtAssertion(creds, Math.floor(nowMs / 1000))));
+}
+
+/** Keyless path: OIDC token -> STS federated token -> (optional) SA impersonation. */
+async function mintFederatedToken(env: Env, nowMs: number): Promise<{ token: string; ttl: number }> {
+  const tokenEnv = env.GOOGLE_SUBJECT_TOKEN_ENV || 'VERCEL_OIDC_TOKEN';
+  const subjectToken = process.env[tokenEnv];
+  if (!subjectToken) {
+    throw new Error(
+      `Vertex WIF: no OIDC token found in ${tokenEnv}. Enable OIDC federation ("Secure Backend ` +
+        'Access") in the Vercel project settings so it injects the token at runtime.',
+    );
+  }
+
+  const federated = await exchange(
+    STS_URL,
+    buildStsExchangeBody(env.GOOGLE_WORKLOAD_IDENTITY_AUDIENCE, subjectToken),
+  );
+
+  const saEmail = env.GOOGLE_IMPERSONATE_SERVICE_ACCOUNT;
+  if (!saEmail) return federated; // direct federation — principal holds the role
+
+  const res = await fetchWithTimeout(
+    `${IAM_CREDENTIALS}/projects/-/serviceAccounts/${saEmail}:generateAccessToken`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${federated.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ scope: [SCOPE], lifetime: '3600s' }),
+    },
+    15_000,
+  );
+  if (!res.ok) {
+    throw new Error(`Vertex WIF impersonation failed (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { accessToken?: string; expireTime?: string };
+  if (!data.accessToken) throw new Error('Vertex WIF impersonation returned no accessToken');
+  const ttl = data.expireTime
+    ? Math.max(60, Math.floor((Date.parse(data.expireTime) - nowMs) / 1000))
+    : 3600;
+  return { token: data.accessToken, ttl };
+}
+
+/** A cloud-platform access token for Vertex, cached until ~5 min before expiry. */
+export async function getVertexAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedToken && now < cachedToken.expiresAt - 300_000) return cachedToken.token;
+
+  const env = loadEnv();
+  const { token, ttl } = env.GOOGLE_WORKLOAD_IDENTITY_AUDIENCE
+    ? await mintFederatedToken(env, now)
+    : await mintCredentialToken(now);
+
+  cachedToken = { token, expiresAt: now + ttl * 1000 };
+  return cachedToken.token;
 }

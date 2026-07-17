@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildJwtAssertion,
   buildRefreshTokenBody,
+  buildStsExchangeBody,
   normalizeCredentials,
   parseInlineCredentials,
 } from './vertex-auth';
@@ -89,5 +90,19 @@ describe('buildRefreshTokenBody', () => {
     expect(params.get('client_id')).toBe(USER.client_id);
     expect(params.get('client_secret')).toBe(USER.client_secret);
     expect(params.get('refresh_token')).toBe(USER.refresh_token);
+  });
+});
+
+describe('buildStsExchangeBody', () => {
+  it('encodes the token-exchange grant for Workload Identity Federation', () => {
+    const audience =
+      '//iam.googleapis.com/projects/328369479161/locations/global/workloadIdentityPools/vercel-pool/providers/vercel';
+    const params = new URLSearchParams(buildStsExchangeBody(audience, 'the.oidc.token'));
+    expect(params.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:token-exchange');
+    expect(params.get('audience')).toBe(audience);
+    expect(params.get('scope')).toBe('https://www.googleapis.com/auth/cloud-platform');
+    expect(params.get('requested_token_type')).toBe('urn:ietf:params:oauth:token-type:access_token');
+    expect(params.get('subject_token')).toBe('the.oidc.token');
+    expect(params.get('subject_token_type')).toBe('urn:ietf:params:oauth:token-type:jwt');
   });
 });

@@ -60,6 +60,15 @@ const schema = z.object({
   GOOGLE_CLOUD_LOCATION: z.string().default('us-central1'),
   // Service-account JSON (raw or base64-encoded) for the Vertex backend.
   GOOGLE_SERVICE_ACCOUNT_KEY: z.string().default(''),
+  // Keyless auth via Workload Identity Federation (e.g. Vercel OIDC), for hosts
+  // where downloadable SA keys are blocked by org policy. When the audience is
+  // set, the runtime OIDC token is exchanged at STS instead of using a key.
+  GOOGLE_WORKLOAD_IDENTITY_AUDIENCE: z.string().default(''),
+  // Optional SA to impersonate after federation; empty = use the federated
+  // principal directly (it must then hold roles/aiplatform.user).
+  GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: z.string().default(''),
+  // Env var that holds the inbound OIDC token (Vercel injects VERCEL_OIDC_TOKEN).
+  GOOGLE_SUBJECT_TOKEN_ENV: z.string().default('VERCEL_OIDC_TOKEN'),
 
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o'),
   GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),

@@ -27,7 +27,10 @@ type Backend = 'studio' | 'vertex';
 function resolveBackend(env: Env): Backend {
   if (env.GEMINI_BACKEND) return env.GEMINI_BACKEND;
   const vertexConfigured =
-    env.GOOGLE_CLOUD_PROJECT || env.GOOGLE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    env.GOOGLE_CLOUD_PROJECT ||
+    env.GOOGLE_SERVICE_ACCOUNT_KEY ||
+    env.GOOGLE_WORKLOAD_IDENTITY_AUDIENCE ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS;
   return vertexConfigured ? 'vertex' : 'studio';
 }
 
