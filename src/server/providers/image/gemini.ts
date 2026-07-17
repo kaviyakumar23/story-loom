@@ -1,6 +1,5 @@
-import { loadEnv } from '../../config/env';
-import { fetchWithTimeout } from '../../lib/http';
 import { assertNoSensitive } from '../../lib/tokenize';
+import { callGemini } from '../gemini-transport';
 import type {
   CharacterReferencePack,
   CharacterSheetRequest,
@@ -17,9 +16,9 @@ import type {
  * The flow is reference-anchored: generate the canonical character sheet ONCE,
  * then render every page conditioned on those reference images — never recreate
  * the hero from a text prompt per page (that's where visual drift comes from).
+ *
+ * Backend-agnostic: `callGemini` routes to AI Studio or Vertex AI per config.
  */
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-
 interface InlinePart {
   inlineData?: { mimeType?: string; data?: string };
   text?: string;
@@ -91,22 +90,16 @@ export class GeminiImageProvider implements ImageProvider {
     prompt: string,
     references: { base64: string; mime: string }[],
   ): Promise<RenderedImage> {
-    const env = loadEnv();
-    if (!env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
     const parts: InlinePart[] = [
       { text: prompt },
       ...references.map((r) => ({ inlineData: { mimeType: r.mime, data: r.base64 } })),
     ];
-    const res = await fetchWithTimeout(
-      `${ENDPOINT}/${this.model}:generateContent`,
+    const res = await callGemini(
+      this.model,
+      'generateContent',
       {
-        method: 'POST',
-        // Key in a header, not the query string — URLs end up in logs and traces.
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts }],
-          generationConfig: { responseModalities: ['IMAGE'] },
-        }),
+        contents: [{ role: 'user', parts }],
+        generationConfig: { responseModalities: ['IMAGE'] },
       },
       90_000,
     );

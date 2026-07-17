@@ -46,7 +46,21 @@ const schema = z.object({
   TEXT_MODEL_TIER: optionalTier,
   IMAGE_MODEL_TIER: optionalTier,
   OPENAI_API_KEY: z.string().default(''), // stories (quality) + moderation (always)
-  GEMINI_API_KEY: z.string().default(''), // illustrations
+  GEMINI_API_KEY: z.string().default(''), // illustrations (AI Studio backend only)
+
+  // Which Google backend serves Gemini. `studio` = Gemini Developer API (API
+  // key). `vertex` = Vertex AI on Google Cloud (service-account OAuth) — this is
+  // what a fresh gcloud project with free credits provides. Left unset, we infer
+  // `vertex` when a project + service-account key are present, else `studio`.
+  GEMINI_BACKEND: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v),
+    z.enum(['studio', 'vertex']).optional(),
+  ),
+  GOOGLE_CLOUD_PROJECT: z.string().default(''),
+  GOOGLE_CLOUD_LOCATION: z.string().default('us-central1'),
+  // Service-account JSON (raw or base64-encoded) for the Vertex backend.
+  GOOGLE_SERVICE_ACCOUNT_KEY: z.string().default(''),
+
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o'),
   GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),
   GEMINI_IMAGE_MODEL_COST: z.string().default('gemini-2.5-flash-image'),

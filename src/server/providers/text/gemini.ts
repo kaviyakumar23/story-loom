@@ -1,6 +1,6 @@
 import { loadEnv } from '../../config/env';
-import { fetchWithTimeout } from '../../lib/http';
 import { assertNoSensitive } from '../../lib/tokenize';
+import { callGemini } from '../gemini-transport';
 import { storyJsonSchema, storySystemPrompt, storyUserPrompt } from '../prompts';
 import { parseStory } from '../validate';
 import type { Story, StoryRequest, TextProvider, TextResult } from '../types';
@@ -8,9 +8,10 @@ import type { Story, StoryRequest, TextProvider, TextResult } from '../types';
 /**
  * Cost-tier text provider — Gemini Flash (§3), via REST (no SDK coupling).
  * Re-confirm the exact model name at build time; swap the constant to change it.
+ * Reaches Gemini through `callGemini`, so it works on either backend (AI Studio
+ * API key or Vertex AI service account) with no change here.
  */
 const DEFAULT_MODEL = 'gemini-2.5-flash';
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -26,24 +27,18 @@ export class GeminiTextProvider implements TextProvider {
 
   async generateStory(req: StoryRequest): Promise<TextResult<Story>> {
     const env = loadEnv();
-    if (!env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
     const system = storySystemPrompt();
     const user = storyUserPrompt(req);
     assertNoSensitive(`${system}\n${user}\n${req.interests.join(' ')}`, req.guard);
 
-    const res = await fetchWithTimeout(`${ENDPOINT}/${this.model}:generateContent`, {
-      method: 'POST',
-      // Key in a header, not the query string — URLs end up in logs and traces.
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: {
-          temperature: env.STORY_TEMPERATURE,
-          responseMimeType: 'application/json',
-          responseJsonSchema: storyJsonSchema(req.pageCount),
-        },
-      }),
+    const res = await callGemini(this.model, 'generateContent', {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: user }] }],
+      generationConfig: {
+        temperature: env.STORY_TEMPERATURE,
+        responseMimeType: 'application/json',
+        responseJsonSchema: storyJsonSchema(req.pageCount),
+      },
     });
     if (!res.ok) {
       throw new Error(`Gemini text generation failed (${res.status}): ${await res.text()}`);
