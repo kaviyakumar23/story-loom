@@ -11,7 +11,7 @@ export function Header({ minimal }: { minimal?: boolean }) {
       <div className="web-header-inner">
         <Link href="/" className="brandmark">
           <Sparkle size={22} color="var(--brand)" />
-          <span className="display" style={{ fontSize: 25, color: 'var(--brand)' }}>Plumtale</span>
+          <span className="display" style={{ fontSize: 25, color: 'var(--brand)' }}>MoonBell</span>
         </Link>
 
         {minimal ? (
@@ -44,7 +44,7 @@ export function Header({ minimal }: { minimal?: boolean }) {
 export function Footer() {
   const cols: { h: string; items: { label: string; href: string }[] }[] = [
     {
-      h: 'Plumtale',
+      h: 'MoonBell',
       items: [
         { label: 'How it works', href: '/#how' },
         { label: 'Sample pages', href: '/#samples' },
@@ -76,7 +76,7 @@ export function Footer() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
             <Sparkle size={20} color="var(--accent)" />
-            <span className="display" style={{ fontSize: 23, color: '#fff' }}>Plumtale</span>
+            <span className="display" style={{ fontSize: 23, color: '#fff' }}>MoonBell</span>
           </div>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: '#D9BECC', maxWidth: 260 }}>
             Personalized keepsake storybooks, made just for your child.
@@ -97,7 +97,7 @@ export function Footer() {
         ))}
       </div>
       <div className="container" style={{ borderTop: '1px solid rgba(255,255,255,.12)', padding: '18px 40px', fontSize: 12.5, color: '#B790A4' }}>
-        © 2026 Plumtale. Made with care.
+        © 2026 MoonBell. Made with care.
       </div>
     </footer>
   );

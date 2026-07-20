@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { loadEnv } from '../config/env';
 import { forbidden } from './errors';
 
-const COOKIE_NAME = 'plumtale_beta_access';
+const COOKIE_NAME = 'moonbell_beta_access';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export function betaAccessStatus(req: Request): { enabled: boolean; granted: boolean } {

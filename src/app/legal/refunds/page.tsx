@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
 
-export const metadata: Metadata = { title: 'Refund & Cancellation Policy — Plumtale' };
+export const metadata: Metadata = { title: 'Refund & Cancellation Policy — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };

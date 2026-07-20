@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
 
-export const metadata: Metadata = { title: 'Content & Acceptable Use Policy — Plumtale' };
+export const metadata: Metadata = { title: 'Content & Acceptable Use Policy — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
@@ -19,13 +19,13 @@ export default function ContentPolicy() {
       <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
-        Plumtale makes warm, age-appropriate stories for children. To keep it safe, every request is checked by
+        MoonBell makes warm, age-appropriate stories for children. To keep it safe, every request is checked by
         automated safety moderation across three gates, and content that is harmful or disallowed is blocked and
         may be routed to human review. This policy describes what is not allowed.
       </p>
 
       <h2 className="display" style={h2}>Prohibited requests</h2>
-      <p style={p}>You may not use Plumtale to create or request any of the following:</p>
+      <p style={p}>You may not use MoonBell to create or request any of the following:</p>
       <ul style={ul}>
         <li style={li}>Any sexual content involving minors, or any sexualization of children — strictly prohibited and reported where required by law.</li>
         <li style={li}>Abuse, exploitation, self-harm, or graphic violence involving children.</li>
@@ -46,7 +46,7 @@ export default function ContentPolicy() {
 
       <h2 className="display" style={h2}>Reporting a concern</h2>
       <p style={p}>
-        If you believe content on Plumtale violates this policy, please contact us through our{' '}
+        If you believe content on MoonBell violates this policy, please contact us through our{' '}
         <Link href="/legal/contact" style={link}>Contact &amp; Grievance Redressal</Link> page. This policy
         works alongside our{' '}
         <Link href="/legal/terms" style={link}>Terms of Service</Link>.

@@ -4,9 +4,9 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Plumtale (repo: story-loom) — full-stack app
+# MoonBell (repo: story-loom) — full-stack app
 
-Next.js 16 (App Router, TypeScript) app for **Plumtale** (plumtale.com) —
+Next.js 16 (App Router, TypeScript) app for **MoonBell** (moonbell.com) —
 personalized AI children's storybooks, India-first. Since June 2026 this repo is
 the **whole product**: web app, `/api/v1/*` route handlers, Supabase data layer,
 and the Inngest generation pipeline in one deployable app. (The old separate

@@ -54,7 +54,7 @@ export default async function SharedPreviewPage({ params }: { params: Promise<{ 
       <main className="container page-pad">
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
           <span className="eyebrow" style={{ justifyContent: 'center' }}><Sparkle size={13} /> Shared preview</span>
-          <h1 className="display" style={{ fontSize: 40, margin: '12px 0 8px' }}>{book.title ?? 'A Plumtale preview'}</h1>
+          <h1 className="display" style={{ fontSize: 40, margin: '12px 0 8px' }}>{book.title ?? 'A MoonBell preview'}</h1>
           {book.theme && <p className="d-lead" style={{ color: 'var(--ink-soft)' }}>{book.theme}</p>}
           <p className="trust" style={{ marginTop: 12, justifyContent: 'center' }}>
             <Icon name="lock" size={15} stroke="var(--brand)" /> Private link expires {formatExpiry(share.expires_at)}

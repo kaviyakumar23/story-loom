@@ -6,10 +6,10 @@
  * once no [TODO] values remain.
  */
 export const BUSINESS = {
-  brandName: 'Plumtale',
+  brandName: 'MoonBell',
   legalName: '[TODO: legal/business name]',
   registeredAddress: '[TODO: registered address]',
-  supportEmail: '[TODO: support email, e.g. support@plumtale.com]',
+  supportEmail: '[TODO: support email, e.g. support@moonbell.com]',
   grievanceOfficerName: '[TODO: grievance officer name]',
   grievanceOfficerEmail: '[TODO: grievance officer email]',
   /** Courts of this city get exclusive jurisdiction in the Terms. */

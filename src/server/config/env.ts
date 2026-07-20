@@ -27,7 +27,7 @@ const schema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().default(''),
 
   RESEND_API_KEY: z.string().default(''),
-  EMAIL_FROM: z.string().default('Plumtale <onboarding@resend.dev>'),
+  EMAIL_FROM: z.string().default('MoonBell <onboarding@resend.dev>'),
   // Operational alerts (amount mismatches, cost overruns) are emailed here.
   ALERT_EMAIL: z.string().default(''),
 

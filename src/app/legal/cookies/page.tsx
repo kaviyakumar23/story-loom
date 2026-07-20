@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { BUSINESS } from '@/lib/business';
 import Link from 'next/link';
 
-export const metadata: Metadata = { title: 'Cookie Policy — Plumtale' };
+export const metadata: Metadata = { title: 'Cookie Policy — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
@@ -19,7 +19,7 @@ export default function Cookies() {
       <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
-        This Cookie Policy explains how Plumtale uses cookies and similar technologies. It works alongside our{' '}
+        This Cookie Policy explains how MoonBell uses cookies and similar technologies. It works alongside our{' '}
         <Link href="/legal/privacy" style={link}>Privacy Policy</Link>.
       </p>
 

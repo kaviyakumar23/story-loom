@@ -8,7 +8,7 @@ import { Inngest } from 'inngest';
  * build time never triggers full env validation.
  */
 export const inngest = new Inngest({
-  id: 'plumtale',
+  id: 'moonbell',
   eventKey: process.env.INNGEST_EVENT_KEY || undefined,
 });
 

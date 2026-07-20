@@ -1,4 +1,4 @@
-# Plumtale / Storyloom — Internal Alpha App
+# MoonBell / Storyloom — Internal Alpha App
 
 Next.js 16 App Router app for personalized AI children's storybooks. This repo
 now contains the web app, API routes, Supabase-backed data layer, and Inngest

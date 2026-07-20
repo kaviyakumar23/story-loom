@@ -349,7 +349,7 @@ export default function Create() {
               <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 18, cursor: 'pointer' }}>
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3, width: 18, height: 18, accentColor: 'var(--brand)' }} />
                 <span style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)' }}>
-                  I’m {nickname || 'this child'}’s parent or guardian and I consent to Plumtale creating a
+                  I’m {nickname || 'this child'}’s parent or guardian and I consent to MoonBell creating a
                   personalized book using these details. I understand the story and illustrations are
                   AI-generated, that no photos are collected, and that I can delete everything anytime. I agree
                   to the{' '}

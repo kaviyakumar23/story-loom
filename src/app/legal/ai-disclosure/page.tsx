@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
 
-export const metadata: Metadata = { title: 'AI Disclosure — Plumtale' };
+export const metadata: Metadata = { title: 'AI Disclosure — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
@@ -19,7 +19,7 @@ export default function AiDisclosure() {
       <p style={meta}>Effective date: {BUSINESS.effectiveDate} · {BUSINESS.legalName}.</p>
 
       <p style={p}>
-        We believe in being open about how Plumtale works. Your child&apos;s book is created with the help of
+        We believe in being open about how MoonBell works. Your child&apos;s book is created with the help of
         artificial intelligence, using the details you share — a nickname, an age band, a few appearance
         attributes, interests, and the goal you choose. Here is what that means in plain language.
       </p>

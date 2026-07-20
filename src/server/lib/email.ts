@@ -3,7 +3,7 @@ import { loadEnv } from '../config/env';
 import { COLORS, FONTS, GOOGLE_FONTS_HREF, RADIUS, sparkleSvg } from './brand';
 
 /**
- * Transactional email (§3, §6 step 12), styled to the Plumtale design system
+ * Transactional email (§3, §6 step 12), styled to the MoonBell design system
  * (lib/brand.ts) — warm cream paper, Baloo 2 display, coral sticker button,
  * plum footer, the four-point sparkle wordmark. Matches the app + PDF so the
  * "your book is ready" moment feels like the same product.
@@ -64,7 +64,7 @@ export async function sendAdminAlert(subject: string, context?: Record<string, u
     : '';
   await send(
     env.ALERT_EMAIL,
-    `[Plumtale alert] ${subject}`,
+    `[MoonBell alert] ${subject}`,
     layout({
       eyebrow: 'Ops alert',
       heading: subject,
@@ -120,7 +120,7 @@ function layout({ eyebrow, heading, body, cta }: LayoutOpts): string {
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:16px">
         <tr>
           <td style="padding-right:8px">${sparkleSvg(20, COLORS.berry)}</td>
-          <td style="font-family:${FONTS.display};font-weight:700;font-size:23px;color:${COLORS.berry};">Plumtale</td>
+          <td style="font-family:${FONTS.display};font-weight:700;font-size:23px;color:${COLORS.berry};">MoonBell</td>
         </tr>
       </table>
 
@@ -147,8 +147,8 @@ function layout({ eyebrow, heading, body, cta }: LayoutOpts): string {
       <!-- footer -->
       <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;margin-top:18px">
         <tr><td style="font-family:${FONTS.sans};font-size:11.5px;color:${COLORS.inkSoft};line-height:1.6;padding:0 8px;">
-          You’re receiving this because you created a storybook with Plumtale.<br/>
-          © 2026 Plumtale · Made with care.
+          You’re receiving this because you created a storybook with MoonBell.<br/>
+          © 2026 MoonBell · Made with care.
         </td></tr>
       </table>
 

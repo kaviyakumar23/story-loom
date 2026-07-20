@@ -314,7 +314,7 @@ export default function Landing() {
             <span className="eyebrow"><Icon name="shield" size={15} stroke="var(--brand)" /> Built around your child’s privacy</span>
             <h2 className="display d-h2" style={{ marginTop: 14 }}>Safe by design, not as an afterthought</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', margin: '16px 0 28px', maxWidth: 460 }}>
-              We built Plumtale to be DPDP-friendly and parent-controlled. We collect the least we
+              We built MoonBell to be DPDP-friendly and parent-controlled. We collect the least we
               can, and you’re always in charge of it.
             </p>
             <Link href="/create" className="btn btn-primary" style={{ padding: '17px 28px', fontSize: 17 }}>

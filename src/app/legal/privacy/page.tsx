@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
 
-export const metadata: Metadata = { title: 'Privacy Policy — Plumtale' };
+export const metadata: Metadata = { title: 'Privacy Policy — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
@@ -28,9 +28,9 @@ export default function Privacy() {
       <p style={meta}>Effective date: {BUSINESS.effectiveDate} · Data fiduciary: {BUSINESS.legalName}.</p>
 
       <p style={p}>
-        This Privacy Policy explains how Plumtale (&quot;we&quot;, &quot;us&quot;) handles personal data when
+        This Privacy Policy explains how MoonBell (&quot;we&quot;, &quot;us&quot;) handles personal data when
         you use our service to create personalized, AI-generated children&apos;s storybooks. We have designed
-        Plumtale to be privacy-first and to align with India&apos;s Digital Personal Data Protection Act, 2023
+        MoonBell to be privacy-first and to align with India&apos;s Digital Personal Data Protection Act, 2023
         (the &quot;DPDP Act&quot;). The parent or guardian is our point of contact and is the data principal
         interface for any child&apos;s data we process.
       </p>
@@ -71,7 +71,7 @@ export default function Privacy() {
 
       <h2 className="display" style={h2}>4. Verifiable parental consent and children&apos;s data</h2>
       <p style={p}>
-        Because Plumtale processes data relating to children, we treat that data with special care under the
+        Because MoonBell processes data relating to children, we treat that data with special care under the
         DPDP Act. Before creating a book featuring a child, we obtain the verifiable consent of the
         child&apos;s parent or guardian, and we record the consent version. Children do not have accounts and
         are not the users of the service — the parent or guardian is. We do not undertake tracking, behavioural
@@ -87,7 +87,7 @@ export default function Privacy() {
       </p>
 
       <h2 className="display" style={h2}>6. AI vendors and sub-processors</h2>
-      <p style={p}>We use the following service providers to operate Plumtale:</p>
+      <p style={p}>We use the following service providers to operate MoonBell:</p>
       <ul style={ul}>
         <li style={li}><strong>OpenAI</strong> — generation of story text and safety moderation.</li>
         <li style={li}><strong>Google (Gemini)</strong> — generation of illustrations.</li>
@@ -100,7 +100,7 @@ export default function Privacy() {
 
       <h2 className="display" style={h2}>7. Cross-border transfer</h2>
       <p style={p}>
-        Some of these providers process data outside India, including in the United States. By using Plumtale
+        Some of these providers process data outside India, including in the United States. By using MoonBell
         you understand that limited data needed to generate and deliver your book may be processed outside
         India. We share only the minimum required, and the child&apos;s real name is tokenized before any AI
         vendor receives the request. We rely on appropriate safeguards and our agreements with these providers.

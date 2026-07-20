@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
 
-export const metadata: Metadata = { title: 'Shipping & Delivery — Plumtale' };
+export const metadata: Metadata = { title: 'Shipping & Delivery — MoonBell' };
 
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
@@ -20,7 +20,7 @@ export default function Shipping() {
 
       <h2 className="display" style={h2}>Digital delivery (at launch)</h2>
       <p style={p}>
-        At launch, Plumtale delivers digital products only. When your purchase is complete, your book is
+        At launch, MoonBell delivers digital products only. When your purchase is complete, your book is
         available instantly:
       </p>
       <ul style={ul}>
