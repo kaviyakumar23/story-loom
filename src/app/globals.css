@@ -243,3 +243,58 @@ p { margin: 0; }
 @media (max-width: 860px) {
   .trust-strip { gap: 14px 22px; padding: 16px 22px; }
 }
+
+/* ============================================================
+   LANDING — interactive hero book + sample page-turn
+   ============================================================ */
+.hero-grid { align-items: center; }
+.hero-headline { font-size: 52px; }
+.hero-sub { color: var(--ink-soft); margin-top: 18px; max-width: 500px; }
+.hero-name-label { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--brand); margin: 28px 0 9px; }
+.hero-name-input { max-width: 320px; font-weight: 700; }
+.hero-cta-row { display: flex; gap: 14px; margin-top: 24px; flex-wrap: wrap; align-items: center; }
+.hero-trust { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-soft); margin-top: 20px; }
+
+.book-stage { display: flex; justify-content: center; perspective: 1600px; }
+.book-cover {
+  position: relative; width: min(340px, 80vw); aspect-ratio: 3 / 4;
+  border-radius: 7px 16px 16px 7px; overflow: hidden;
+  background: linear-gradient(160deg, #322e78 0%, #4b47ad 46%, #6E6AD6 100%);
+  box-shadow: var(--shadow-lg), inset 0 0 0 1px rgba(255,255,255,.06);
+  border-left: 8px solid #2b2769; transform-origin: left center;
+  animation: bookOpen 1s cubic-bezier(.2,.75,.2,1) both;
+  transition: transform .3s ease;
+}
+.book-cover:hover { transform: translateY(-4px) rotateZ(-.5deg); }
+@keyframes bookOpen { from { transform: rotateY(-30deg); opacity: .35; } to { transform: rotateY(0); opacity: 1; } }
+.book-moon { position: absolute; top: 11%; right: 15%; width: 62px; height: 62px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 32%, #FCEBB0, #F5C85B 70%); box-shadow: 0 0 34px rgba(245,200,91,.45); }
+.book-star { position: absolute; border-radius: 50%; background: #EFEEFF; animation: starIn .8s ease both; }
+@keyframes starIn { from { opacity: 0; transform: scale(.4); } to { opacity: .85; transform: scale(1); } }
+.book-title { position: absolute; left: 0; right: 0; bottom: 17%; text-align: center; padding: 0 20px; }
+.book-title-name { display: block; font-family: var(--display); font-weight: 800; font-size: clamp(30px, 8vw, 42px); color: #F5C85B; line-height: 1.02; text-shadow: 0 3px 14px rgba(0,0,0,.35); word-break: break-word; }
+.book-title-rest { display: block; font-family: var(--display); font-style: italic; font-weight: 600; font-size: 17px; color: #EAE8FB; margin-top: 8px; }
+.book-brandline { position: absolute; bottom: 5.5%; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 6px; color: #C9C7EA; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+
+.sample-stage { position: relative; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 4 / 3; border-radius: var(--r-lg); overflow: hidden; background: var(--surface); box-shadow: var(--shadow); border: 2px solid var(--hairline); perspective: 1600px; touch-action: pan-y; }
+.sample-page { position: absolute; inset: 0; transform-origin: left center; }
+.sample-page.turn { animation: pageTurn .5s ease both; }
+@keyframes pageTurn { from { transform: rotateY(-82deg); opacity: .25; } to { transform: rotateY(0); opacity: 1; } }
+.sample-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 18px 14px; background: linear-gradient(0deg, rgba(36,35,64,.78), transparent); color: #fff; font-weight: 700; font-size: 14.5px; }
+.sample-controls { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 18px; }
+.sample-dots { display: flex; gap: 7px; }
+.sample-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--hairline); border: none; cursor: pointer; padding: 0; transition: background .2s; }
+.sample-dot.on { background: var(--brand); }
+.iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--hairline); background: var(--surface); cursor: pointer; display: grid; place-items: center; color: var(--brand); transition: border-color .15s, transform .1s; }
+.iconbtn:not(:disabled):hover { border-color: var(--brand); }
+.iconbtn:not(:disabled):active { transform: scale(.94); }
+.iconbtn:disabled { opacity: .4; cursor: default; }
+
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 860px) {
+  .hero-headline { font-size: 36px; }
+  .hero-name-input { max-width: 100%; }
+  .book-cover { width: min(300px, 82vw); }
+}
