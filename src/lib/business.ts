@@ -5,8 +5,10 @@
  * reachable grievance officer. The draft banner on legal pages clears itself
  * once no [TODO] values remain.
  */
+import { BRAND } from './brand';
+
 export const BUSINESS = {
-  brandName: 'MoonBell',
+  brandName: BRAND.name,
   legalName: '[TODO: legal/business name]',
   registeredAddress: '[TODO: registered address]',
   supportEmail: '[TODO: support email, e.g. support@moonbell.com]',

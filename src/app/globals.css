@@ -3,47 +3,51 @@
    handoff styles.css). Warm, painted, playful.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
+/* ---- MoonBell palette (Moon Indigo · Bell Gold · Story Coral on Paper Cream).
+   Semantic var NAMES are unchanged from the old cream/berry system so the whole
+   app re-skins from here. Legacy names (--berry/--plum/--teal/--coral) are kept
+   as aliases and remapped to MoonBell values. ---- */
 :root {
-  --bg:        #FBEFD6;
-  --bg-2:      #F8E2C3;
-  --surface:   #FFFBF2;
-  --ink:       #3A2A22;
-  --ink-soft:  #7C6A5A;
-  --hairline:  #EBD7B6;
+  --bg:        #FFF9F0;  /* Paper Cream — page */
+  --bg-2:      #EFEEFF;  /* Moon Mist — alternating band */
+  --surface:   #FFFFFF;  /* Cloud White — cards */
+  --ink:       #242340;  /* Night Ink — headings/body */
+  --ink-soft:  #4B4A5A;  /* Soft Charcoal — secondary */
+  --hairline:  #E4E2F5;  /* soft indigo hairline */
 
-  --berry:  #9C3C6B;
-  --plum:   #6E2C58;
-  --teal:   #1F8C82;
-  --coral:  #EE6C45;
-  --coral-deep: #D9542F;
-  --gold:   #F4A93B;
-  --sky:    #5AA6D6;
-  --leaf:   #5FA257;
+  --berry:  #5653C6;     /* Moon Indigo (brand) */
+  --plum:   #3B378F;     /* deep indigo (brand-deep / footer) */
+  --teal:   #6E6AD6;     /* lighter indigo (eyebrows) */
+  --coral:  #FF7C70;     /* Story Coral (accent / action) */
+  --coral-deep: #E8604F; /* deep coral (sticker shadow) */
+  --gold:   #F5C85B;     /* Bell Gold */
+  --sky:    #6E8BE8;     /* periwinkle accent */
+  --leaf:   #5FA27B;     /* muted green accent */
 
   --brand:      var(--berry);
   --brand-deep: var(--plum);
-  --brand-tint: #F7E0EA;
+  --brand-tint: #EFEEFF; /* Moon Mist */
 
   --accent:      var(--coral);
   --accent-deep: var(--coral-deep);
   --accent-ink:  #FFFFFF;
 
-  --soft-blush:  #FBDDD0;
-  --soft-sky:    #D8EAF4;
-  --soft-sage:   #DCEBD3;
-  --soft-butter: #FBE6B6;
-  --soft-lilac:  #ECE2F3;
+  --soft-blush:  #FFE3DE;
+  --soft-sky:    #E1E7FB;
+  --soft-sage:   #DDEFE4;
+  --soft-butter: #FDEFC9;
+  --soft-lilac:  #EAE6FA;
   --soft-1: var(--soft-blush);
   --soft-2: var(--soft-sage);
   --soft-3: var(--soft-lilac);
 
   --success: #3E9B5F;
-  --error:   #D24B2C;
+  --error:   #E4572E;
 
-  --display: 'Baloo 2', system-ui, sans-serif;
-  --sans: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --r-sm: 12px;
   --r:    16px;
@@ -70,19 +74,19 @@ html, body {
 a { color: inherit; }
 
 /* Typography */
-.display { font-family: var(--display); font-weight: 700; line-height: 1.08; letter-spacing: -.005em; }
+.display { font-family: var(--display); font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
 h1, h2, h3 { margin: 0; }
 p { margin: 0; }
 
 .eyebrow {
-  font-family: var(--display);
-  font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
   color: var(--teal); display: inline-flex; align-items: center; gap: 7px;
 }
 
 /* Buttons — chunky sticker style */
 .btn {
-  font-family: var(--display); font-weight: 700; font-size: 16.5px;
+  font-family: var(--sans); font-weight: 800; font-size: 16.5px;
   border: none; cursor: pointer; border-radius: var(--r-pill);
   padding: 15px 24px; line-height: 1; display: inline-flex; align-items: center;
   justify-content: center; gap: 9px;
@@ -109,8 +113,8 @@ p { margin: 0; }
 /* Pills */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--display);
-  font-size: 13px; font-weight: 700; padding: 6px 13px; border-radius: var(--r-pill);
+  font-family: var(--sans);
+  font-size: 13px; font-weight: 800; padding: 6px 13px; border-radius: var(--r-pill);
   background: var(--surface); border: 2px solid var(--hairline); color: var(--ink); white-space: nowrap;
 }
 
@@ -172,7 +176,7 @@ p { margin: 0; }
 .web-header { position: sticky; top: 0; z-index: 50; background: rgba(251,239,214,.86); backdrop-filter: blur(14px); border-bottom: 2px solid var(--hairline); }
 .web-header-inner { max-width: 1120px; margin: 0 auto; padding: 15px 40px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .web-nav { display: flex; align-items: center; gap: 28px; }
-.web-nav a { color: var(--ink-soft); text-decoration: none; font-size: 14.5px; font-weight: 600; white-space: nowrap; font-family: var(--display); }
+.web-nav a { color: var(--ink-soft); text-decoration: none; font-size: 14.5px; font-weight: 700; white-space: nowrap; font-family: var(--sans); }
 .web-nav a:hover { color: var(--brand); }
 .web-nav a.btn-primary,
 .web-nav a.btn-primary:hover {

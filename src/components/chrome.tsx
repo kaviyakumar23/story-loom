@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { useAuth } from '@/lib/auth';
+import { Logo } from './logo';
 import { Icon, Sparkle } from './ui';
 
 export function Header({ minimal }: { minimal?: boolean }) {
@@ -9,9 +11,8 @@ export function Header({ minimal }: { minimal?: boolean }) {
   return (
     <header className="web-header">
       <div className="web-header-inner">
-        <Link href="/" className="brandmark">
-          <Sparkle size={22} color="var(--brand)" />
-          <span className="display" style={{ fontSize: 25, color: 'var(--brand)' }}>MoonBell</span>
+        <Link href="/" className="brandmark" aria-label={`${BRAND.name} home`}>
+          <Logo size={30} />
         </Link>
 
         {minimal ? (
@@ -44,7 +45,7 @@ export function Header({ minimal }: { minimal?: boolean }) {
 export function Footer() {
   const cols: { h: string; items: { label: string; href: string }[] }[] = [
     {
-      h: 'MoonBell',
+      h: BRAND.name,
       items: [
         { label: 'How it works', href: '/#how' },
         { label: 'Sample pages', href: '/#samples' },
@@ -71,33 +72,32 @@ export function Footer() {
     },
   ];
   return (
-    <footer style={{ background: 'var(--brand-deep)', color: '#F4E7EE' }}>
+    <footer style={{ background: 'var(--brand-deep)', color: '#EAE8FB' }}>
       <div className="container" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 40, padding: '56px 40px 30px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
-            <Sparkle size={20} color="var(--accent)" />
-            <span className="display" style={{ fontSize: 23, color: '#fff' }}>MoonBell</span>
+          <div style={{ marginBottom: 14 }}>
+            <Logo size={26} tone="light" />
           </div>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#D9BECC', maxWidth: 260 }}>
-            Personalized keepsake storybooks, made just for your child.
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#C9C7EA', maxWidth: 260 }}>
+            {BRAND.tagline} Personalised keepsake storybooks, made just for your child.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 16, fontSize: 13, color: '#E9D2DD' }}>
-            <Icon name="lock" size={15} stroke="#E9D2DD" /> Your child&apos;s details, never used to train AI
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 16, fontSize: 13, color: '#D6D4F2' }}>
+            <Icon name="lock" size={15} stroke="#D6D4F2" /> Your child&apos;s details, never used to train AI
           </div>
         </div>
         {cols.map((c) => (
           <div key={c.h}>
-            <h4 style={{ fontSize: 13, letterSpacing: '.1em', textTransform: 'uppercase', color: '#C99FB3', marginBottom: 14, fontWeight: 600 }}>{c.h}</h4>
+            <h4 style={{ fontSize: 13, letterSpacing: '.1em', textTransform: 'uppercase', color: '#A9A6D9', marginBottom: 14, fontWeight: 600 }}>{c.h}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
               {c.items.map((i) => (
-                <Link key={i.label} href={i.href} style={{ color: '#F4E7EE', fontSize: 14, opacity: 0.88 }}>{i.label}</Link>
+                <Link key={i.label} href={i.href} style={{ color: '#EAE8FB', fontSize: 14, opacity: 0.88 }}>{i.label}</Link>
               ))}
             </div>
           </div>
         ))}
       </div>
-      <div className="container" style={{ borderTop: '1px solid rgba(255,255,255,.12)', padding: '18px 40px', fontSize: 12.5, color: '#B790A4' }}>
-        © 2026 MoonBell. Made with care.
+      <div className="container" style={{ borderTop: '1px solid rgba(255,255,255,.12)', padding: '18px 40px', fontSize: 12.5, color: '#9C99C9' }}>
+        © 2026 {BRAND.name}. Made with care.
       </div>
     </footer>
   );
