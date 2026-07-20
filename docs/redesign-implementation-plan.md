@@ -47,9 +47,39 @@ Order per brief: Header → **interactive hero** (nickname → live cover, one-t
 - Art: swap sample images for the founder-supplied cover/spreads (prompts delivered); placeholders until then.
 - Motion: one-time hero open, typed name, one page-turn, small scroll-reveals; all respect `prefers-reduced-motion`, no infinite loops, no layout shift.
 
-## Stage 2 — Funnel + anonymous preview
-- Remove `useRequireAuth`/beta gate from `/create`; persist draft to localStorage; anonymous book creation server-side; reveal → account/email → Razorpay UPI. Per-IP preview rate-limit (`src/server/lib/rate-limit.ts` already exists) + moderation stays fail-closed.
-- States: loading, generation-progress, generation-failure+retry, payment-failure, empty, validation, slow-network, preview-unavailable, mobile keyboard, order confirmation, delivery, contact-support.
+## Stage 2 — Funnel + anonymous preview  (RISKY — touches auth/consent/payment)
+
+Reality of the current backend (`/api/v1/books` POST): enforces `requireParent`
+(auth) **+** `assertBetaAccess` (code) **+** `assertRateLimit`, needs a
+`consentId` from `/consent` (also parent-scoped), and rows are parent-scoped
+under RLS. So "anonymous preview" is a real rearchitecture, not copy.
+
+**Recommended approach — Supabase anonymous auth (least backend churn):**
+- On funnel entry, if no session, `supabase.auth.signInAnonymously()`. The anon
+  user IS a `parent` row → `requireParent`, `/consent`, book RLS, and the
+  pipeline all keep working unchanged. Consent is captured under the anon user.
+- Remove `useRequireAuth` redirect + the beta screen from `/create`; **env-gate
+  `assertBetaAccess`** off for production (keep for staging).
+- Persist funnel inputs to `localStorage` (survive reload/animation).
+- At the reveal → to save/checkout: collect email and **upgrade** the anon user
+  to permanent (`updateUser({ email })` + magic-link / `linkIdentity`), which
+  preserves the already-generated book. Then Razorpay UPI as today.
+- Abuse control: `assertRateLimit` keyed per-IP on anonymous book creation
+  (already exists — verify keying); moderation stays fail-closed; keep
+  `PREVIEW_DAILY_CAP`.
+
+**Requires ONE founder action:** enable **Anonymous sign-ins** in Supabase
+(Auth → Providers). Without it, `signInAnonymously()` fails.
+
+**Risks:** anon→permanent linking must not orphan the book or its consent;
+Razorpay/webhook parent-scoping must resolve to the upgraded user; Supabase Auth
+redirect URLs must include the current host (already flagged separately). Do as
+small commits: (1) env-gate beta + anon sign-in + drop the auth wall; (2) draft
+persistence + progress/back-nav; (3) reveal → email-upgrade → checkout.
+
+- States (own commits): loading, generation-progress, generation-failure+retry,
+  payment-failure, empty, validation, slow-network, preview-unavailable, mobile
+  keyboard, order confirmation, delivery, contact-support.
 
 ## Stage 3 — Analytics + hardening
 - Events (no child names/sensitive values): landing view, sample-nickname entered, preview CTA, personalisation started, each step complete, preview gen start/complete/fail, checkout view, payment init/complete/fail, preview shared, abandon.
