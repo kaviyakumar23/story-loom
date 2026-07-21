@@ -4,6 +4,7 @@ import { Footer, Header } from '@/components/chrome';
 import { HeroCover } from '@/components/landing/HeroCover';
 import { Inscription } from '@/components/landing/Inscription';
 import { SampleBook } from '@/components/landing/SampleBook';
+import { TrailDivider } from '@/components/landing/TrailDivider';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
 
@@ -60,6 +61,8 @@ export default function Landing() {
         </div>
       </section>
 
+      <TrailDivider object="bell" />
+
       {/* SAMPLE BOOK PROOF */}
       <section className="dband" id="sample">
         <div className="container">
@@ -79,6 +82,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <TrailDivider object="paperboat" flip />
 
       {/* HOW IT WORKS */}
       <section className="dband dband-soft" id="how">
@@ -138,6 +143,8 @@ export default function Landing() {
         </div>
       </section>
 
+      <TrailDivider object="leaf" />
+
       {/* PRIVACY */}
       <section className="dband" id="privacy">
         <div className="container grid-2">
@@ -165,6 +172,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <TrailDivider object="pencil" flip />
 
       {/* PURCHASE — a product page, not a pricing card */}
       <section className="dband dband-soft" id="pricing">
@@ -211,6 +220,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <TrailDivider object="tornpage" />
 
       {/* FAQ */}
       <section className="dband" id="faq">
