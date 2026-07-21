@@ -5,10 +5,14 @@ import { BRAND } from '@/lib/brand';
 import { useAuth } from '@/lib/auth';
 import { NewsletterForm } from './landing/NewsletterForm';
 import { Logo } from './logo';
-import { Icon, Sparkle } from './ui';
+import { Icon } from './ui';
+
+function ChevronDown() {
+  return <svg className="nav-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>;
+}
 
 export function Header({ minimal }: { minimal?: boolean }) {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   return (
     <header className="web-header">
       <div className="web-header-inner">
@@ -23,19 +27,19 @@ export function Header({ minimal }: { minimal?: boolean }) {
         ) : (
           <nav className="web-nav">
             <Link href="/#how" className="hide-mobile">How it works</Link>
-            <Link href="/#faq" className="hide-mobile">FAQ</Link>
-            {session ? (
-              <>
-                <Link href="/books">My books</Link>
-                <Link href="/account">Account</Link>
-                <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>Sign out</button>
-              </>
-            ) : (
-              <Link href="/signin">Sign in</Link>
-            )}
-            <Link href="/create" className="btn btn-primary btn-sm" style={{ padding: '12px 20px' }}>
-              <Sparkle size={15} color="var(--accent-ink)" /> Create free preview
-            </Link>
+            <Link href="/#sample" className="hide-mobile">Books</Link>
+            <Link href="/#range" className="hide-mobile nav-caret">Keepsakes<ChevronDown /></Link>
+            <Link href="/#range" className="hide-mobile nav-caret">Gifts<ChevronDown /></Link>
+            <Link href="/#trust" className="hide-mobile">About us</Link>
+            <span className="nav-icons">
+              <Link href={session ? '/account' : '/signin'} aria-label={session ? 'Account' : 'Sign in'} className="nav-ic">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.4" /><path d="M5.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6" /></svg>
+              </Link>
+              <Link href="/books" aria-label="My books" className="nav-ic">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 8h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.4H8.8a1.5 1.5 0 0 1-1.5-1.4L6.5 8Z" /><path d="M9.2 8V6.6a2.8 2.8 0 0 1 5.6 0V8" /></svg>
+              </Link>
+            </span>
+            <Link href="/create" className="btn btn-brand btn-sm nav-cta">Create your story</Link>
           </nav>
         )}
       </div>

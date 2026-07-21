@@ -19,7 +19,7 @@ const ITEMS = [
 
 export function ComingSoon() {
   return (
-    <section className="dband dband-soft">
+    <section className="dband dband-soft" id="range">
       <div className="container">
         <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 40px' }}>
           <Inscription size="sm">memories that last</Inscription>

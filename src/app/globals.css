@@ -176,11 +176,18 @@ p { margin: 0; }
 .container { max-width: 1120px; margin: 0 auto; padding: 0 40px; }
 .container-narrow { max-width: 720px; margin: 0 auto; padding: 0 40px; }
 
-.web-header { position: sticky; top: 0; z-index: 50; background: rgba(251,239,214,.86); backdrop-filter: blur(14px); border-bottom: 2px solid var(--hairline); }
-.web-header-inner { max-width: 1120px; margin: 0 auto; padding: 15px 40px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.web-nav { display: flex; align-items: center; gap: 28px; }
-.web-nav a { color: var(--ink-soft); text-decoration: none; font-size: 14.5px; font-weight: 700; white-space: nowrap; font-family: var(--sans); }
+.web-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline); }
+.web-header-inner { max-width: 1200px; margin: 0 auto; padding: 14px 40px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.web-nav { display: flex; align-items: center; gap: 26px; }
+.web-nav a { color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600; white-space: nowrap; font-family: var(--sans); }
 .web-nav a:hover { color: var(--brand); }
+.nav-caret { display: inline-flex; align-items: center; gap: 4px; }
+.nav-chev { opacity: .55; margin-top: 1px; }
+.nav-icons { display: flex; align-items: center; gap: 6px; margin-left: 2px; }
+.nav-ic { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--ink); transition: background .15s; }
+.nav-ic:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.nav-cta { padding: 12px 22px; }
+@media (max-width: 640px) { .nav-icons { display: none; } }
 .web-nav a.btn-primary,
 .web-nav a.btn-primary:hover {
   color: var(--accent-ink);
@@ -479,40 +486,52 @@ p { margin: 0; }
    REFERENCE-LAYOUT SECTIONS (hero, features, timeline, trust,
    final CTA, coming-soon, newsletter, footer)
    ============================================================ */
-.rhero2 { position: relative; overflow: hidden; min-height: 580px; display: flex; align-items: center; }
-.rhero2-inner { position: relative; z-index: 2; width: 100%; padding-top: 64px; padding-bottom: 104px; }
-.rhero2-copy { max-width: 470px; }
-.rhero2-art {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 58%; z-index: 1;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 25%);
-  mask-image: linear-gradient(to right, transparent, #000 25%);
+.hero { position: relative; overflow: hidden; }
+.hero-art {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 54%; z-index: 1;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 42%);
+  mask-image: linear-gradient(to right, transparent, #000 42%);
 }
-.rhero-eyebrow { font-family: var(--sans); font-size: 12.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--coral); margin-bottom: 14px; }
-.rhero-title { font-size: clamp(40px, 6vw, 64px); line-height: 1.02; }
-.rhero-sub { font-size: 18px; line-height: 1.6; color: var(--ink-soft); margin: 20px 0 28px; max-width: 420px; }
-.rhero-cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-.rhero-cta { padding: 16px 28px; font-size: 16.5px; }
-.rhero-proof { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
-@media (max-width: 900px) {
-  .rhero2 { flex-direction: column; min-height: auto; }
-  .rhero2-art { position: relative; width: 100%; height: 288px; order: -1;
-    -webkit-mask-image: linear-gradient(to top, transparent, #000 32%);
-    mask-image: linear-gradient(to top, transparent, #000 32%); }
-  .rhero2-inner { padding: 22px 22px 44px; }
-  .rhero2-copy { max-width: 100%; }
-  .rhero-title { font-size: 40px; }
+.hero-body { position: relative; z-index: 2; min-height: calc(100vh - 70px); display: flex; align-items: center; padding-top: 24px; padding-bottom: 172px; }
+.hero-copy { max-width: 460px; }
+.hero-eyebrow { font-family: var(--sans); font-size: 12.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #DDA23A; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.hero-spark { color: var(--gold); font-size: 16px; }
+.hero-title { font-family: var(--display); font-weight: 800; font-size: clamp(42px, 5.6vw, 66px); line-height: 1; color: var(--brand-deep); letter-spacing: -.01em; }
+.hero-sub { font-size: 17px; line-height: 1.6; color: var(--ink-soft); margin: 22px 0 30px; max-width: 400px; }
+.hero-cta { padding: 16px 30px; font-size: 16.5px; gap: 10px; }
+.hero-cta-spark { color: var(--gold); font-size: 15px; }
+.hero-proof { margin-top: 28px; }
+.hero-proof-line { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.hero-rating { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.hero-avatars { display: flex; }
+.hero-avatar { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; border: 2px solid #fff; margin-left: -9px; box-shadow: 0 1px 3px rgba(43, 39, 105, .22); background-color: var(--bg-2); background-repeat: no-repeat; }
+.hero-avatar:first-child { margin-left: 0; }
+.hero-stars { display: inline-flex; gap: 1px; }
+.hero-rating-num { font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
+.hero-features { position: absolute; left: 0; right: 0; bottom: 42px; z-index: 4; }
+.hero-wave { position: absolute; left: 0; right: 0; bottom: 0; height: 100px; z-index: 0; line-height: 0; }
+.hero-wave svg { width: 100%; height: 100%; display: block; }
+@media (max-width: 980px) {
+  .hero { display: flex; flex-direction: column; }
+  .hero-art { position: relative; width: 100%; height: 300px; order: -1;
+    -webkit-mask-image: linear-gradient(to top, transparent, #000 30%);
+    mask-image: linear-gradient(to top, transparent, #000 30%); }
+  .hero-body { min-height: auto; width: 100%; padding: 24px 0 30px; }
+  .hero-copy { max-width: 100%; }
+  .hero-features { position: static; margin-top: 26px; margin-bottom: 40px; }
+  .hero-wave { display: none; }
 }
 
 /* Feature strip (5 reasons) */
-.feat-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; background: var(--surface); border: 2px solid var(--hairline); border-radius: var(--r-lg); padding: 30px 18px; box-shadow: var(--shadow-sm); }
-.feat-strip-overlap { position: relative; z-index: 3; margin-top: -60px; box-shadow: var(--shadow); }
-@media (max-width: 900px) { .feat-strip-overlap { margin-top: 12px; } }
-.feat { text-align: center; padding: 6px 12px; }
-.feat-ic { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; margin-bottom: 12px; }
-.feat-t { font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 5px; }
-.feat-d { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
-@media (max-width: 860px) { .feat-strip { grid-template-columns: 1fr 1fr; gap: 22px 8px; } }
-@media (max-width: 460px) { .feat-strip { grid-template-columns: 1fr; } }
+.feat-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: var(--surface); border: 1px solid var(--hairline); border-radius: 22px; padding: 22px 8px; box-shadow: var(--shadow); }
+.feat { display: flex; align-items: flex-start; gap: 12px; padding: 4px 18px; position: relative; text-align: left; }
+.feat + .feat::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: var(--hairline); }
+.feat-ic { flex-shrink: 0; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; }
+.feat-txt { min-width: 0; }
+.feat-t { font-size: 14.5px; font-weight: 800; color: var(--ink); margin-bottom: 3px; line-height: 1.2; }
+.feat-d { font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+@media (max-width: 980px) { .feat-strip { grid-template-columns: 1fr 1fr; gap: 18px 0; } .feat + .feat:nth-child(odd)::before { display: none; } }
+@media (max-width: 520px) { .feat-strip { grid-template-columns: 1fr; } .feat + .feat::before { display: none; } }
 
 /* How it works timeline */
 .hiw { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; position: relative; }

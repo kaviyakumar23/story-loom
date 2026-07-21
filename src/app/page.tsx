@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { Footer, Header } from '@/components/chrome';
 import { BackedByTrust } from '@/components/landing/BackedByTrust';
 import { ComingSoon } from '@/components/landing/ComingSoon';
-import { FeatureStrip } from '@/components/landing/FeatureStrip';
 import { FinalCta } from '@/components/landing/FinalCta';
 import { HeroCover } from '@/components/landing/HeroCover';
 import { HowItWorks } from '@/components/landing/HowItWorks';
@@ -31,7 +30,6 @@ export default function Landing() {
       <Header />
 
       <HeroCover />
-      <FeatureStrip />
       <Personalisation />
 
       {/* SEE A REAL ONE */}
