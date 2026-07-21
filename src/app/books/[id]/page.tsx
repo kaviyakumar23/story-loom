@@ -9,6 +9,7 @@ import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, useRequireAuth } from '@/lib/auth';
 import { openCheckout } from '@/lib/razorpay';
+import { supabase } from '@/lib/supabase';
 import {
   TIER_META,
   TIER_ORDER,
@@ -136,12 +137,13 @@ export default function BookPage() {
         tier={tier}
         setTier={setTier}
         onBuy={buy}
-        onAlphaSave={saveAlphaPreview}
+        onSave={savePreview}
         onEvent={trackEvent}
         onRevisionStarted={refreshAfterRevision}
         paying={paying || awaitingPayment}
         awaiting={awaitingPayment || book.status === 'paid'}
         paymentsEnabled={PAYMENTS_ENABLED}
+        isAnon={!session?.user?.email}
       />
     );
 
@@ -161,7 +163,17 @@ export default function BookPage() {
     }
   }
 
-  async function saveAlphaPreview() {
+  // Save the preview to the parent's account. If they're still anonymous, take
+  // an email first and upgrade the anonymous account (same id → the book, its
+  // consent and any purchase stay linked) so the preview isn't lost.
+  async function savePreview(email?: string) {
+    if (email && !session?.user?.email) {
+      const { error: upErr } = await supabase().auth.updateUser({ email });
+      if (upErr) {
+        setError(upErr.message);
+        return;
+      }
+    }
     await trackEvent('alpha_preview_saved', { tier });
     router.push('/books');
   }
@@ -268,20 +280,23 @@ function DeliveredPending({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function Preview({ book, tier, setTier, onBuy, onAlphaSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled }: {
+function Preview({ book, tier, setTier, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
   book: Book;
   tier: Tier;
   setTier: (t: Tier) => void;
   onBuy: () => void;
-  onAlphaSave: () => void;
+  onSave: (email?: string) => Promise<void>;
   onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>;
   onRevisionStarted: () => Promise<void>;
   paying: boolean;
   awaiting: boolean;
   paymentsEnabled: boolean;
+  isAnon: boolean;
 }) {
   const pages = book.preview?.pages ?? [];
   const [page, setPage] = useState(0);
+  const [saveEmail, setSaveEmail] = useState('');
+  const [saving, setSaving] = useState(false);
   const current = pages[Math.min(page, pages.length - 1)];
   const changePage = (next: number) => {
     const bounded = Math.max(0, Math.min(pages.length - 1, next));
@@ -325,9 +340,9 @@ function Preview({ book, tier, setTier, onBuy, onAlphaSave, onEvent, onRevisionS
         {/* order panel */}
         <div style={{ position: 'sticky', top: 96 }}>
           <div className="card" style={{ padding: '28px 26px' }}>
-            <h2 className="display" style={{ fontSize: 26, marginBottom: 4 }}>{paymentsEnabled ? 'Make it real' : 'Private alpha preview'}</h2>
+            <h2 className="display" style={{ fontSize: 26, marginBottom: 4 }}>{paymentsEnabled ? 'Make it real' : 'Love it? Save it'}</h2>
             <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 20 }}>
-              {paymentsEnabled ? 'Unlock the full book — yours instantly.' : 'Checkout is paused while we test story quality with known families.'}
+              {paymentsEnabled ? 'Unlock the full book — yours instantly.' : 'Save your preview to your account — we’ll email you the moment the full book is ready to order.'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {TIER_ORDER.filter((t) => TIER_META[t].enabled).map((t) => {
@@ -353,15 +368,39 @@ function Preview({ book, tier, setTier, onBuy, onAlphaSave, onEvent, onRevisionS
                 {awaiting ? <><span className="spinner" /> Confirming payment…</> : paying ? <span className="spinner" /> : <><Icon name="heart" size={18} stroke="var(--accent-ink)" /> Unlock the full book</>}
               </button>
             ) : (
-              <button className="btn btn-brand btn-block" style={{ marginTop: 20 }} onClick={onAlphaSave}>
-                <Icon name="book" size={18} stroke="#fff" /> Save this preview
-              </button>
+              <div style={{ marginTop: 20 }}>
+                {isAnon && (
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="Your email — to save it"
+                    value={saveEmail}
+                    onChange={(e) => setSaveEmail(e.target.value)}
+                    style={{ marginBottom: 10 }}
+                    aria-label="Email to save your preview"
+                  />
+                )}
+                <button
+                  className="btn btn-brand btn-block"
+                  disabled={saving || (isAnon && !saveEmail.trim())}
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await onSave(isAnon ? saveEmail.trim() : undefined);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                >
+                  {saving ? <span className="spinner" /> : <><Icon name="book" size={18} stroke="#fff" /> Save my storybook</>}
+                </button>
+              </div>
             )}
             <p className="trust" style={{ marginTop: 14, justifyContent: 'center' }}>
-              <Icon name="lock" size={15} stroke="var(--brand)" /> {paymentsEnabled ? <>Secure payment · {awaiting ? 'finishing your book…' : 'pay only when you love it'}</> : 'No payment in internal alpha'}
+              <Icon name="lock" size={15} stroke="var(--brand)" /> {paymentsEnabled ? <>Secure payment · {awaiting ? 'finishing your book…' : 'pay only when you love it'}</> : 'Free preview · saved to your account'}
             </p>
             <p style={{ marginTop: 12, fontSize: 12, lineHeight: 1.5, color: 'var(--ink-soft)', textAlign: 'center' }}>
-              Illustrations are AI-generated and may have small imperfections — please review your preview {paymentsEnabled ? 'before buying' : 'and share feedback during alpha'}. See our{' '}
+              Illustrations are AI-generated and may have small imperfections — please review your preview {paymentsEnabled ? 'before buying' : 'before you order'}. See our{' '}
               <Link href="/legal/ai-disclosure" style={{ color: 'var(--brand)', fontWeight: 600 }}>AI Disclosure</Link>.
             </p>
             <PreviewTrustList />
