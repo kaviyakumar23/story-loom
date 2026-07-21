@@ -540,15 +540,19 @@ p { margin: 0; }
 .finalcta-art { position: relative; min-height: 250px; }
 @media (max-width: 760px) { .finalcta { grid-template-columns: 1fr; } .finalcta-art { min-height: 210px; } }
 
-/* Coming soon */
-.soon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 900px; margin: 0 auto; }
-.soon-tile { background: var(--surface); border: 2px solid var(--hairline); border-radius: var(--r); padding: 22px 18px; text-align: center; }
-.soon-ic { display: inline-grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; background: var(--brand-tint); color: var(--brand); margin-bottom: 11px; }
-.soon-t { font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 5px; }
+/* Product range ("More than books") */
+.range-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; max-width: 1000px; margin: 0 auto; }
+.range-tile { background: var(--surface); border: 2px solid var(--hairline); border-radius: var(--r-lg); padding: 14px 14px 18px; text-align: center; text-decoration: none; color: inherit; display: block; transition: transform .18s ease, box-shadow .2s ease; }
+.range-tile-live { border-color: var(--brand); }
+.range-tile:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.range-img { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 6px; }
+.range-t { font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+.range-d { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.range-live { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); background: var(--brand-tint); padding: 2px 7px; border-radius: 999px; vertical-align: 2px; }
 .soon-tag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--coral); background: #FFE3DE; padding: 2px 7px; border-radius: 999px; vertical-align: 2px; }
-.soon-d { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
-.soon-notify { max-width: 420px; margin: 28px auto 0; }
-@media (max-width: 780px) { .soon-grid { grid-template-columns: 1fr 1fr; } }
+.soon-notify { max-width: 440px; margin: 34px auto 0; }
+@media (max-width: 900px) { .range-grid { grid-template-columns: 1fr 1fr 1fr; } }
+@media (max-width: 560px) { .range-grid { grid-template-columns: 1fr 1fr; } }
 
 /* Newsletter form */
 .news { display: flex; gap: 8px; }

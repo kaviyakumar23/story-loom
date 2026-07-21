@@ -1,38 +1,61 @@
-import type { ReactNode } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { Inscription } from './Inscription';
 import { NewsletterForm } from './NewsletterForm';
 
-const ITEMS: { t: string; d: string; icon: ReactNode }[] = [
-  { t: 'Audio stories', d: 'Narrated stories your child will love.', icon: <><path d="M4 14v-3a8 8 0 0 1 16 0v3" /><rect x="3" y="13" width="4" height="6" rx="1.4" /><rect x="17" y="13" width="4" height="6" rx="1.4" /></> },
-  { t: 'Video stories', d: 'Their story brought to life with animation.', icon: <><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M10 9l5 3-5 3V9Z" /></> },
-  { t: 'Keepsakes', d: 'Thoughtful keepsakes to hold on to.', icon: <><path d="M4 9h16v10a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9Z" /><path d="M3 5.5h18V9H3zM12 5.5V21" /></> },
-  { t: 'Gifts & more', d: 'Meaningful gifts for every special moment.', icon: <><path d="M4 11h16v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19v-8Z" /><path d="M3 7.5h18V11H3zM12 7.5V21M12 7.5C9 7.5 8 3.5 12 3.5S15 7.5 12 7.5Z" /></> },
+/**
+ * "More than books" product range — Storybooks are live today; audio, video,
+ * keepsakes and gifts are tagged "soon" with a notify-me, per the single-product
+ * launch focus. Uses the founder's illustrated product tiles.
+ */
+const ITEMS = [
+  { t: 'Storybooks', d: 'Beautifully illustrated personalised books.', img: '/landing/bookimage.webp', live: true },
+  { t: 'Audio stories', d: 'Narrated stories your child will love.', img: '/landing/childwithheadphone.webp' },
+  { t: 'Video stories', d: 'Their story brought to life with animation.', img: '/landing/tablet.webp' },
+  { t: 'Keepsakes', d: 'Thoughtful keepsakes to hold on to.', img: '/landing/giftbox.webp' },
+  { t: 'Gifts & more', d: 'Meaningful gifts for every special moment.', img: '/landing/mug.webp' },
 ];
 
-/** "The MoonBell world is growing" — coming-soon range + notify-me (bottom, restrained). */
 export function ComingSoon() {
   return (
     <section className="dband dband-soft">
       <div className="container">
-        <div style={{ textAlign: 'center', maxWidth: 620, margin: '0 auto 32px' }}>
-          <Inscription size="sm">on the way</Inscription>
-          <h2 className="display d-h2" style={{ marginTop: 6 }}>The MoonBell world is growing</h2>
+        <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 40px' }}>
+          <Inscription size="sm">memories that last</Inscription>
+          <h2 className="display d-h2" style={{ marginTop: 6 }}>More than books</h2>
           <p style={{ color: 'var(--ink-soft)', marginTop: 12, fontSize: 16 }}>
-            Storybooks are here today. These are coming next — want a nudge when they land?
+            Storybooks are here today — the rest of the MoonBell world is on its way.
           </p>
         </div>
-        <div className="soon-grid">
-          {ITEMS.map((i) => (
-            <div key={i.t} className="soon-tile">
-              <span className="soon-ic">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{i.icon}</svg>
-              </span>
-              <h3 className="soon-t">{i.t} <span className="soon-tag">soon</span></h3>
-              <p className="soon-d">{i.d}</p>
-            </div>
-          ))}
+
+        <div className="range-grid">
+          {ITEMS.map((i) => {
+            const inner = (
+              <>
+                <div className="range-img">
+                  <Image src={i.img} alt={i.t} width={1024} height={1536} sizes="(max-width: 900px) 40vw, 190px" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
+                <h3 className="range-t">
+                  {i.t} {i.live ? <span className="range-live">now</span> : <span className="soon-tag">soon</span>}
+                </h3>
+                <p className="range-d">{i.d}</p>
+              </>
+            );
+            return i.live ? (
+              <Link key={i.t} href="/create" className="range-tile range-tile-live">{inner}</Link>
+            ) : (
+              <div key={i.t} className="range-tile">{inner}</div>
+            );
+          })}
         </div>
-        <div className="soon-notify"><NewsletterForm /></div>
+
+        <div className="soon-notify">
+          <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--ink-soft)', marginBottom: 12 }}>
+            Want a nudge when the rest arrive?
+          </p>
+          <NewsletterForm />
+        </div>
       </div>
     </section>
   );

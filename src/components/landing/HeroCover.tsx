@@ -35,13 +35,13 @@ export function HeroCover() {
         <div className="rhero-art">
           <div className="rhero-blob">
             <Image
-              src="/landing/moon-watch-spread.webp"
-              alt="A child reading a glowing storybook under a golden moon and bell"
+              src="/landing/herosectionimage.webp"
+              alt="A child reading a glowing storybook on a rooftop under a golden moon and bell"
               width={1536}
               height={1024}
               priority
               sizes="(max-width: 900px) 92vw, 560px"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'right center' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
             />
           </div>
           <span className="rhero-star" aria-hidden>
