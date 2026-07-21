@@ -22,6 +22,9 @@ import {
 } from '@/lib/types';
 
 const CONSENT_VERSION = '2026-01-policy-v1';
+// Persist the in-progress form so a refresh / accidental navigation doesn't lose
+// the details a parent already entered. Local to this browser; cleared on submit.
+const DRAFT_KEY = 'moonbell:create-draft:v1';
 const SKIN_TONES = [
   { id: 'fair', c: '#F2D5BC' },
   { id: 'light', c: '#E3B591' },
@@ -73,6 +76,7 @@ export default function Create() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   /** One key for this form session, so a retry replays rather than duplicates. */
   const idempotencyKey = useRef<string>('');
   if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
@@ -94,6 +98,43 @@ export default function Create() {
       cancelled = true;
     };
   }, [ready]);
+
+  // Restore any saved draft once, on mount.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof d.nickname === 'string') setNickname(d.nickname);
+        if (typeof d.ageBand === 'string') setAgeBand(d.ageBand as AgeBand);
+        if (typeof d.skinTone === 'string') setSkinTone(d.skinTone);
+        if (typeof d.hair === 'string') setHair(d.hair);
+        if (typeof d.glasses === 'boolean') setGlasses(d.glasses);
+        if (typeof d.goal === 'string') setGoal(d.goal as Goal);
+        if (d.occasionPack) setOccasionPack(d.occasionPack as OccasionPackId);
+        if (typeof d.readingLevel === 'string') setReadingLevel(d.readingLevel as ReadingLevel);
+        if (Array.isArray(d.interests)) setInterests(d.interests.filter((x): x is string => typeof x === 'string'));
+        if (typeof d.step === 'number') setStep(Math.min(3, Math.max(1, d.step)));
+        if (typeof d.idempotencyKey === 'string') idempotencyKey.current = d.idempotencyKey;
+      }
+    } catch {
+      /* ignore corrupt draft */
+    }
+    setLoaded(true);
+  }, []);
+
+  // Save the draft whenever a persisted field changes (after the initial load).
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, step, idempotencyKey: idempotencyKey.current }),
+      );
+    } catch {
+      /* storage full / disabled — non-fatal */
+    }
+  }, [loaded, nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, step]);
 
   if (sessionError) {
     return (
@@ -190,6 +231,11 @@ export default function Create() {
           consentId,
         },
       });
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* non-fatal */
+      }
       router.push(`/books/${bookId}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
