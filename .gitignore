@@ -42,3 +42,6 @@ next-env.d.ts
 
 # keep the example env
 !.env.local.example
+
+# Illustration masters (heavy PNGs) — site uses the webp versions
+public/landing/*.png

@@ -279,7 +279,9 @@ p { margin: 0; }
 .book-title-rest { display: block; font-family: var(--display); font-style: italic; font-weight: 600; font-size: 17px; color: #EAE8FB; margin-top: 8px; }
 .book-brandline { position: absolute; bottom: 5.5%; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 6px; color: #C9C7EA; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 
-.sample-stage { position: relative; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 4 / 3; border-radius: var(--r-lg); overflow: hidden; background: var(--surface); box-shadow: var(--shadow); border: 2px solid var(--hairline); perspective: 1600px; touch-action: pan-y; }
+.sample-stage { position: relative; width: 100%; max-width: 760px; margin: 0 auto; aspect-ratio: 3 / 2; border-radius: 10px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow-lg); border: 3px solid var(--ink-line); perspective: 1600px; touch-action: pan-y; }
+/* subtle centre gutter so the spread reads as an open book */
+.sample-stage::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 22px; transform: translateX(-50%); z-index: 2; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(20,18,45,.16) 45%, rgba(20,18,45,.16) 55%, transparent); }
 .sample-page { position: absolute; inset: 0; transform-origin: left center; }
 .sample-page.turn { animation: pageTurn .5s ease both; }
 @keyframes pageTurn { from { transform: rotateY(-82deg); opacity: .25; } to { transform: rotateY(0); opacity: 1; } }
@@ -372,7 +374,27 @@ p { margin: 0; }
 }
 .hero-name-field::placeholder { color: #B9B6E0; }
 
+/* Purchase — product shot, price tag, spec row */
+.product-shot {
+  position: relative; border-radius: 14px; overflow: hidden;
+  border: 3px solid var(--ink-line); box-shadow: var(--shadow-lg);
+  transform: rotate(-1.2deg);
+}
+.price-tag {
+  position: absolute; top: -16px; right: -12px; z-index: 3;
+  width: 80px; height: 80px; border-radius: 50%;
+  background: var(--gold); color: var(--ink-line);
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 22px;
+  box-shadow: 0 6px 0 #d9a93f, 0 12px 20px rgba(43,39,105,.24);
+  transform: rotate(8deg); border: 3px solid #fff;
+}
+.spec-row { display: flex; flex-wrap: wrap; gap: 26px; padding: 16px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.spec-row > span { display: flex; flex-direction: column; font-size: 14.5px; color: var(--ink); font-weight: 700; }
+.spec-row strong { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); font-weight: 800; margin-bottom: 3px; }
+
 @media (max-width: 860px) {
   .inscription { font-size: 1.35rem; }
   .story-window-frame { border-width: 2.5px; }
+  .price-tag { width: 66px; height: 66px; font-size: 18px; top: -12px; right: -6px; }
 }

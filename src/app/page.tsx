@@ -1,6 +1,8 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Footer, Header } from '@/components/chrome';
 import { HeroCover } from '@/components/landing/HeroCover';
+import { Inscription } from '@/components/landing/Inscription';
 import { SampleBook } from '@/components/landing/SampleBook';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
@@ -164,29 +166,47 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* PRICE — ONE PRODUCT */}
+      {/* PURCHASE — a product page, not a pricing card */}
       <section className="dband dband-soft" id="pricing">
-        <div className="container-narrow" style={{ textAlign: 'center' }}>
-          <span className="eyebrow"><Icon name="sparkles" size={14} stroke="var(--gold)" /> One book, one simple price</span>
-          <h2 className="display d-h2" style={{ marginTop: 14 }}>Pay only after you love the preview</h2>
-          <div className="card" style={{ maxWidth: 440, margin: '32px auto 0', padding: '34px 32px', border: '2px solid var(--brand)', textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-              <h3 className="display" style={{ fontSize: 23 }}>{BRAND.product.name}</h3>
-              <span className="display" style={{ fontSize: 40, color: 'var(--brand)' }}>{BRAND.product.priceLabel}</span>
+        <div className="container grid-2" style={{ alignItems: 'center', gap: 56 }}>
+          <div style={{ position: 'relative' }}>
+            <div className="product-shot">
+              <Image
+                src="/landing/gift-keepsake-close-up.webp"
+                alt="A personalised MoonBell storybook in its navy gift box, with a ribbon and a handwritten note"
+                width={1122}
+                height={1402}
+                sizes="(max-width: 860px) 90vw, 520px"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
             </div>
-            <div style={{ height: 1, background: 'var(--hairline)', margin: '18px 0' }} />
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <span className="price-tag">{BRAND.product.priceLabel}</span>
+          </div>
+
+          <div>
+            <Inscription size="sm">one book · one simple price</Inscription>
+            <h2 className="display d-h2" style={{ marginTop: 8 }}>{BRAND.product.name}</h2>
+            <p style={{ fontSize: 15.5, color: 'var(--ink-soft)', margin: '12px 0 20px', lineHeight: 1.6, maxWidth: 440 }}>
+              A complete illustrated story starring your child — delivered as a keepsake you’ll
+              read again and again. You only pay after your free preview.
+            </p>
+            <ul style={{ listStyle: 'none', margin: '0 0 22px', padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {BRAND.product.includes.map((it) => (
-                <li key={it} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 15, color: 'var(--ink)', lineHeight: 1.5 }}>
+                <li key={it} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', fontSize: 15.5, color: 'var(--ink)', lineHeight: 1.5 }}>
                   <Icon name="check" size={18} stroke="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} /> {it}
                 </li>
               ))}
             </ul>
-            <Link href="/create" className="btn btn-primary btn-block" style={{ marginTop: 24, padding: '16px 24px', fontSize: 16.5 }}>
+            <div className="spec-row">
+              <span><strong>Format</strong>{BRAND.product.format}</span>
+              <span><strong>Delivery</strong>{BRAND.product.delivery}</span>
+              <span><strong>Revision</strong>{BRAND.product.revision}</span>
+            </div>
+            <Link href="/create" className="btn btn-primary" style={{ marginTop: 24, padding: '17px 30px', fontSize: 17 }}>
               {BRAND.hero.primaryCta}
             </Link>
-            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', marginTop: 14 }}>
-              Free preview first · {BRAND.product.delivery} · UPI &amp; cards
+            <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 14 }}>
+              Free preview first · pay by UPI &amp; cards · no photos ever
             </p>
           </div>
         </div>

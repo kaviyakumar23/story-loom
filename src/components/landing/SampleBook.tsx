@@ -12,9 +12,9 @@ import { useRef, useState } from 'react';
  * (image prompts delivered). Swap `PAGES[].src` for the real spreads.
  */
 const PAGES = [
-  { src: '/landing/sample-bedtime.webp', caption: 'Cover — “Aarav and the Star That Listens”' },
-  { src: '/landing/sample-school.webp', caption: 'Page 1 — Aarav can’t sleep, so a little star leans in to listen.' },
-  { src: '/landing/sample-kindness.webp', caption: 'Page 2 — Together they turn a worry into a wish.' },
+  { src: '/landing/moon-watch-spread.webp', caption: 'Aarav climbed the hill to ask the moon just one small question.' },
+  { src: '/landing/jasmine-spread.webp', caption: 'In the jasmine garden, a little star leaned down to listen.' },
+  { src: '/landing/bedtime-spread.webp', caption: 'Braver now, Aarav curled up with his friend for the night.' },
 ];
 
 export function SampleBook() {
