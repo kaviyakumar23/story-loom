@@ -3,7 +3,7 @@
    handoff styles.css). Warm, painted, playful.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Caveat:wght@500;600;700&display=swap');
 
 /* ---- MoonBell palette (Moon Indigo · Bell Gold · Story Coral on Paper Cream).
    Semantic var NAMES are unchanged from the old cream/berry system so the whole
@@ -48,6 +48,9 @@
 
   --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Handwriting — decorative inscriptions ONLY, never body/forms/a11y text. */
+  --hand: 'Caveat', 'Segoe Script', cursive;
+  --ink-line: #2b2769;
 
   --r-sm: 12px;
   --r:    16px;
@@ -297,4 +300,79 @@ p { margin: 0; }
   .hero-headline { font-size: 36px; }
   .hero-name-input { max-width: 100%; }
   .book-cover { width: min(300px, 82vw); }
+}
+
+/* ============================================================
+   STORYBOOK ART DIRECTION — paper grain, Story Window, ribbon,
+   inscriptions. Devices reused across the site.
+   ============================================================ */
+
+/* Subtle paper grain over the whole page (imperceptible on text). */
+.web::after {
+  content: ""; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: .04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Personal Inscription — handwriting, decorative only. */
+.inscription {
+  font-family: var(--hand); color: var(--brand); font-weight: 600;
+  font-size: 1.55rem; line-height: 1.05; display: inline-block; letter-spacing: .01em;
+}
+.inscription-sm { font-size: 1.15rem; }
+.inscription-tilt { transform: rotate(-3deg); }
+.inscription-line { display: inline-block; }
+.inscription-line svg { display: block; width: 100%; height: .34em; overflow: visible; }
+.inscription-line svg path { stroke: var(--gold); stroke-width: 7; fill: none; stroke-linecap: round; }
+
+/* Story Window — arched page-opening frame with inked double rule. */
+.story-window { position: relative; display: inline-block; }
+.story-window-frame {
+  position: relative; overflow: hidden;
+  border-radius: 48% 48% 14px 14px / 33% 33% 5% 5%;
+  background: var(--surface); box-shadow: var(--shadow-lg);
+  border: 3px solid var(--ink-line);
+}
+.story-window-frame::after {
+  content: ""; position: absolute; inset: 7px; pointer-events: none;
+  border-radius: 46% 46% 9px 9px / 31% 31% 4% 4%;
+  border: 1.5px solid rgba(43, 39, 105, .26);
+}
+.story-window-star { position: absolute; top: -14px; right: 9%; z-index: 4; animation: starIn .8s ease both; }
+
+/* Ribbon bookmark hanging over the top edge. */
+.ribbon {
+  position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+  width: 26px; height: 78px; z-index: 3;
+  background: linear-gradient(var(--coral), var(--coral-deep));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  box-shadow: 0 5px 9px rgba(43, 39, 105, .2);
+}
+.ribbon::before { content: ""; position: absolute; top: 0; left: 5px; width: 6px; height: 100%; background: rgba(255, 255, 255, .22); }
+.ribbon.progress { transition: height .3s ease; }
+
+/* Hero — layered book-in-window, editorial (not a split card). */
+.hero-kicker { margin-bottom: 6px; }
+.hero-scene { position: absolute; inset: 0; background: radial-gradient(125% 95% at 68% 16%, #4b47ad 0%, #322e78 62%, #26235f 100%); }
+.hero-scene .book-moon { top: 9%; right: 16%; }
+/* Centred via left/right (NOT translateX) because the bookOpen animation sets
+   `transform`, which would otherwise wipe the centring transform. */
+.hero-book-inset {
+  position: absolute; left: 18%; right: 18%; bottom: 5%;
+  border-radius: 6px 12px 12px 6px; overflow: hidden;
+  box-shadow: 0 14px 30px rgba(0,0,0,.34); border-left: 6px solid #2b2769;
+  animation: bookOpen 1s cubic-bezier(.2,.75,.2,1) both;
+}
+.hero-name-line {
+  display: inline-flex; align-items: baseline; gap: 8px; margin: 24px 0 4px;
+  border-bottom: 2.5px dashed var(--brand); padding: 2px 4px 6px;
+}
+.hero-name-field {
+  font-family: var(--sans); font-weight: 800; font-size: 22px; color: var(--brand);
+  border: none; outline: none; background: transparent; width: 190px; padding: 0;
+}
+.hero-name-field::placeholder { color: #B9B6E0; }
+
+@media (max-width: 860px) {
+  .inscription { font-size: 1.35rem; }
+  .story-window-frame { border-width: 2.5px; }
 }
