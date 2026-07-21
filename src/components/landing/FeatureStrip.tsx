@@ -26,9 +26,9 @@ const FEATURES: { t: string; d: string; c: string; icon: ReactNode }[] = [
 
 export function FeatureStrip() {
   return (
-    <section className="dband" style={{ paddingTop: 8, paddingBottom: 8 }}>
+    <section className="dband" style={{ paddingTop: 0, paddingBottom: 30 }}>
       <div className="container">
-        <div className="feat-strip">
+        <div className="feat-strip feat-strip-overlap">
           {FEATURES.map((f) => (
             <div key={f.t} className="feat">
               <span className="feat-ic" style={{ color: f.c, background: 'color-mix(in srgb, ' + f.c + ' 14%, #fff)' }}>
