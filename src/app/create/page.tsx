@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { useRequireAuth } from '@/lib/auth';
+import { useEnsureSession } from '@/lib/auth';
 import {
   AGE_BANDS,
   GOAL_LABELS,
@@ -52,7 +52,7 @@ function Progress({ step }: { step: number }) {
 }
 
 export default function Create() {
-  const { ready } = useRequireAuth();
+  const { ready, error: sessionError } = useEnsureSession();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
@@ -94,6 +94,25 @@ export default function Create() {
       cancelled = true;
     };
   }, [ready]);
+
+  if (sessionError) {
+    return (
+      <div className="web" style={{ minHeight: '100vh' }}>
+        <Header minimal />
+        <div className="container-narrow page-pad" style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: '36px', maxWidth: 460, textAlign: 'center' }}>
+            <h1 className="display" style={{ fontSize: 24, marginBottom: 10 }}>Let’s get you started</h1>
+            <p style={{ fontSize: 15, color: 'var(--ink-soft)', marginBottom: 20, lineHeight: 1.5 }}>
+              We couldn’t open a guest session just now. You can sign in and pick up right where you left off.
+            </p>
+            <Link href={`/signin?next=${encodeURIComponent('/create')}`} className="btn btn-primary btn-block">
+              Sign in to continue
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!ready || !access) {
     return (

@@ -54,3 +54,30 @@ export function useRequireAuth(): { ready: boolean } {
   }, [loading, session, router]);
   return { ready: !loading && !!session };
 }
+
+/**
+ * Ensure a session WITHOUT a sign-in wall: if none, sign in anonymously so the
+ * parent can build and preview a book before ever creating an account. The
+ * anonymous user still gets a profiles row (see server/auth.requireParent), so
+ * consent + book creation + RLS all work; the account is upgraded to a real
+ * email at save/checkout, keeping the same id (and the book). Returns:
+ * - ready: a session exists (anonymous or real)
+ * - error: anonymous sign-in failed (e.g. not enabled in Supabase)
+ */
+export function useEnsureSession(): { ready: boolean; error: string | null } {
+  const { session, loading } = useAuth();
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (loading || session || starting) return;
+    setStarting(true);
+    supabase()
+      .auth.signInAnonymously()
+      .then(({ error }) => {
+        if (error) setError(error.message);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not start a session'))
+      .finally(() => setStarting(false));
+  }, [loading, session, starting]);
+  return { ready: !loading && !!session, error };
+}
