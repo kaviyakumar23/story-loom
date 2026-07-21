@@ -413,3 +413,64 @@ p { margin: 0; }
   .story-window-frame { border-width: 2.5px; }
   .price-tag { width: 66px; height: 66px; font-size: 18px; top: -12px; right: -6px; }
 }
+
+/* Bell/star nudge on interaction (reduced-motion disables via global rule) */
+.story-window:hover .story-window-star svg { animation: starRing .55s ease; transform-origin: 50% 55%; }
+@keyframes starRing { 0%,100% { transform: rotate(0); } 22% { transform: rotate(-16deg); } 55% { transform: rotate(11deg); } 80% { transform: rotate(-5deg); } }
+
+/* Personalisation Transformation — connected assembly, not cards */
+.pt-grid { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1.02fr); align-items: center; gap: 8px; }
+.pt-details { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; position: relative; }
+.pt-details::before { content: ""; position: absolute; left: 20px; top: 34px; bottom: 34px; width: 2px; background-image: linear-gradient(var(--brand) 55%, transparent 0); background-size: 2px 10px; opacity: .45; }
+.pt-detail { display: flex; gap: 16px; align-items: flex-start; position: relative; }
+.pt-step { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 19px; z-index: 1; box-shadow: 0 3px 0 var(--plum); }
+.pt-detail-label { display: block; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); margin-bottom: 7px; }
+.pt-value { font-size: 16px; color: var(--ink); font-weight: 700; }
+.pt-out { display: inline-block; margin-top: 6px; font-family: var(--hand); font-size: 17px; color: var(--brand); }
+.pt-name { font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--brand); border-bottom: 2px dashed var(--brand); padding: 0 6px 2px; }
+.pt-swatches { display: inline-flex; align-items: center; gap: 7px; }
+.pt-swatches i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--hairline); }
+.pt-tags { display: inline-flex; gap: 7px; flex-wrap: wrap; }
+.pt-tags em { font-style: normal; font-size: 13px; font-weight: 700; background: var(--brand-tint); color: var(--brand); padding: 4px 11px; border-radius: 999px; }
+.pt-lesson { font-weight: 800; color: var(--coral); background: #FFE3DE; padding: 5px 13px; border-radius: 999px; font-size: 14px; }
+.pt-arrow { display: flex; align-items: center; justify-content: center; }
+.pt-arrow svg { width: 94px; height: 60px; }
+.pt-hero { text-align: center; }
+.pt-hero-note { margin-top: 0; }
+.pt-consistency { max-width: 780px; margin: 44px auto 0; text-align: center; }
+.pt-consistency-label { margin-top: 4px; }
+@media (max-width: 860px) {
+  .pt-grid { grid-template-columns: 1fr; gap: 20px; }
+  .pt-arrow { height: 46px; }
+  .pt-arrow svg { transform: rotate(90deg); }
+}
+
+/* Parent Reaction — scrapbook */
+.scrapbook { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px 26px; max-width: 920px; margin: 0 auto; }
+.scrap { background: #fff; padding: 12px 12px 6px; border-radius: 4px; box-shadow: 0 12px 28px rgba(43, 39, 105, .16); position: relative; width: 236px; }
+.scrap-tape { position: absolute; top: -9px; left: 50%; transform: translateX(-50%) rotate(-4deg); width: 74px; height: 20px; background: rgba(245, 200, 91, .5); box-shadow: 0 1px 2px rgba(0, 0, 0, .06); }
+.scrap-photo { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 2px; background: var(--bg-2); }
+.scrap-cap { text-align: center; padding: 9px 4px 3px; }
+.scrap-note { width: 250px; background: #FFFDF6; padding: 24px 24px 16px; align-self: center; box-shadow: 0 10px 24px rgba(43, 39, 105, .14); }
+.scrap-note blockquote { margin: 0; font-family: var(--display); font-style: italic; font-size: 17px; line-height: 1.5; color: var(--ink); }
+.scrap-note figcaption { margin-top: 12px; text-align: right; }
+.scrap-pin { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 15px; height: 15px; border-radius: 50%; background: var(--coral); box-shadow: 0 2px 5px rgba(43, 39, 105, .3), inset 0 -2px 3px rgba(0, 0, 0, .22); }
+@media (max-width: 640px) { .scrap, .scrap-note { width: 80%; } }
+
+/* Safety Bookplate — inside-cover ex libris */
+.bookplate { position: relative; background: var(--surface); border: 3px solid var(--ink-line); border-radius: 6px; padding: 40px 44px 34px; text-align: center; box-shadow: var(--shadow); }
+.bookplate::after { content: ""; position: absolute; inset: 8px; border: 1.5px solid rgba(43, 39, 105, .24); border-radius: 3px; pointer-events: none; }
+.bookplate-emblem { display: inline-grid; place-items: center; width: 62px; height: 62px; border-radius: 50%; background: var(--brand-tint); margin-bottom: 12px; }
+.bookplate-eyebrow { font-family: var(--sans); font-size: 11.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+.bookplate-list { list-style: none; margin: 28px 0 6px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 30px; text-align: left; }
+.bookplate-list li { display: flex; gap: 12px; align-items: flex-start; }
+.bookplate-list li svg { flex-shrink: 0; margin-top: 1px; }
+.bookplate-list h3 { font-size: 15.5px; font-weight: 800; color: var(--ink); }
+.bookplate-list p { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin-top: 3px; }
+.bookplate-sign { margin-top: 18px; }
+@media (max-width: 640px) { .bookplate-list { grid-template-columns: 1fr; } .bookplate { padding: 30px 24px 26px; } }
+
+/* Scroll-progress ribbon bookmark */
+.scroll-ribbon { position: fixed; top: 0; left: 24px; width: 15px; height: 100vh; z-index: 55; pointer-events: none; }
+.scroll-ribbon-fill { position: absolute; top: 0; left: 0; width: 100%; height: calc(var(--p, 0) * 100vh); min-height: 40px; background: linear-gradient(var(--coral), var(--coral-deep)); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 9px), 0 100%); box-shadow: 0 3px 8px rgba(43, 39, 105, .22); }
+@media (max-width: 1040px) { .scroll-ribbon { display: none; } }

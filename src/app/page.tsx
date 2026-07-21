@@ -3,7 +3,11 @@ import Link from 'next/link';
 import { Footer, Header } from '@/components/chrome';
 import { HeroCover } from '@/components/landing/HeroCover';
 import { Inscription } from '@/components/landing/Inscription';
+import { ParentReaction } from '@/components/landing/ParentReaction';
+import { Personalisation } from '@/components/landing/Personalisation';
+import { SafetyBookplate } from '@/components/landing/SafetyBookplate';
 import { SampleBook } from '@/components/landing/SampleBook';
+import { ScrollRibbon } from '@/components/landing/ScrollRibbon';
 import { TrailDivider } from '@/components/landing/TrailDivider';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
@@ -13,24 +17,6 @@ const TRUST = [
   { name: 'shield' as const, t: 'No photos', c: 'var(--brand)' },
   { name: 'lock' as const, t: 'Never used to train AI', c: 'var(--sky)' },
   { name: 'check' as const, t: 'Delete anytime', c: 'var(--success)' },
-];
-
-const STEPS = [
-  { n: '1', t: 'Tell us about them', d: 'Their nickname, age, how they look, and what they love — about a minute.', c: 'var(--brand)' },
-  { n: '2', t: 'Pick a gentle lesson', d: 'Bedtime courage, kindness, starting school — the story is shaped around it.', c: 'var(--coral)' },
-  { n: '3', t: 'See your free preview', d: 'Meet your child as the hero — cover and opening pages, free, before you pay.', c: 'var(--gold)' },
-];
-
-const BENEFITS = [
-  { icon: 'star' as const, c: 'var(--gold)', t: 'Truly theirs', d: 'Their nickname, their looks, the things they love — woven through every page, with the same hero on every spread.' },
-  { icon: 'heart' as const, c: 'var(--coral)', t: 'A gentle life-lesson', d: 'Each story carries a goal you choose — bravery at bedtime, kindness, a first day at school — told softly, never preachy.' },
-  { icon: 'shield' as const, c: 'var(--brand)', t: 'Safe by design', d: 'No photos, ever. A nickname instead of a real name, an age band instead of a birthday. Delete everything anytime.' },
-];
-
-const PRIVACY = [
-  { icon: 'shield' as const, t: 'No photos, ever', d: 'You describe how your child looks — we never ask for or store a single photo.' },
-  { icon: 'lock' as const, t: 'Minimal details', d: 'A nickname, not a legal name. An age band, not a birth date. Their real name is never sent to an AI vendor or used to train AI.' },
-  { icon: 'check' as const, t: 'Delete anytime', d: 'Erase everything in one tap. You stay in control of your family’s data, always.' },
 ];
 
 const FAQS = [
@@ -45,6 +31,7 @@ const FAQS = [
 export default function Landing() {
   return (
     <div className="web">
+      <ScrollRibbon />
       <Header />
 
       <HeroCover />
@@ -85,93 +72,13 @@ export default function Landing() {
 
       <TrailDivider object="paperboat" flip />
 
-      {/* HOW IT WORKS */}
-      <section className="dband dband-soft" id="how">
-        <div className="container">
-          <h2 className="display d-h2" style={{ textAlign: 'center', marginBottom: 44 }}>Three steps to their book</h2>
-          <div className="grid-3">
-            {STEPS.map((s) => (
-              <div key={s.n} className="card" style={{ padding: '34px 30px' }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: s.c, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 24, marginBottom: 18 }}>{s.n}</div>
-                <h3 className="display" style={{ fontSize: 23, marginBottom: 9 }}>{s.t}</h3>
-                <p style={{ fontSize: 15.5, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{s.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Personalisation />
 
-      {/* BENEFITS */}
-      <section className="dband" id="why">
-        <div className="container">
-          <div style={{ textAlign: 'center', maxWidth: 600, margin: '0 auto 44px' }}>
-            <span className="eyebrow"><Icon name="star" size={14} stroke="var(--gold)" /> Why parents love it</span>
-            <h2 className="display d-h2" style={{ marginTop: 14 }}>Personal, gentle, and safe</h2>
-          </div>
-          <div className="grid-3">
-            {BENEFITS.map((f) => (
-              <div key={f.t} className="card lift" style={{ padding: '32px 28px' }}>
-                <div style={{ width: 50, height: 50, borderRadius: 14, background: f.c, display: 'grid', placeItems: 'center', marginBottom: 16 }}>
-                  <Icon name={f.icon} size={25} stroke="#fff" />
-                </div>
-                <h3 className="display" style={{ fontSize: 22, marginBottom: 8 }}>{f.t}</h3>
-                <p style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{f.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* HONEST REACTIONS / FOUNDER NOTE */}
-      <section className="dband dband-soft">
-        <div className="container-narrow" style={{ textAlign: 'center' }}>
-          <h2 className="display d-h2">Made by parents, for bedtimes like yours</h2>
-          <div className="card" style={{ padding: '30px 32px', marginTop: 26, textAlign: 'left' }}>
-            <p style={{ fontFamily: 'var(--display)', fontStyle: 'italic', fontSize: 21, lineHeight: 1.5, color: 'var(--ink)' }}>
-              “We started {BRAND.name} for our own kids. Every story is one we’d happily read at our
-              own bedtime — gentle, safe, and genuinely theirs.”
-            </p>
-            <p style={{ marginTop: 14, fontWeight: 800, color: 'var(--brand)' }}>— The {BRAND.name} team</p>
-          </div>
-          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 18 }}>
-            Genuine reactions from our first families will appear here as they share them — we don’t use stock quotes.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 22, flexWrap: 'wrap' }}>
-            <span className="pill"><Icon name="shield" size={15} stroke="var(--brand)" /> Every book safety-checked</span>
-            <span className="pill"><Icon name="heart" size={15} stroke="var(--coral)" /> Made in India · ₹ &amp; UPI</span>
-          </div>
-        </div>
-      </section>
+      <ParentReaction />
 
       <TrailDivider object="leaf" />
 
-      {/* PRIVACY */}
-      <section className="dband" id="privacy">
-        <div className="container grid-2">
-          <div>
-            <span className="eyebrow"><Icon name="shield" size={15} stroke="var(--brand)" /> Built around your child’s privacy</span>
-            <h2 className="display d-h2" style={{ marginTop: 14 }}>Safe by design, not as an afterthought</h2>
-            <p className="d-lead" style={{ color: 'var(--ink-soft)', margin: '16px 0 28px', maxWidth: 460 }}>
-              We built {BRAND.name} to be DPDP-friendly and parent-controlled. We collect the least we
-              can, and you’re always in charge of it.
-            </p>
-            <Link href="/create" className="btn btn-primary" style={{ padding: '16px 26px', fontSize: 16.5 }}>
-              {BRAND.hero.primaryCta}
-            </Link>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {PRIVACY.map((p) => (
-              <div key={p.t} className="card" style={{ padding: '20px 22px', background: 'var(--brand-tint)', border: '1px solid var(--hairline)', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                <Icon name={p.icon} size={26} stroke="var(--brand)" style={{ flexShrink: 0 }} />
-                <div>
-                  <h3 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--brand)' }}>{p.t}</h3>
-                  <p style={{ fontSize: 14.5, lineHeight: 1.55, color: 'var(--ink)', marginTop: 5 }}>{p.d}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <SafetyBookplate />
 
       <TrailDivider object="pencil" flip />
 
