@@ -1,23 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Footer, Header } from '@/components/chrome';
+import { BackedByTrust } from '@/components/landing/BackedByTrust';
+import { ComingSoon } from '@/components/landing/ComingSoon';
+import { FeatureStrip } from '@/components/landing/FeatureStrip';
+import { FinalCta } from '@/components/landing/FinalCta';
 import { HeroCover } from '@/components/landing/HeroCover';
+import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Inscription } from '@/components/landing/Inscription';
 import { ParentReaction } from '@/components/landing/ParentReaction';
 import { Personalisation } from '@/components/landing/Personalisation';
-import { SafetyBookplate } from '@/components/landing/SafetyBookplate';
 import { SampleBook } from '@/components/landing/SampleBook';
 import { ScrollRibbon } from '@/components/landing/ScrollRibbon';
-import { TrailDivider } from '@/components/landing/TrailDivider';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
-
-const TRUST = [
-  { name: 'sparkles' as const, t: 'Free preview', c: 'var(--gold)' },
-  { name: 'shield' as const, t: 'No photos', c: 'var(--brand)' },
-  { name: 'lock' as const, t: 'Never used to train AI', c: 'var(--sky)' },
-  { name: 'check' as const, t: 'Delete anytime', c: 'var(--success)' },
-];
 
 const FAQS = [
   { q: 'How much does it cost?', a: `${BRAND.product.priceLabel} for the complete personalised book — and you only pay after you’ve seen your free preview and love it. UPI and cards supported, in rupees.` },
@@ -35,23 +31,11 @@ export default function Landing() {
       <Header />
 
       <HeroCover />
+      <FeatureStrip />
+      <Personalisation />
 
-      {/* TRUST STRIP */}
-      <section style={{ borderTop: '2px solid var(--hairline)', borderBottom: '2px solid var(--hairline)', background: 'var(--surface)' }}>
-        <div className="container trust-strip">
-          {TRUST.map((b) => (
-            <span key={b.t} className="trust-strip-item">
-              <Icon name={b.name} size={18} stroke={b.c} />
-              <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--ink)' }}>{b.t}</span>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <TrailDivider object="bell" />
-
-      {/* SAMPLE BOOK PROOF */}
-      <section className="dband" id="sample">
+      {/* SEE A REAL ONE */}
+      <section className="dband dband-soft" id="sample">
         <div className="container">
           <div style={{ textAlign: 'center', maxWidth: 620, margin: '0 auto 36px' }}>
             <span className="eyebrow"><Icon name="book" size={15} stroke="var(--brand)" /> See a real one</span>
@@ -62,28 +46,15 @@ export default function Landing() {
             </p>
           </div>
           <SampleBook />
-          <div style={{ textAlign: 'center', marginTop: 30 }}>
-            <Link href="/create" className="btn btn-primary" style={{ padding: '16px 28px', fontSize: 16.5 }}>
-              {BRAND.hero.primaryCta}
-            </Link>
-          </div>
         </div>
       </section>
 
-      <TrailDivider object="paperboat" flip />
-
-      <Personalisation />
-
+      <HowItWorks />
+      <BackedByTrust />
       <ParentReaction />
 
-      <TrailDivider object="leaf" />
-
-      <SafetyBookplate />
-
-      <TrailDivider object="pencil" flip />
-
-      {/* PURCHASE — a product page, not a pricing card */}
-      <section className="dband dband-soft" id="pricing">
+      {/* PURCHASE — product page */}
+      <section className="dband" id="pricing">
         <div className="container grid-2" style={{ alignItems: 'center', gap: 56 }}>
           <div style={{ position: 'relative' }}>
             <div className="product-shot">
@@ -98,7 +69,6 @@ export default function Landing() {
             </div>
             <span className="price-tag">{BRAND.product.priceLabel}</span>
           </div>
-
           <div>
             <Inscription size="sm">one book · one simple price</Inscription>
             <h2 className="display d-h2" style={{ marginTop: 8 }}>{BRAND.product.name}</h2>
@@ -128,10 +98,8 @@ export default function Landing() {
         </div>
       </section>
 
-      <TrailDivider object="tornpage" />
-
       {/* FAQ */}
-      <section className="dband" id="faq">
+      <section className="dband dband-soft" id="faq">
         <div className="container-narrow">
           <h2 className="display d-h2" style={{ textAlign: 'center', marginBottom: 24 }}>Good to know</h2>
           {FAQS.map((f) => (
@@ -143,23 +111,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section className="dband dband-soft">
-        <div className="container-narrow" style={{ textAlign: 'center' }}>
-          <h2 className="display d-h2">Their adventure is a minute away</h2>
-          <p className="d-lead" style={{ color: 'var(--ink-soft)', margin: '16px auto 30px', maxWidth: 480 }}>
-            See the preview free — fall in love before you spend a thing.
-          </p>
-          <Link href="/create" className="btn btn-primary" style={{ padding: '18px 30px', fontSize: 17.5 }}>
-            {BRAND.hero.primaryCta}
-          </Link>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 22, marginTop: 28, flexWrap: 'wrap' }}>
-            {TRUST.map((b) => (
-              <span key={b.t} className="trust"><Icon name={b.name} size={16} stroke={b.c} /> {b.t}</span>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ComingSoon />
+      <FinalCta />
 
       <Footer />
     </div>
