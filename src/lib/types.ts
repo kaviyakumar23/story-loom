@@ -16,7 +16,7 @@ export type AgeBand = '3-4' | '5-6' | '7-8' | '9-10';
 export type ReadingLevel = 'emerging' | 'early' | 'fluent';
 export type Language = 'en';
 export type BookStatus = 'generating' | 'preview_ready' | 'paid' | 'complete' | 'failed';
-export type Tier = 'pdf' | 'pdf_audio_guide' | 'seven_day_pack';
+export type Tier = 'pdf' | 'pdf_audio_guide' | 'seven_day_pack' | 'print';
 export type OccasionPackId =
   | 'first_day_school'
   | 'braver_bedtime'
@@ -249,8 +249,9 @@ export const AGE_BANDS: AgeBand[] = ['3-4', '5-6', '7-8', '9-10'];
 // keep the two in sync. Disabled tiers are hidden from checkout; the server
 // refuses orders for them regardless.
 export const TIER_META: Record<Tier, { label: string; note: string; price: string; badge?: string; enabled: boolean }> = {
-  pdf: { label: 'Digital PDF', note: 'Instant, print at home', price: '₹299', enabled: true },
-  pdf_audio_guide: { label: 'PDF + Audio & Guide', note: 'Narrated + parent guide', price: '₹499', badge: 'Most loved', enabled: false },
+  print: { label: 'Printed hardcover book', note: 'Shipped to you + instant digital PDF', price: '₹999', badge: 'Most loved', enabled: true },
+  pdf: { label: 'Digital PDF only', note: 'Instant download, print at home', price: '₹299', enabled: true },
+  pdf_audio_guide: { label: 'PDF + Audio & Guide', note: 'Narrated + parent guide', price: '₹499', enabled: false },
   seven_day_pack: { label: '7-Day Story Pack', note: 'A week of bedtime stories', price: '₹999', enabled: false },
 };
-export const TIER_ORDER: Tier[] = ['pdf', 'pdf_audio_guide', 'seven_day_pack'];
+export const TIER_ORDER: Tier[] = ['print', 'pdf', 'pdf_audio_guide', 'seven_day_pack'];

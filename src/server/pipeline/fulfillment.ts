@@ -192,6 +192,10 @@ async function deliver(ctx: BookContext): Promise<void> {
     .eq('id', ctx.bookId);
   await audit({ actor: 'system', action: 'book.delivered', entity: 'books', entityId: ctx.bookId });
 
+  // Physical tiers: the digital PDF is delivered instantly (above); the printed
+  // book now enters the founder's fulfilment queue as 'print_ready'.
+  await ensurePrintFulfillment(ctx, db);
+
   const { data } = await db.auth.admin.getUserById(ctx.parentId);
   const email = data.user?.email;
   if (email) {
@@ -202,6 +206,44 @@ async function deliver(ctx: BookContext): Promise<void> {
       // Delivery email is best-effort; the book is already available in-dashboard.
     }
   }
+}
+
+/**
+ * Queue the printed book for manual founder fulfilment once it's paid + complete.
+ * Idempotent (unique book_id+kind); the print master is the assembled book.pdf.
+ */
+async function ensurePrintFulfillment(ctx: BookContext, db: ReturnType<typeof serviceClient>): Promise<void> {
+  if (!ctx.purchasedTier || !priceFor(ctx.purchasedTier as Tier).physical) return;
+
+  const { data: order } = await db
+    .from('orders')
+    .select('id')
+    .eq('book_id', ctx.bookId)
+    .eq('status', 'paid')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!order) return; // no paid order found — nothing to fulfil physically
+
+  const orderId = (order as { id: string }).id;
+  const { data: addr } = await db
+    .from('shipping_addresses')
+    .select('id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  await db.from('fulfillments').upsert(
+    {
+      book_id: ctx.bookId,
+      order_id: orderId,
+      address_id: addr ? (addr as { id: string }).id : null,
+      kind: 'print',
+      status: 'print_ready',
+      print_master_key: `books/${ctx.bookId}/book.pdf`,
+    },
+    { onConflict: 'book_id,kind' },
+  );
+  await audit({ actor: 'system', action: 'fulfillment.queued', entity: 'books', entityId: ctx.bookId });
 }
 
 /** Insert a delivery asset, or replace an existing one of the same type (idempotent). */

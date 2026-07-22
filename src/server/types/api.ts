@@ -38,7 +38,7 @@ export const BOOK_STATUSES = [
 ] as const;
 export type BookStatus = (typeof BOOK_STATUSES)[number];
 
-export const TIERS = ['pdf', 'pdf_audio_guide', 'seven_day_pack'] as const;
+export const TIERS = ['pdf', 'pdf_audio_guide', 'seven_day_pack', 'print'] as const;
 export type Tier = (typeof TIERS)[number];
 
 export const LANGUAGES = ['en'] as const;

@@ -11,7 +11,22 @@ import { TIERS, type CreateOrderResponse } from '@/server/types/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const orderSchema = z.object({ bookId: z.string().uuid(), tier: z.enum(TIERS) });
+const addressSchema = z.object({
+  recipientName: z.string().trim().min(1).max(120),
+  phone: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,14}$/, 'Enter a valid phone number'),
+  line1: z.string().trim().min(1).max(200),
+  line2: z.string().trim().max(200).optional(),
+  city: z.string().trim().min(1).max(100),
+  state: z.string().trim().min(1).max(100),
+  postalCode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'Enter a valid 6-digit PIN code'),
+  country: z.string().trim().default('IN'),
+  notes: z.string().trim().max(300).optional(),
+});
+const orderSchema = z.object({
+  bookId: z.string().uuid(),
+  tier: z.enum(TIERS),
+  shippingAddress: addressSchema.optional(),
+});
 
 // ---- POST /api/v1/payments/order — server-priced Razorpay order (§8) ----
 export async function POST(req: Request): Promise<Response> {
@@ -37,12 +52,35 @@ export async function POST(req: Request): Promise<Response> {
     // NEVER trust a client amount — price server-side from the tier.
     const price = priceFor(tier);
     if (!price.enabled) throw badRequest('This tier is not available yet');
+    // A printed book cannot be created without somewhere to ship it.
+    if (price.physical && !parsed.data.shippingAddress) {
+      throw badRequest('A shipping address is required for a printed book');
+    }
     const { data: order, error: orderErr } = await db
       .from('orders')
       .insert({ parent_id: parent.id, book_id: bookId, tier, amount: price.amount, currency: price.currency, status: 'created' })
       .select('id')
       .single();
     if (orderErr || !order) throw internal('Could not create order', orderErr?.message);
+
+    // Persist the ship-to for physical tiers (parent-owned, RLS-scoped).
+    if (price.physical && parsed.data.shippingAddress) {
+      const a = parsed.data.shippingAddress;
+      const { error: addrErr } = await db.from('shipping_addresses').insert({
+        parent_id: parent.id,
+        order_id: order.id,
+        recipient_name: a.recipientName,
+        phone: a.phone,
+        line1: a.line1,
+        line2: a.line2 ?? null,
+        city: a.city,
+        state: a.state,
+        postal_code: a.postalCode,
+        country: a.country,
+        notes: a.notes ?? null,
+      });
+      if (addrErr) throw internal('Could not save shipping address', addrErr.message);
+    }
 
     const rzp = await createOrder({ amount: price.amount, currency: price.currency, receipt: order.id, notes: { orderId: order.id, bookId, tier } });
     await db.from('orders').update({ razorpay_order_id: rzp.id }).eq('id', order.id);
