@@ -72,12 +72,14 @@ alter table orders add constraint orders_tier_check
 alter table shipping_addresses enable row level security;
 alter table fulfillments       enable row level security;
 
--- Parent owns their shipping addresses.
+-- Parent owns their shipping addresses. (drop-then-create = idempotent re-run.)
+drop policy if exists shipaddr_owner on shipping_addresses;
 create policy shipaddr_owner on shipping_addresses
   for all using (parent_id = auth.uid()) with check (parent_id = auth.uid());
 
 -- Fulfilment is founder/admin-operated: parents may READ their own (via book
 -- ownership) to see status/tracking, but only the service role writes.
+drop policy if exists fulfillment_read on fulfillments;
 create policy fulfillment_read on fulfillments
   for select using (
     exists (select 1 from books b where b.id = fulfillments.book_id and b.parent_id = auth.uid())
