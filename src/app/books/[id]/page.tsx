@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
@@ -11,9 +11,12 @@ import { useAuth, useRequireAuth } from '@/lib/auth';
 import { openCheckout } from '@/lib/razorpay';
 import { supabase } from '@/lib/supabase';
 import {
+  EMPTY_SHIPPING,
+  isShippingComplete,
   TIER_META,
   TIER_ORDER,
   type Book,
+  type ShippingInput,
   type BookStatus,
   type BookEventName,
   type CreateBookEventRequest,
@@ -51,7 +54,8 @@ export default function BookPage() {
 
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tier, setTier] = useState<Tier>('pdf');
+  const [tier, setTier] = useState<Tier>('print');
+  const [address, setAddress] = useState<ShippingInput>(EMPTY_SHIPPING);
   const [paying, setPaying] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [revisionRequested, setRevisionRequested] = useState(false);
@@ -136,6 +140,8 @@ export default function BookPage() {
         book={book}
         tier={tier}
         setTier={setTier}
+        address={address}
+        setAddress={setAddress}
         onBuy={buy}
         onSave={savePreview}
         onEvent={trackEvent}
@@ -148,10 +154,27 @@ export default function BookPage() {
     );
 
   async function buy() {
+    const physical = Boolean(TIER_META[tier].physical);
+    if (physical && !isShippingComplete(address)) {
+      setError('Please complete the shipping address (a valid 6-digit PIN is required).');
+      return;
+    }
     setPaying(true);
     setError(null);
     try {
-      const order = await api<CreateOrderResponse>('/payments/order', { method: 'POST', body: { bookId, tier } });
+      const shippingAddress = physical
+        ? {
+            recipientName: address.recipientName.trim(),
+            phone: address.phone.trim(),
+            line1: address.line1.trim(),
+            line2: address.line2.trim() || undefined,
+            city: address.city.trim(),
+            state: address.state.trim(),
+            postalCode: address.postalCode.trim(),
+            notes: address.notes.trim() || undefined,
+          }
+        : undefined;
+      const order = await api<CreateOrderResponse>('/payments/order', { method: 'POST', body: { bookId, tier, shippingAddress } });
       await openCheckout(order, {
         email: session?.user?.email ?? undefined,
         onPaid: () => setAwaitingPayment(true),
@@ -280,10 +303,12 @@ function DeliveredPending({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function Preview({ book, tier, setTier, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
+function Preview({ book, tier, setTier, address, setAddress, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
   book: Book;
   tier: Tier;
   setTier: (t: Tier) => void;
+  address: ShippingInput;
+  setAddress: (a: ShippingInput) => void;
   onBuy: () => void;
   onSave: (email?: string) => Promise<void>;
   onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>;
@@ -363,9 +388,14 @@ function Preview({ book, tier, setTier, onBuy, onSave, onEvent, onRevisionStarte
                 );
               })}
             </div>
+
+            {paymentsEnabled && TIER_META[tier].physical && (
+              <ShippingForm address={address} setAddress={setAddress} />
+            )}
+
             {paymentsEnabled ? (
-              <button className="btn btn-primary btn-block" style={{ marginTop: 20 }} onClick={onBuy} disabled={paying}>
-                {awaiting ? <><span className="spinner" /> Confirming payment…</> : paying ? <span className="spinner" /> : <><Icon name="heart" size={18} stroke="var(--accent-ink)" /> Unlock the full book</>}
+              <button className="btn btn-primary btn-block" style={{ marginTop: 20 }} onClick={onBuy} disabled={paying || (Boolean(TIER_META[tier].physical) && !isShippingComplete(address))}>
+                {awaiting ? <><span className="spinner" /> Confirming payment…</> : paying ? <span className="spinner" /> : <><Icon name="heart" size={18} stroke="var(--accent-ink)" /> {TIER_META[tier].physical ? 'Order the printed book' : 'Unlock the full book'}</>}
               </button>
             ) : (
               <div style={{ marginTop: 20 }}>
@@ -411,6 +441,27 @@ function Preview({ book, tier, setTier, onBuy, onSave, onEvent, onRevisionStarte
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ShippingForm({ address, setAddress }: { address: ShippingInput; setAddress: (a: ShippingInput) => void }) {
+  const set = (k: keyof ShippingInput) => (e: ChangeEvent<HTMLInputElement>) => setAddress({ ...address, [k]: e.target.value });
+  const mb = { marginBottom: 8 };
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--hairline)' }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>Where should we ship it?</p>
+      <input className="input" placeholder="Recipient name" value={address.recipientName} onChange={set('recipientName')} style={mb} aria-label="Recipient name" />
+      <input className="input" placeholder="Phone" value={address.phone} onChange={set('phone')} inputMode="tel" style={mb} aria-label="Phone" />
+      <input className="input" placeholder="Address line 1" value={address.line1} onChange={set('line1')} style={mb} aria-label="Address line 1" />
+      <input className="input" placeholder="Address line 2 (optional)" value={address.line2} onChange={set('line2')} style={mb} aria-label="Address line 2" />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input className="input" placeholder="City" value={address.city} onChange={set('city')} style={{ ...mb, flex: 1, minWidth: 0 }} aria-label="City" />
+        <input className="input" placeholder="State" value={address.state} onChange={set('state')} style={{ ...mb, flex: 1, minWidth: 0 }} aria-label="State" />
+      </div>
+      <input className="input" placeholder="PIN code (6 digits)" value={address.postalCode} onChange={set('postalCode')} inputMode="numeric" maxLength={6} style={mb} aria-label="PIN code" />
+      <input className="input" placeholder="Delivery notes (optional)" value={address.notes} onChange={set('notes')} aria-label="Delivery notes" />
+      <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 8 }}>Printed &amp; shipped within ~7 days · ships in India · includes the instant digital PDF.</p>
     </div>
   );
 }

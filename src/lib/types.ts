@@ -248,10 +248,34 @@ export const AGE_BANDS: AgeBand[] = ['3-4', '5-6', '7-8', '9-10'];
 // `enabled` mirrors the server price table (src/server/config/pricing.ts) —
 // keep the two in sync. Disabled tiers are hidden from checkout; the server
 // refuses orders for them regardless.
-export const TIER_META: Record<Tier, { label: string; note: string; price: string; badge?: string; enabled: boolean }> = {
-  print: { label: 'Printed hardcover book', note: 'Shipped to you + instant digital PDF', price: '₹999', badge: 'Most loved', enabled: true },
+export const TIER_META: Record<Tier, { label: string; note: string; price: string; badge?: string; enabled: boolean; physical?: boolean }> = {
+  print: { label: 'Printed hardcover book', note: 'Shipped to you + instant digital PDF', price: '₹999', badge: 'Most loved', enabled: true, physical: true },
   pdf: { label: 'Digital PDF only', note: 'Instant download, print at home', price: '₹299', enabled: true },
   pdf_audio_guide: { label: 'PDF + Audio & Guide', note: 'Narrated + parent guide', price: '₹499', enabled: false },
   seven_day_pack: { label: '7-Day Story Pack', note: 'A week of bedtime stories', price: '₹999', enabled: false },
 };
 export const TIER_ORDER: Tier[] = ['print', 'pdf', 'pdf_audio_guide', 'seven_day_pack'];
+
+/** Shipping details collected at checkout for physical (print) tiers. */
+export interface ShippingInput {
+  recipientName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  notes: string;
+}
+
+export const EMPTY_SHIPPING: ShippingInput = {
+  recipientName: '', phone: '', line1: '', line2: '', city: '', state: '', postalCode: '', notes: '',
+};
+
+/** Client-side completeness check for the required address fields. */
+export function isShippingComplete(a: ShippingInput): boolean {
+  return Boolean(
+    a.recipientName.trim() && a.phone.trim() && a.line1.trim() &&
+    a.city.trim() && a.state.trim() && /^[1-9][0-9]{5}$/.test(a.postalCode.trim()),
+  );
+}
