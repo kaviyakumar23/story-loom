@@ -112,7 +112,7 @@ interface StoryPlan {
 }
 
 async function buildStory(ctx: BookContext): Promise<StoryPlan> {
-  const { text } = getProviders();
+  const { text } = getProviders({ textModel: ctx.textModel, imageModel: ctx.imageModel });
   const result = await text.generateStory({
     heroToken: HERO_TOKEN,
     ageBand: ctx.ageBand,

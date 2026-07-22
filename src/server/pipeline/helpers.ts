@@ -5,7 +5,7 @@ import { recordEvent } from '../lib/cost';
 import { detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrubAll } from '../lib/tokenize';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
-import { getProviders } from '../providers/index';
+import { getProviders, resolveModelStamp } from '../providers/index';
 import type { CharacterReferencePack, Story } from '../providers/types';
 import type { AgeBand, Goal, OccasionPackId, ReadingLevel } from '../types/api';
 
@@ -29,13 +29,16 @@ export interface BookContext {
   readingLevel: ReadingLevel;
   purchasedTier: string | null;
   revisionInstruction: string | null;
+  /** Model names frozen at book creation, so every render matches the preview. */
+  textModel: string;
+  imageModel: string;
 }
 
 export async function loadContext(bookId: string): Promise<BookContext> {
   const db = serviceClient();
   const { data: book } = await db
     .from('books')
-    .select('id, parent_id, hero_id, goal, occasion_pack, reading_level, purchased_tier')
+    .select('id, parent_id, hero_id, goal, occasion_pack, reading_level, purchased_tier, text_model, image_model')
     .eq('id', bookId)
     .maybeSingle();
   if (!book) throw new NonRetriableError(`Book ${bookId} not found`);
@@ -54,7 +57,11 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     occasion_pack: OccasionPackId | null;
     reading_level: ReadingLevel;
     purchased_tier: string | null;
+    text_model: string | null;
+    image_model: string | null;
   };
+  // Legacy books created before the stamp fall back to the current config.
+  const stamp = resolveModelStamp();
   const h = hero as {
     nickname: string;
     age_band: AgeBand;
@@ -74,6 +81,8 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     readingLevel: b.reading_level,
     purchasedTier: b.purchased_tier,
     revisionInstruction: await loadLatestRevisionInstruction(bookId),
+    textModel: b.text_model ?? stamp.textModel,
+    imageModel: b.image_model ?? stamp.imageModel,
   };
 }
 
@@ -208,7 +217,7 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
     // Fall through to regenerate if the objects went missing.
   }
 
-  const { value, usage } = await getProviders().image.generateCharacterSheet({
+  const { value, usage } = await getProviders({ imageModel: ctx.imageModel }).image.generateCharacterSheet({
     // Scrub the child's name out of free-text avatar features before it reaches
     // the image model, and guard the payload against it (§9).
     avatar: scrubAvatar(ctx.avatar, ctx.nickname),
@@ -256,7 +265,7 @@ export async function renderAndStorePage(
   reference: CharacterReferencePack,
   isCover = false,
 ): Promise<{ model: string; attempts: number }> {
-  const provider = getProviders().image;
+  const provider = getProviders({ imageModel: ctx.imageModel }).image;
   const maxAttempts = loadEnv().MAX_IMAGE_ATTEMPTS;
   // Prompts come from the story model, which names the child {{HERO}} — read as
   // prose before rendering, or the token is literal noise the illustrator may

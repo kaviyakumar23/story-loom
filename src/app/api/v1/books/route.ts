@@ -11,6 +11,7 @@ import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { isPdfSafe } from '@/server/lib/text';
 import { EVENTS, inngest } from '@/server/pipeline/client';
+import { resolveModelStamp } from '@/server/providers/index';
 import {
   AGE_BANDS,
   GOALS,
@@ -124,6 +125,7 @@ export async function POST(req: Request): Promise<Response> {
       .single();
     if (heroErr || !hero) throw internal('Could not create hero', heroErr?.message);
 
+    const stamp = resolveModelStamp();
     const { data: book, error: bookErr } = await db
       .from('books')
       .insert({
@@ -137,6 +139,11 @@ export async function POST(req: Request): Promise<Response> {
         status: 'generating',
         progress: 0,
         idempotency_key: idempotencyKey,
+        // Freeze the model config so preview + paid render stay identical (§7).
+        model_tier: stamp.modelTier,
+        text_model: stamp.textModel,
+        image_model: stamp.imageModel,
+        prompt_version: stamp.promptVersion,
       })
       .select('id')
       .single();
