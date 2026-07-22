@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { loadEnv } from '@/server/config/env';
 import { requireAdmin } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
+import { sendShipped } from '@/server/lib/email';
 import { badRequest, notFound } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -40,15 +42,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!parsed.success) throw badRequest('Invalid update', parsed.error.issues);
     const db = serviceClient();
 
-    const { data: current } = await db.from('fulfillments').select('id, status, tracking_number').eq('id', id).maybeSingle();
+    const { data: current } = await db.from('fulfillments').select('id, status, tracking_number, carrier, book_id').eq('id', id).maybeSingle();
     if (!current) throw notFound('Fulfillment not found');
-    const from = (current as { status: string; tracking_number: string | null }).status;
+    const cur = current as { status: string; tracking_number: string | null; carrier: string | null; book_id: string };
+    const from = cur.status;
 
     const patch: Record<string, unknown> = {};
     const next = parsed.data.status;
     if (next) {
       if (!NEXT[from]?.includes(next)) throw badRequest(`Cannot move a ${from} order to ${next}`);
-      const tracking = parsed.data.trackingNumber ?? (current as { tracking_number: string | null }).tracking_number;
+      const tracking = parsed.data.trackingNumber ?? cur.tracking_number;
       if (next === 'shipped' && !tracking) throw badRequest('A tracking number is required to mark an order shipped');
       patch.status = next;
       patch[TS_FIELD[next]] = new Date().toISOString();
@@ -61,6 +64,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data: updated, error } = await db.from('fulfillments').update(patch).eq('id', id).select('id, status').single();
     if (error) throw badRequest('Update failed', error.message);
     await audit({ actor: 'admin', action: `fulfillment.${next ?? 'updated'}`, entity: 'fulfillments', entityId: id, metadata: patch });
+
+    // Notify the parent when their printed book ships (best-effort).
+    if (next === 'shipped') {
+      try {
+        const { data: bk } = await db.from('books').select('parent_id').eq('id', cur.book_id).maybeSingle();
+        const parentId = (bk as { parent_id: string } | null)?.parent_id;
+        if (parentId) {
+          const { data: u } = await db.auth.admin.getUserById(parentId);
+          if (u.user?.email) {
+            await sendShipped(u.user.email, {
+              dashboardUrl: `${loadEnv().APP_BASE_URL}/books/${cur.book_id}`,
+              carrier: (patch.carrier as string | undefined) ?? cur.carrier,
+              trackingNumber: (patch.tracking_number as string | undefined) ?? cur.tracking_number,
+            });
+          }
+        }
+      } catch {
+        // shipped email is best-effort; the status change already succeeded.
+      }
+    }
 
     return Response.json({ fulfillment: updated });
   } catch (err) {

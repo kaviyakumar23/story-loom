@@ -87,6 +87,46 @@ export async function sendBookReady(to: string, dashboardUrl: string): Promise<v
   );
 }
 
+/** Physical order: the digital copy is ready now; the printed book is being made. */
+export async function sendPrintReady(to: string, dashboardUrl: string): Promise<void> {
+  await send(
+    to,
+    'Your book is ready — printed copy on its way 📖',
+    layout({
+      eyebrow: 'All set',
+      heading: 'Your storybook is ready',
+      body: `<p style="margin:0 0 14px">Your digital copy is ready to read right now.</p>
+             <p style="margin:0">Your <strong style="color:${COLORS.ink}">printed hardcover</strong> is being made
+               with care, and will be printed and shipped within about 7 days. We'll email you a tracking
+               link the moment it's on the way.</p>`,
+      cta: { label: 'Read your digital copy', url: dashboardUrl },
+    }),
+  );
+}
+
+/** Physical order: the printed book has been dispatched. */
+export async function sendShipped(
+  to: string,
+  opts: { dashboardUrl: string; carrier?: string | null; trackingNumber?: string | null },
+): Promise<void> {
+  const track = opts.trackingNumber
+    ? `<p style="margin:0 0 14px;font-size:14px;color:${COLORS.inkSoft};">Carrier:
+         <strong style="color:${COLORS.ink}">${escapeHtml(opts.carrier ?? '—')}</strong> · Tracking:
+         <strong style="color:${COLORS.ink}">${escapeHtml(opts.trackingNumber)}</strong></p>`
+    : '';
+  await send(
+    to,
+    'Your printed storybook has shipped! 🚚',
+    layout({
+      eyebrow: 'On its way',
+      heading: 'Your book is shipping',
+      body: `<p style="margin:0 0 14px">Great news — your printed storybook is on its way to you.</p>
+             ${track}<p style="margin:0">Thank you for creating with MoonBell.</p>`,
+      cta: { label: 'View your order', url: opts.dashboardUrl },
+    }),
+  );
+}
+
 interface LayoutOpts {
   eyebrow: string;
   heading: string;

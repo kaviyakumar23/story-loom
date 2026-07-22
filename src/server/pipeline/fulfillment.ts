@@ -3,7 +3,7 @@ import { priceFor } from '../config/pricing';
 import { audit } from '../lib/audit';
 import { imageCost, recordEvent } from '../lib/cost';
 import { captureError } from '../lib/observability';
-import { sendBookReady } from '../lib/email';
+import { sendBookReady, sendPrintReady } from '../lib/email';
 import { assemblePdf, type AssemblePage } from '../lib/pdf';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
@@ -200,8 +200,10 @@ async function deliver(ctx: BookContext): Promise<void> {
   const email = data.user?.email;
   if (email) {
     const base = loadEnv().APP_BASE_URL;
+    const physical = Boolean(ctx.purchasedTier && priceFor(ctx.purchasedTier as Tier).physical);
     try {
-      await sendBookReady(email, `${base}/books/${ctx.bookId}`);
+      if (physical) await sendPrintReady(email, `${base}/books/${ctx.bookId}`);
+      else await sendBookReady(email, `${base}/books/${ctx.bookId}`);
     } catch {
       // Delivery email is best-effort; the book is already available in-dashboard.
     }
