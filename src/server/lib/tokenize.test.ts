@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertNoSensitive, detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrub, scrubAll, tokenizeOutbound } from './tokenize';
+import { assertNoSensitive, detectSensitivePatterns, detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrub, scrubAll, tokenizeOutbound } from './tokenize';
 
 // Tokenization is the guarantee that a child's real name never reaches an AI
 // vendor (§9) — test it like the safety boundary it is.
@@ -40,5 +40,23 @@ describe('tokenize', () => {
   it('assertNoSensitive throws when a real name leaks into a payload', () => {
     expect(() => assertNoSensitive('a story about Aarav', ['Aarav'])).toThrow(/tokenized/);
     expect(() => assertNoSensitive(`a story about ${HERO_TOKEN}`, ['Aarav'])).not.toThrow();
+  });
+
+  it('detectSensitivePatterns flags email / phone / url / long numbers', () => {
+    expect(detectSensitivePatterns('reach me at parent@example.com')).toContain('email');
+    expect(detectSensitivePatterns('call +91 98765 43210 please')).toContain('phone_or_id');
+    expect(detectSensitivePatterns('see https://example.in/x')).toContain('url');
+    expect(detectSensitivePatterns('reference 12345678')).toContain('long_number');
+  });
+
+  it('detectSensitivePatterns leaves ordinary story input clean', () => {
+    expect(detectSensitivePatterns('loves cricket, space and dinosaurs')).toHaveLength(0);
+    // Age bands and short page counts must not trip it.
+    expect(detectSensitivePatterns('a 3-4 year old, 16-20 pages')).toHaveLength(0);
+  });
+
+  it('assertNoSensitive throws on free-text PII patterns even with no known name', () => {
+    expect(() => assertNoSensitive('email me at a@b.co', [])).toThrow(/personal data/);
+    expect(() => assertNoSensitive('a gentle story about the moon and a bell', [])).not.toThrow();
   });
 });

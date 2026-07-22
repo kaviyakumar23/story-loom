@@ -67,8 +67,31 @@ export function detokenizeLocal(text: string, map: TokenMap): string {
 }
 
 /**
+ * Detect high-confidence personal data *patterns* in free text — the indirect
+ * leaks a nickname-only guard misses (a parent typing an email, phone, address
+ * fragment, or ID into an interest/goal/revision field). Returns the kinds
+ * found; empty means clean. Deliberately tuned to avoid tripping on ordinary
+ * story attributes (age bands like "3-4", short page counts), so it only fires
+ * on things that should never appear in a child's story input.
+ */
+export function detectSensitivePatterns(text: string): string[] {
+  const found = new Set<string>();
+  if (/[\w.+-]+@[\w-]+\.[\w][\w.-]*/.test(text)) found.add('email');
+  if (/\bhttps?:\/\/|\bwww\.[\w-]/i.test(text)) found.add('url');
+  // Phone / long ID: a run of digits (allowing spaces, dashes, +, ()) whose
+  // digit count is >= 10 — e.g. "+91 98765 43210", "(080) 4123 4567".
+  for (const m of text.matchAll(/\d[\d\s\-+()]{6,}\d/g)) {
+    if (m[0].replace(/\D/g, '').length >= 10) { found.add('phone_or_id'); break; }
+  }
+  // Standalone long numeric run (DOB as digits, Aadhaar/PAN-like, order numbers).
+  if (/\d{7,}/.test(text)) found.add('long_number');
+  return [...found];
+}
+
+/**
  * Guard for outbound payloads: throws if a known sensitive value is still
- * present. Call this immediately before any third-party model request.
+ * present, OR if a personal-data pattern (email/phone/URL/long ID) survived
+ * into the payload. Call this immediately before any third-party model request.
  */
 export function assertNoSensitive(payload: string, sensitive: string[]): void {
   for (const value of sensitive) {
@@ -79,6 +102,13 @@ export function assertNoSensitive(payload: string, sensitive: string[]): void {
           'All identifying text must be tokenized first (see lib/tokenize).',
       );
     }
+  }
+  const patterns = detectSensitivePatterns(payload);
+  if (patterns.length) {
+    throw new Error(
+      `Refusing outbound request: possible personal data in payload (${patterns.join(', ')}). ` +
+        'Free-text input must be sanitised before egress (see lib/tokenize).',
+    );
   }
 }
 
