@@ -34,7 +34,8 @@ export const fulfillmentPipeline = inngest.createFunction(
     // One run per book at a time. The reconcile cron re-enqueues books that look
     // stuck, so without this a slow run and its reconciliation could render the
     // same pages twice (double image spend, duplicate asset rows, two emails).
-    concurrency: { key: 'event.data.bookId', limit: 1 },
+    // The second, keyless limit is a function-global cap on heavy paid renders.
+    concurrency: [{ key: 'event.data.bookId', limit: 1 }, { limit: 6 }],
     triggers: [{ event: EVENTS.fulfillmentRequested }],
   },
   async ({ event, step }) => {

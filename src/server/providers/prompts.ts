@@ -19,6 +19,11 @@ export function storySystemPrompt(): string {
     `(setting, action, mood) WITHOUT restating ${HERO_TOKEN}'s physical appearance — the`,
     'illustrator works from a fixed character reference. Illustration prompts must avoid',
     'text, letters, signage, brand logos, weapons, unsafe acts, and scary imagery.',
+    'Give each illustration prompt one clear primary action in a specific setting, with a',
+    'time of day and a camera framing (wide, medium, or close). Keep the setting and any',
+    'recurring objects consistent from page to page so the book reads as one continuous',
+    'world, and describe only scenes that can actually be drawn — avoid abstract ideas with',
+    'no visible action, and avoid cramming many simultaneous actions into a single page.',
   ].join(' ');
 }
 
