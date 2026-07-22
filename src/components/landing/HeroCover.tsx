@@ -19,7 +19,7 @@ const FEATURES: { t: string; d: string; c: string; icon: ReactNode }[] = [
   { t: 'Your child, the hero', d: 'We personalise every detail so the story is truly theirs.', c: 'var(--brand)', icon: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.6-3.3 3.2-5.2 6.5-5.2S17.9 15.7 18.5 19" /><path d="M18 4.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6L15 6.8l1.6-.7L18 4.5Z" /></> },
   { t: 'Made-for-them art', d: 'Original illustrations created just for your child.', c: 'var(--coral)', icon: <><path d="M4 20l3-1L18 8a2 2 0 0 0-3-3L4 16l-1 4Z" /><path d="M14 6l3 3" /></> },
   { t: 'Safe & private', d: 'No photos required. Your child’s data is never shared.', c: 'var(--gold)', icon: <><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" /><path d="M9 12l2 2 4-4" /></> },
-  { t: 'Yours to keep', d: 'A downloadable PDF you can reread forever, or print at home.', c: 'var(--sky)', icon: <><path d="M5 4h11a2 2 0 0 1 2 2v14l-6-2.5L6 20V6a2 2 0 0 1 2-2Z" /><path d="M9 8h6" /></> },
+  { t: 'Yours to keep', d: 'A printed hardcover to treasure — plus the instant digital PDF.', c: 'var(--sky)', icon: <><path d="M5 4h11a2 2 0 0 1 2 2v14l-6-2.5L6 20V6a2 2 0 0 1 2-2Z" /><path d="M9 8h6" /></> },
   { t: 'For every milestone', d: 'From first days to big feelings — a story for every chapter.', c: 'var(--brand)', icon: <path d="M12 20s-6.5-4-8.5-8.2C2 8.7 3.7 6 6.5 6 8.3 6 9.5 7 12 9.4 14.5 7 15.7 6 17.5 6c2.8 0 4.5 2.7 3 5.8C18.5 16 12 20 12 20Z" /> },
 ];
 

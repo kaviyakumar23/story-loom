@@ -81,7 +81,7 @@ export function Footer() {
         <div className="foot-brand">
           <Logo size={26} tone="light" tagline />
           <p style={{ fontSize: 14, lineHeight: 1.6, color: '#C9C7EA', maxWidth: 260, marginTop: 12 }}>
-            Personalised digital storybooks that celebrate who they are.
+            Personalised printed storybooks that celebrate who they are.
           </p>
           {/* Social links are placeholders — set real URLs when accounts exist. */}
           <div className="foot-social">

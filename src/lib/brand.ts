@@ -21,29 +21,30 @@ export const BRAND = {
     secondaryCta: 'Read a sample story',
     trustLine: 'Free preview · No photos · Pay only when you love it',
     // Concrete spec line for the hero — what it is, who it's for, what it costs.
-    specLine: 'A personalised 16–20 page digital storybook · ages 3–10 · free preview, then ₹299 only if you love it',
+    specLine: 'A personalised printed hardcover · ages 3–10 · ₹999, incl. instant digital · free preview first',
     // Default name shown on the interactive hero cover before a parent types.
     sampleName: 'Aarav',
     sampleTitleSuffix: 'and the Star That Listens',
   },
 
-  /** The single currently-purchasable product. Keep this the only priced item. */
+  /** The main product: a printed hardcover (founder-fulfilled) that includes the
+   * instant digital PDF. PLACEHOLDER price ₹999 — confirm before launch. */
   product: {
-    name: 'Personalised Digital Storybook',
-    price: 299,
-    priceLabel: '₹299',
+    name: 'Personalised Printed Storybook',
+    price: 999,
+    priceLabel: '₹999',
     currency: 'INR',
     pages: '16–20 pages',
     ageRange: 'Ages 3–10',
-    format: 'Downloadable PDF',
-    delivery: 'Ready in ~2 minutes',
+    format: 'Printed hardcover',
+    delivery: 'Printed & shipped in ~7 days',
     revision: 'One free revision',
-    unlockCta: 'Unlock the complete story',
+    unlockCta: 'Order the printed book',
     includes: [
-      'Complete illustrated story',
+      'A printed hardcover, shipped to your door',
+      'The instant digital PDF, ready the moment you order',
       'Personalised cover with your child as the hero',
-      '16–20 pages',
-      'Downloadable PDF',
+      '16–20 illustrated pages',
       'One free revision',
     ],
   },

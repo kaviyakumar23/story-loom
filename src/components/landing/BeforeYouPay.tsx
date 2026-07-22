@@ -15,7 +15,8 @@ const BEFORE = [
 ];
 const AFTER = [
   `Pay ${BRAND.product.priceLabel} — only if you love it`,
-  'The complete 16–20 page storybook, as a downloadable PDF',
+  'The instant digital PDF, ready right away',
+  'Your printed hardcover, shipped in ~7 days',
   'One free revision to a story or illustration',
 ];
 

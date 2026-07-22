@@ -18,11 +18,11 @@ import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
 
 const FAQS = [
-  { q: 'How much does it cost?', a: `${BRAND.product.priceLabel} for the complete personalised book — and you only pay after you’ve seen your free preview and love it. UPI and cards supported, in rupees.` },
+  { q: 'How much does it cost?', a: `${BRAND.product.priceLabel} for a personalised printed hardcover, shipped to you — and it includes the instant digital PDF. You only pay after you’ve seen your free preview and love it. UPI and cards, in rupees.` },
   { q: 'Do you need a photo of my child?', a: 'No — never. You describe how they look (skin tone, hair, glasses) and we illustrate an original character. Safer, and fully under your control.' },
   { q: 'Can I really preview before paying?', a: 'Yes. You’ll see your child’s cover and opening pages free, before you decide. If it isn’t quite right, tweak the details and we’ll regenerate it.' },
   { q: 'Is my child’s data safe?', a: 'Yes. We collect the minimum — a nickname, not a legal name; an age band, not a birth date. Their real name never leaves our system to an AI vendor or is used to train AI, and you can delete everything anytime.' },
-  { q: 'How is the book delivered?', a: `A beautifully illustrated PDF, ${BRAND.product.delivery.toLowerCase()}, in your account. Read it on any phone or tablet, or print it at home.` },
+  { q: 'How is the book delivered?', a: 'Two ways. The digital PDF is ready the moment you order — read it on any phone or tablet. Your printed hardcover is then printed and shipped to your address within about 7 days (across India).' },
   { q: 'Is this a good gift?', a: 'It’s one of the most personal gifts you can give — wonderful for birthdays, Diwali, Rakhi, or welcoming a new sibling. The child sees themselves as the hero.' },
 ];
 
@@ -44,8 +44,7 @@ export default function Landing() {
             <h2 className="display d-h2" style={{ marginTop: 14 }}>A whole book, not a mock-up</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 14 }}>
               Turn the pages of a real MoonBell story, cover to closing — the same hero, the same
-              outfit, the same art on every page. Prefer to read it your way? Download it as the very
-              same {BRAND.product.format} you’d receive.
+              outfit, the same art on every page. Prefer to read it your way? Download the sample as a PDF.
             </p>
           </div>
           <SampleBook />
@@ -74,8 +73,8 @@ export default function Landing() {
             <Inscription size="sm">one book · one simple price</Inscription>
             <h2 className="display d-h2" style={{ marginTop: 8 }}>{BRAND.product.name}</h2>
             <p style={{ fontSize: 15.5, color: 'var(--ink-soft)', margin: '12px 0 20px', lineHeight: 1.6, maxWidth: 440 }}>
-              A complete illustrated story starring your child — delivered as a downloadable PDF you
-              can reread on any phone or tablet, or print at home. You only pay after your free preview.
+              A complete illustrated story starring your child — a printed hardcover shipped to your
+              door, with the digital PDF ready the instant you order. You only pay after your free preview.
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 22px', padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {BRAND.product.includes.map((it) => (
