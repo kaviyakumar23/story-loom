@@ -35,7 +35,7 @@ export const fulfillmentPipeline = inngest.createFunction(
     // stuck, so without this a slow run and its reconciliation could render the
     // same pages twice (double image spend, duplicate asset rows, two emails).
     // The second, keyless limit is a function-global cap on heavy paid renders.
-    concurrency: [{ key: 'event.data.bookId', limit: 1 }, { limit: 6 }],
+    concurrency: [{ key: 'event.data.bookId', limit: 1 }, { limit: 3 }],
     triggers: [{ event: EVENTS.fulfillmentRequested }],
   },
   async ({ event, step }) => {
