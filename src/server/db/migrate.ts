@@ -1,5 +1,11 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { readFile, readdir } from 'node:fs/promises';
+
+// Read the same local env the Next app uses (.env.local takes precedence), so a
+// DATABASE_URL configured there is picked up; fall back to .env / real env.
+config({ path: '.env.local' });
+config();
+
 import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
 
