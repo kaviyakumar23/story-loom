@@ -72,6 +72,7 @@ export default function Create() {
   const [consent, setConsent] = useState(false);
   const [birthMonth, setBirthMonth] = useState<number | ''>('');
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [reuseHeroId, setReuseHeroId] = useState<string | null>(null);
   const [access, setAccess] = useState<BetaAccessResponse | null>(null);
   const [inviteCode, setInviteCode] = useState('');
   const [accessBusy, setAccessBusy] = useState(false);
@@ -86,6 +87,27 @@ export default function Create() {
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
+    // "Another book for the same child": prefill from an existing hero and reuse
+    // its cached character sheet (book two stars the same Aarav).
+    const from = new URLSearchParams(window.location.search).get('from');
+    if (from) {
+      void (async () => {
+        try {
+          const h = await api<{ heroId: string; nickname: string; ageBand: string; avatar: { skinTone?: string; hair?: string; glasses?: boolean }; interests: string[]; birthMonth: number | null }>(`/books/${from}/reuse`);
+          setReuseHeroId(h.heroId);
+          setNickname(h.nickname);
+          setAgeBand(h.ageBand as AgeBand);
+          if (h.avatar.skinTone) setSkinTone(h.avatar.skinTone);
+          if (h.avatar.hair) setHair(h.avatar.hair);
+          if (typeof h.avatar.glasses === 'boolean') setGlasses(h.avatar.glasses);
+          if (Array.isArray(h.interests)) setInterests(h.interests);
+          if (h.birthMonth) setBirthMonth(h.birthMonth);
+        } catch {
+          /* fall back to a normal new book */
+        }
+      })();
+    }
+
     api<BetaAccessResponse>('/beta/access', { anon: true })
       .then((status) => {
         if (!cancelled) setAccess(status);
@@ -232,6 +254,7 @@ export default function Create() {
           readingLevel,
           consentId,
           marketingConsent,
+          heroId: reuseHeroId ?? undefined,
         },
       });
       try {
@@ -297,6 +320,11 @@ export default function Create() {
     <div className="web" style={{ minHeight: '100vh' }}>
       <Header minimal />
       <div className="container-narrow page-pad" style={{ maxWidth: 600 }}>
+        {reuseHeroId && (
+          <div className="card" style={{ padding: '14px 18px', marginBottom: 16, background: 'var(--brand-tint)', border: '1px solid var(--hairline)', fontSize: 13.5, lineHeight: 1.5 }}>
+            <strong>✦ Same hero, new adventure.</strong> {nickname || 'Your child'}’s look stays exactly the same — just pick a new story below.
+          </div>
+        )}
         <Progress step={step} />
         <div className="card" style={{ padding: '36px 40px' }}>
           {step === 1 && (

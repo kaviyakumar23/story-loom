@@ -60,6 +60,9 @@ const createSchema = z.object({
   readingLevel: z.enum(READING_LEVELS),
   consentId: z.string().uuid(),
   marketingConsent: z.boolean().optional(),
+  // Reuse an existing hero (repeat purchase). When set, the child fields above
+  // are ignored and the cached character sheet is reused.
+  heroId: z.string().uuid().optional(),
 });
 
 // ---- POST /api/v1/books — create a book (idempotent per parent+key) ----
@@ -120,26 +123,46 @@ export async function POST(req: Request): Promise<Response> {
       await db.from('profiles').update({ marketing_consent: true }).eq('id', parent.id);
     }
 
-    const { data: hero, error: heroErr } = await db
-      .from('heroes')
-      .insert({
-        parent_id: parent.id,
-        nickname: input.child.nickname,
-        age_band: input.child.ageBand,
-        avatar: input.child.avatar,
-        interests: input.child.interests,
-        birth_month: input.child.birthMonth ?? null,
-      })
-      .select('id')
-      .single();
-    if (heroErr || !hero) throw internal('Could not create hero', heroErr?.message);
+    // Reuse an existing hero ("another book for the same child") so the cached
+    // character sheet carries over — book two structurally stars the same child.
+    // Otherwise create a fresh hero.
+    let heroId: string;
+    let createdHero = false;
+    if (input.heroId) {
+      const { data: existing } = await db
+        .from('heroes')
+        .select('id')
+        .eq('id', input.heroId)
+        .eq('parent_id', parent.id)
+        .maybeSingle();
+      if (!existing) throw badRequest('heroId is invalid or not yours');
+      heroId = input.heroId;
+    } else {
+      const { data: hero, error: heroErr } = await db
+        .from('heroes')
+        .insert({
+          parent_id: parent.id,
+          nickname: input.child.nickname,
+          age_band: input.child.ageBand,
+          avatar: input.child.avatar,
+          interests: input.child.interests,
+          birth_month: input.child.birthMonth ?? null,
+        })
+        .select('id')
+        .single();
+      if (heroErr || !hero) throw internal('Could not create hero', heroErr?.message);
+      heroId = hero.id;
+      createdHero = true;
+    }
+    // Roll back only a hero WE created — never a reused one (it has other books).
+    const cleanupHero = async () => { if (createdHero) await db.from('heroes').delete().eq('id', heroId); };
 
     const stamp = resolveModelStamp();
     const { data: book, error: bookErr } = await db
       .from('books')
       .insert({
         parent_id: parent.id,
-        hero_id: hero.id,
+        hero_id: heroId,
         consent_id: input.consentId,
         goal: input.goal,
         occasion_pack: input.occasionPack ?? null,
@@ -161,7 +184,7 @@ export async function POST(req: Request): Promise<Response> {
       // request for the same key already made this book — double-submit is
       // exactly what the key is for, so return theirs instead of a 400.
       if (bookErr?.code === '23505') {
-        await db.from('heroes').delete().eq('id', hero.id);
+        await cleanupHero();
         const { data: winner } = await db
           .from('books')
           .select('id, status')
@@ -173,7 +196,7 @@ export async function POST(req: Request): Promise<Response> {
           return Response.json({ bookId: row.id, status: row.status } satisfies CreateBookResponse, { status: 202 });
         }
       }
-      await db.from('heroes').delete().eq('id', hero.id);
+      await cleanupHero();
       throw internal('Could not create book', bookErr?.message);
     }
 
@@ -191,7 +214,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!((withinCap ?? []) as { id: string }[]).some((b) => b.id === book.id)) {
       // Order matters: books.hero_id is ON DELETE RESTRICT.
       await db.from('books').delete().eq('id', book.id);
-      await db.from('heroes').delete().eq('id', hero.id);
+      await cleanupHero();
       throw badRequest('Daily preview limit reached. Please try again tomorrow.');
     }
 

@@ -740,6 +740,9 @@ function Delivered({ book, onEvent }: { book: Book; onEvent: (event: BookEventNa
             <Icon name="book" size={18} stroke="#fff" /> Listen to the narration
           </a>
         )}
+        <Link className="btn btn-brand btn-block" href={`/create?from=${book.id}`}>
+          <Icon name="book" size={18} stroke="#fff" /> Another adventure for them
+        </Link>
         <Link className="btn btn-ghost btn-block" href="/books">My books</Link>
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
