@@ -26,6 +26,7 @@ import {
   type CreateBookShareResponse,
   type CreateOrderResponse,
   type FeedbackIssueType,
+  type FulfillmentStatus,
   type RevokeBookShareResponse,
   type Tier,
 } from '@/lib/types';
@@ -726,7 +727,8 @@ function Delivered({ book, onEvent }: { book: Book; onEvent: (event: BookEventNa
         <Icon name="check" size={42} stroke="var(--success)" sw={2.4} />
       </div>
       <h1 className="display" style={{ fontSize: 38, marginBottom: 10 }}>{book.title ?? 'Your book'} is ready!</h1>
-      <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 28px' }}>Download it below — we’ve also emailed you the link.</p>
+      <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 22px' }}>Download it below — we’ve also emailed you the link.</p>
+      {book.fulfillment && <PrintStatus f={book.fulfillment} />}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360, margin: '0 auto' }}>
         {book.pdfUrl && (
           <a className="btn btn-primary btn-block" href={book.pdfUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_pdf_clicked')}>
@@ -741,6 +743,27 @@ function Delivered({ book, onEvent }: { book: Book; onEvent: (event: BookEventNa
         <Link className="btn btn-ghost btn-block" href="/books">My books</Link>
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
+    </div>
+  );
+}
+
+function PrintStatus({ f }: { f: FulfillmentStatus }) {
+  const MAP: Record<FulfillmentStatus['status'], { icon: string; text: string }> = {
+    print_ready: { icon: '🖨️', text: 'Your printed hardcover is queued for printing — it ships within about 7 days.' },
+    printing: { icon: '🖨️', text: 'Your printed hardcover is being printed now — it ships within about 7 days.' },
+    shipped: { icon: '🚚', text: 'Your printed book has shipped!' },
+    delivered: { icon: '📦', text: 'Your printed book was delivered — enjoy!' },
+    cancelled: { icon: 'ⓘ', text: 'This print order was cancelled. Contact us if that’s a surprise.' },
+  };
+  const m = MAP[f.status];
+  return (
+    <div style={{ background: 'var(--brand-tint)', border: '1px solid var(--hairline)', borderRadius: 'var(--r-lg)', padding: '13px 18px', margin: '0 auto 24px', maxWidth: 440, fontSize: 14, lineHeight: 1.5, textAlign: 'left' }}>
+      <strong style={{ color: 'var(--ink)' }}>{m.icon} {m.text}</strong>
+      {f.status === 'shipped' && f.trackingNumber && (
+        <div style={{ marginTop: 5, fontSize: 13, color: 'var(--ink-soft)' }}>
+          {f.carrier ? `${f.carrier} · ` : ''}Tracking: <strong style={{ color: 'var(--ink)' }}>{f.trackingNumber}</strong>
+        </div>
+      )}
     </div>
   );
 }

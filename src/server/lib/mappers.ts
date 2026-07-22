@@ -4,6 +4,7 @@ import type {
   Book,
   BookListItem,
   BookStatus,
+  FulfillmentStatus,
   Goal,
   Language,
   OccasionPackId,
@@ -82,9 +83,23 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
     const assets = await loadDeliveryAssets(row.id);
     book.pdfUrl = assets.pdf ? await signAsset(assets.pdf) : null;
     book.audioUrl = assets.audio ? await signAsset(assets.audio) : null;
+    book.fulfillment = await loadFulfillment(row.id);
   }
 
   return book;
+}
+
+/** Print fulfilment status for a paid physical order (null if none). */
+async function loadFulfillment(bookId: string): Promise<FulfillmentStatus | null> {
+  const { data } = await serviceClient()
+    .from('fulfillments')
+    .select('status, carrier, tracking_number, shipped_at')
+    .eq('book_id', bookId)
+    .eq('kind', 'print')
+    .maybeSingle();
+  if (!data) return null;
+  const f = data as { status: FulfillmentStatus['status']; carrier: string | null; tracking_number: string | null; shipped_at: string | null };
+  return { status: f.status, carrier: f.carrier, trackingNumber: f.tracking_number, shippedAt: f.shipped_at };
 }
 
 async function loadReadingGuide(bookId: string): Promise<ReadingGuide | null> {

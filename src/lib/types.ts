@@ -61,6 +61,13 @@ export interface ReadingGuide {
   discussionQuestions: string[];
   activity: string | null;
 }
+export interface FulfillmentStatus {
+  status: 'print_ready' | 'printing' | 'shipped' | 'delivered' | 'cancelled';
+  carrier: string | null;
+  trackingNumber: string | null;
+  shippedAt: string | null;
+}
+
 export interface Book {
   id: string;
   status: BookStatus;
@@ -81,6 +88,7 @@ export interface Book {
   canRequestRevision: boolean;
   pdfUrl?: string | null;
   audioUrl?: string | null;
+  fulfillment?: FulfillmentStatus | null;
   error?: { code: string; message: string } | null;
 }
 export interface BookListItem {

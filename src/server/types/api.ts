@@ -115,6 +115,13 @@ export interface ReadingGuide {
   activity: string | null;
 }
 
+export interface FulfillmentStatus {
+  status: 'print_ready' | 'printing' | 'shipped' | 'delivered' | 'cancelled';
+  carrier: string | null;
+  trackingNumber: string | null;
+  shippedAt: string | null;
+}
+
 export interface Book {
   id: string;
   status: BookStatus;
@@ -137,6 +144,8 @@ export interface Book {
   /** Signed URLs present once complete/paid (§11). */
   pdfUrl?: string | null;
   audioUrl?: string | null;
+  /** Print fulfilment status, present for a paid physical order. */
+  fulfillment?: FulfillmentStatus | null;
   error?: { code: string; message: string } | null;
 }
 
