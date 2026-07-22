@@ -43,8 +43,9 @@ export default function Landing() {
             <span className="eyebrow"><Icon name="book" size={15} stroke="var(--brand)" /> Read a sample story</span>
             <h2 className="display d-h2" style={{ marginTop: 14 }}>A whole book, not a mock-up</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 14 }}>
-              Turn the pages of a finished story. The same hero, consistent art, gentle words —
-              {' '}{BRAND.product.pages}, delivered as a {BRAND.product.format.toLowerCase()}.
+              Turn the pages of a real MoonBell story, cover to closing — the same hero, the same
+              outfit, the same art on every page. Prefer to read it your way? Download it as the very
+              same {BRAND.product.format} you’d receive.
             </p>
           </div>
           <SampleBook />
