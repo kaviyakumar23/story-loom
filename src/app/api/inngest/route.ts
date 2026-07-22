@@ -4,6 +4,7 @@ import { fulfillmentPipeline } from '@/server/pipeline/fulfillment';
 import { previewPipeline } from '@/server/pipeline/preview';
 import { reconcilePaidBooks } from '@/server/pipeline/reconcile';
 import { retentionPurge } from '@/server/pipeline/retention';
+import { previewWinback } from '@/server/pipeline/winback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,5 +14,5 @@ export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [previewPipeline, fulfillmentPipeline, reconcilePaidBooks, retentionPurge],
+  functions: [previewPipeline, fulfillmentPipeline, reconcilePaidBooks, retentionPurge, previewWinback],
 });

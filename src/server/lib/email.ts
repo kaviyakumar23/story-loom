@@ -25,6 +25,17 @@ async function send(to: string, subject: string, html: string): Promise<void> {
   if (error) throw new Error(`Email send failed: ${error.message}`);
 }
 
+/**
+ * Best-effort add to the Resend newsletter audience. No-ops unless both the API
+ * key and RESEND_AUDIENCE_ID are set — the DB row is the source of truth either
+ * way, so callers can ignore failures.
+ */
+export async function addNewsletterContact(email: string): Promise<void> {
+  const env = loadEnv();
+  if (!env.RESEND_API_KEY || !env.RESEND_AUDIENCE_ID) return;
+  await client().contacts.create({ email, audienceId: env.RESEND_AUDIENCE_ID, unsubscribed: false });
+}
+
 export interface OrderReceipt {
   orderId: string;
   /** Smallest currency unit (paise for INR), as stored on the order. */
@@ -100,6 +111,23 @@ export async function sendPrintReady(to: string, dashboardUrl: string): Promise<
                with care, and will be printed and shipped within about 7 days. We'll email you a tracking
                link the moment it's on the way.</p>`,
       cta: { label: 'Read your digital copy', url: dashboardUrl },
+    }),
+  );
+}
+
+/** Win-back: an unpurchased preview that's still within the retention window. */
+export async function sendPreviewWinback(to: string, dashboardUrl: string): Promise<void> {
+  await send(
+    to,
+    'Your storybook preview is still waiting ✨',
+    layout({
+      eyebrow: 'Still here for you',
+      heading: 'Your preview is waiting',
+      body: `<p style="margin:0 0 14px">You started a MoonBell story but haven't finished — it's still
+               here, with your child as the hero.</p>
+             <p style="margin:0">Come back to read the full story and turn it into a printed keepsake.
+               Your free preview won't be around forever.</p>`,
+      cta: { label: 'See your preview', url: dashboardUrl },
     }),
   );
 }
