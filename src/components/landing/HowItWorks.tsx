@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { Inscription } from './Inscription';
 
 const STEPS: { t: string; d: string; c: string; icon: ReactNode }[] = [
-  { t: 'Tell us about them', d: 'Share a few details about your child and their world.', c: 'var(--brand)', icon: <><path d="M4 20l3-1L18 8a2 2 0 0 0-3-3L4 16l-1 4Z" /><path d="M14 6l3 3" /></> },
-  { t: 'We create the magic', d: 'Our storytellers and artists craft a story just for them.', c: 'var(--coral)', icon: <><path d="M5 12h5M12 5v5" /><path d="M15 15l5 5M17 13l4-4-2-2-4 4Z" /></> },
-  { t: 'Preview & approve', d: 'See the free preview and request changes if needed.', c: 'var(--gold)', icon: <><path d="M4 6h13a2 2 0 0 1 0 4H4Z" /><path d="M4 14h16" /><path d="M4 18h10" /></> },
-  { t: 'Made with love', d: 'Your keepsake is prepared with care and quality.', c: 'var(--sky)', icon: <><path d="M4 8l8-4 8 4-8 4-8-4Z" /><path d="M4 8v8l8 4 8-4V8" /></> },
-  { t: 'Delivered to you', d: 'A story they’ll treasure — today and always.', c: 'var(--brand)', icon: <path d="M12 20s-6.5-4-8.5-8.2C2 8.7 3.7 6 6.5 6 8.3 6 9.5 7 12 9.4 14.5 7 15.7 6 17.5 6c2.8 0 4.5 2.7 3 5.8C18.5 16 12 20 12 20Z" /> },
+  { t: 'Tell us about them', d: 'A nickname, how they look, what they love, and a gentle lesson.', c: 'var(--brand)', icon: <><path d="M4 20l3-1L18 8a2 2 0 0 0-3-3L4 16l-1 4Z" /><path d="M14 6l3 3" /></> },
+  { t: 'Meet their character', d: 'See your child illustrated as the hero — free, before you pay.', c: 'var(--coral)', icon: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.6-3.3 3.2-5.2 6.5-5.2S17.9 15.7 18.5 19" /></> },
+  { t: 'We create the story', d: 'Guided AI writes and illustrates a story made just for them.', c: 'var(--gold)', icon: <><path d="M5 12h5M12 5v5" /><path d="M15 15l5 5M17 13l4-4-2-2-4 4Z" /></> },
+  { t: 'Review & revise', d: 'Read the preview and ask for a change if it isn’t quite right.', c: 'var(--sky)', icon: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></> },
+  { t: 'Download the PDF', d: 'Get the full 16–20 page book — reread it, or print at home.', c: 'var(--brand)', icon: <><path d="M12 4v10M8 10l4 4 4-4" /><path d="M5 19h14" /></> },
 ];
 
 export function HowItWorks() {

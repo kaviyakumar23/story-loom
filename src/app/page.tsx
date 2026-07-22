@@ -2,15 +2,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Footer, Header } from '@/components/chrome';
 import { BackedByTrust } from '@/components/landing/BackedByTrust';
+import { BeforeYouPay } from '@/components/landing/BeforeYouPay';
 import { ComingSoon } from '@/components/landing/ComingSoon';
 import { FinalCta } from '@/components/landing/FinalCta';
 import { HeroCover } from '@/components/landing/HeroCover';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Inscription } from '@/components/landing/Inscription';
+import { Occasions } from '@/components/landing/Occasions';
 import { ParentReaction } from '@/components/landing/ParentReaction';
 import { Personalisation } from '@/components/landing/Personalisation';
 import { SampleBook } from '@/components/landing/SampleBook';
 import { ScrollRibbon } from '@/components/landing/ScrollRibbon';
+import { StickyCta } from '@/components/landing/StickyCta';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
 
@@ -30,13 +33,14 @@ export default function Landing() {
       <Header />
 
       <HeroCover />
+      <BeforeYouPay />
       <Personalisation />
 
       {/* SEE A REAL ONE */}
       <section className="dband dband-soft" id="sample">
         <div className="container">
           <div style={{ textAlign: 'center', maxWidth: 620, margin: '0 auto 36px' }}>
-            <span className="eyebrow"><Icon name="book" size={15} stroke="var(--brand)" /> See a real one</span>
+            <span className="eyebrow"><Icon name="book" size={15} stroke="var(--brand)" /> Read a sample story</span>
             <h2 className="display d-h2" style={{ marginTop: 14 }}>A whole book, not a mock-up</h2>
             <p className="d-lead" style={{ color: 'var(--ink-soft)', marginTop: 14 }}>
               Turn the pages of a finished story. The same hero, consistent art, gentle words —
@@ -48,8 +52,6 @@ export default function Landing() {
       </section>
 
       <HowItWorks />
-      <BackedByTrust />
-      <ParentReaction />
 
       {/* PURCHASE — product page */}
       <section className="dband" id="pricing">
@@ -57,10 +59,10 @@ export default function Landing() {
           <div style={{ position: 'relative' }}>
             <div className="product-shot">
               <Image
-                src="/landing/gift-keepsake-close-up.webp"
-                alt="A personalised MoonBell storybook in its navy gift box, with a ribbon and a handwritten note"
-                width={1122}
-                height={1402}
+                src="/landing/bedtime-spread.webp"
+                alt="Two illustrated pages from a personalised MoonBell storybook, shown as the digital PDF"
+                width={1200}
+                height={800}
                 sizes="(max-width: 860px) 90vw, 520px"
                 style={{ width: '100%', height: 'auto', display: 'block' }}
               />
@@ -71,8 +73,8 @@ export default function Landing() {
             <Inscription size="sm">one book · one simple price</Inscription>
             <h2 className="display d-h2" style={{ marginTop: 8 }}>{BRAND.product.name}</h2>
             <p style={{ fontSize: 15.5, color: 'var(--ink-soft)', margin: '12px 0 20px', lineHeight: 1.6, maxWidth: 440 }}>
-              A complete illustrated story starring your child — delivered as a keepsake you’ll
-              read again and again. You only pay after your free preview.
+              A complete illustrated story starring your child — delivered as a downloadable PDF you
+              can reread on any phone or tablet, or print at home. You only pay after your free preview.
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 22px', padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {BRAND.product.includes.map((it) => (
@@ -96,6 +98,10 @@ export default function Landing() {
         </div>
       </section>
 
+      <BackedByTrust />
+      <ParentReaction />
+      <Occasions />
+
       {/* FAQ */}
       <section className="dband dband-soft" id="faq">
         <div className="container-narrow">
@@ -113,6 +119,7 @@ export default function Landing() {
       <FinalCta />
 
       <Footer />
+      <StickyCta />
     </div>
   );
 }

@@ -17,9 +17,11 @@ export const BRAND = {
     sub:
       'Create a beautifully illustrated story starring your child — made from their nickname, ' +
       'appearance, interests and the lesson you want to share. No photos required.',
-    primaryCta: 'Create their free preview',
-    secondaryCta: 'See a sample book',
+    primaryCta: 'Create a free preview',
+    secondaryCta: 'Read a sample story',
     trustLine: 'Free preview · No photos · Pay only when you love it',
+    // Concrete spec line for the hero — what it is, who it's for, what it costs.
+    specLine: 'A personalised 16–20 page digital storybook · ages 3–10 · free preview, then ₹299 only if you love it',
     // Default name shown on the interactive hero cover before a parent types.
     sampleName: 'Aarav',
     sampleTitleSuffix: 'and the Star That Listens',
@@ -32,6 +34,7 @@ export const BRAND = {
     priceLabel: '₹299',
     currency: 'INR',
     pages: '16–20 pages',
+    ageRange: 'Ages 3–10',
     format: 'Downloadable PDF',
     delivery: 'Ready in ~2 minutes',
     revision: 'One free revision',

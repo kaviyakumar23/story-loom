@@ -5,9 +5,9 @@ import { LogoMark } from '@/components/logo';
  * parents) instead of fabricated counts/testimonials, which we don't have yet.
  */
 const POINTS = [
-  '100% child-safe & human-reviewed',
-  'Privacy-first by design (DPDP-aligned)',
-  'No photos, ever — and no data shared with third parties',
+  'Every story is safety-checked before it’s delivered',
+  'No photos, ever — a nickname and age band, never a legal name',
+  'Privacy-first by design, aligned with India’s DPDP Act',
   'Made by parents, in India',
 ];
 
@@ -25,7 +25,15 @@ export function BackedByTrust() {
             </li>
           ))}
         </ul>
-        <p className="backed-note">Be one of our first families — genuine reviews will appear here as parents share them.</p>
+        <p className="backed-ai">
+          MoonBell uses carefully guided AI to write and illustrate each story — within story
+          templates, values and safety rules we design. Every story then passes an independent
+          safety check before it reaches your child.
+        </p>
+        <p className="backed-note">
+          We’re a new brand, so you could be one of our first families. Real reactions will appear
+          here as parents share them — we’ll never use stock quotes or invented ratings.
+        </p>
       </div>
     </section>
   );
