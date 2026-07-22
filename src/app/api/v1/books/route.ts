@@ -51,12 +51,15 @@ const createSchema = z.object({
       features: z.array(z.string()).max(20).optional(),
     }),
     interests: z.array(z.string().max(40)).max(10),
+    // Month only (1–12), never a full DOB — enables birthday nudges (§9 minimisation).
+    birthMonth: z.number().int().min(1).max(12).nullable().optional(),
   }),
   goal: z.enum(GOALS),
   occasionPack: z.enum(OCCASION_PACKS).nullable().optional(),
   language: z.enum(LANGUAGES),
   readingLevel: z.enum(READING_LEVELS),
   consentId: z.string().uuid(),
+  marketingConsent: z.boolean().optional(),
 });
 
 // ---- POST /api/v1/books — create a book (idempotent per parent+key) ----
@@ -112,6 +115,11 @@ export async function POST(req: Request): Promise<Response> {
       throw badRequest('This consent has been withdrawn. Please give consent again to make a new book.');
     }
 
+    // Opt-in comms — only ever flips consent on, never off, and only by the owner.
+    if (input.marketingConsent) {
+      await db.from('profiles').update({ marketing_consent: true }).eq('id', parent.id);
+    }
+
     const { data: hero, error: heroErr } = await db
       .from('heroes')
       .insert({
@@ -120,6 +128,7 @@ export async function POST(req: Request): Promise<Response> {
         age_band: input.child.ageBand,
         avatar: input.child.avatar,
         interests: input.child.interests,
+        birth_month: input.child.birthMonth ?? null,
       })
       .select('id')
       .single();

@@ -70,6 +70,8 @@ export default function Create() {
   const [interests, setInterests] = useState<string[]>([]);
   const [interestDraft, setInterestDraft] = useState('');
   const [consent, setConsent] = useState(false);
+  const [birthMonth, setBirthMonth] = useState<number | ''>('');
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [access, setAccess] = useState<BetaAccessResponse | null>(null);
   const [inviteCode, setInviteCode] = useState('');
   const [accessBusy, setAccessBusy] = useState(false);
@@ -223,12 +225,13 @@ export default function Create() {
         // double-submit the header exists to prevent.
         headers: { 'Idempotency-Key': idempotencyKey.current },
         body: {
-          child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests },
+          child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests, birthMonth: birthMonth || null },
           goal,
           occasionPack,
           language: 'en',
           readingLevel,
           consentId,
+          marketingConsent,
         },
       });
       try {
@@ -423,6 +426,26 @@ export default function Create() {
                   <Link href="/legal/privacy" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Privacy Policy</Link>.
                 </span>
               </label>
+
+              <div style={{ marginTop: 16, display: 'grid', gap: 14 }}>
+                <label style={{ fontSize: 13.5, color: 'var(--ink)' }}>
+                  <span style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    {nickname || 'Their'}’s birthday month <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span>
+                  </span>
+                  <select className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value ? Number(e.target.value) : '')}>
+                    <option value="">Prefer not to say</option>
+                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
+                      <option key={m} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>The month only — never a full birthdate — for a little nudge near their big day.</span>
+                </label>
+                <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} style={{ marginTop: 3, width: 18, height: 18, accentColor: 'var(--brand)' }} />
+                  <span style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)' }}>Email me occasional MoonBell updates, new story themes and offers. Optional — unsubscribe anytime.</span>
+                </label>
+              </div>
+
               <div style={{ marginTop: 18, padding: '16px 0 0', borderTop: '2px solid var(--hairline)', display: 'grid', gap: 11 }}>
                 {[
                   ['No photos', 'Only attributes and a nickname are used to make the character.'],
