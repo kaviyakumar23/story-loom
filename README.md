@@ -1,160 +1,146 @@
-# MoonBell / Storyloom — Internal Alpha App
+# MoonBell (repo: story-loom)
 
-Next.js 16 App Router app for personalized AI children's storybooks. This repo
-now contains the web app, API routes, Supabase-backed data layer, and Inngest
-generation pipeline in one deployable app.
+Next.js 16 App Router app for **MoonBell** (moonbell.in) — personalised AI
+children's storybooks, India-first. This repo is the whole product: web app,
+`/api/v1/*` route handlers, Supabase data layer, and the Inngest generation
+pipeline in one deployable app (Vercel).
 
-## Current Alpha Scope
+**The product:** a personalised printed hardcover (₹999, founder-fulfilled —
+printed and shipped in ~7 days across India) with an instant digital PDF
+companion. Parents see a free preview first and pay only if they love it.
 
-- Parent sign-in via Supabase magic link / Google.
-- Attribute-based child intake: nickname instead of legal name, age band instead
-  of DOB. An optional child photo is off by default (behind
-  `NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`); when on, it is ephemeral — used once to
-  seed a stylized likeness, then deleted (never printed or stored).
-- Explicit consent before preview generation.
-- AI preview pipeline: story text, moderation, character sheet, cover, and first
-  pages.
-- Wider-beta helpers: curated occasion packs, parent reading guides, expiring
-  private preview links, and one capped preview tweak before checkout.
-- Dashboard, book polling page, account export/delete, legal drafts, and admin
-  API endpoints.
-- Alpha measurement: preview events, download clicks, feedback, lifecycle timing,
-  admin metrics JSON, and CSV export.
-- Optional beta invite gate: set `BETA_ACCESS_CODE` to require a private code
-  before any preview generation starts.
-- Payment routes exist, but payment/live Razorpay setup is intentionally not
-  part of this internal alpha pass.
+**Current stage:** invite-gated beta (`BETA_ACCESS_CODE`). Payments are fully
+built but OFF (`NEXT_PUBLIC_PAYMENTS_ENABLED=false`) pending Razorpay
+activation; the print/fulfilment flow is live behind it.
+
+## How the funnel works
+
+1. **Anonymous, invite-gated entry** — a parent lands on `/create`, enters the
+   invite code, and gets an anonymous Supabase session (no signup friction).
+   Email sign-in (`/signin`) is the account-upgrade/return path.
+2. **Intake + consent** — nickname (never a legal name), age band (never a DOB),
+   appearance attributes, interests, occasion pack or custom theme, reading
+   level. Explicit parental consent is recorded and enforced at book creation.
+   An optional child photo is off by default (see Non-negotiables).
+3. **Preview** (`previewPipeline`) — ONE structured text call writes the whole
+   story (8/10/12 pages by reading level) → text moderation gate → character
+   sheet (3 anchored views, cached per hero) → cover + first 3 page renders,
+   each image-moderated. The preview shows the FULL story text with the
+   remaining pages "illustrated when you order".
+4. **Steering** — one free whole-preview tweak before checkout.
+5. **Checkout** — server-priced Razorpay order (never client amounts); physical
+   orders require a shipping address; optional gift message printed on the
+   bookplate. The webhook is the source of truth: it marks paid, grants 3
+   render credits, stamps the series number, and triggers fulfilment.
+6. **Fulfilment** (`fulfillmentPipeline`) — renders the remaining pages,
+   assembles the print-quality PDF (8×8", closing bookplate with "Book N in
+   {name}'s MoonBell Adventures" + gift dedication), optional audio, delivers
+   the digital instantly, and queues the print job for the founder at
+   `/admin/fulfillments` (print → ship → track → delivered emails).
+7. **Post-purchase editing** (`applyBookEdit`) — parents can edit any page's
+   words (free, strictly moderated) or re-illustrate a page (3 included render
+   credits; blocked renders keep the old image and refund the credit) until the
+   founder starts printing.
+8. **Retention** — per-child bookshelf with series numbers, `/r/[bookId]` QR
+   reorder link, and consent-gated occasion/birthday/sibling reminder emails.
+
+## Inngest functions (8)
+
+| Function | Trigger | Purpose |
+|---|---|---|
+| `previewPipeline` | book created | story → gates → character sheet → preview renders |
+| `fulfillmentPipeline` | payment webhook | remaining pages → PDF → deliver → print queue |
+| `applyBookEdit` | page edit/regen | re-render one page / rebuild PDF, never re-emails |
+| `reconcilePaidBooks` | cron */15m | re-enqueues paid-but-stuck books (leased) |
+| `retentionPurge` | cron daily | purges expired unpurchased previews + orphan heroes |
+| `previewWinback` | cron daily | one-shot win-back email (consent-gated) |
+| `occasionNudges` | cron daily | festival/birthday/sibling reorder nudges (consent-gated) |
+| `photoIntakePurge` | cron hourly | 24h TTL backstop on the ephemeral photo bucket |
 
 ## Routes
 
-| Route | Purpose |
-|---|---|
-| `/` | Landing page |
-| `/signin`, `/auth/callback` | Parent authentication |
-| `/create` | Story intake + consent |
-| `/books` | Parent dashboard |
-| `/books/[id]` | Preview polling, checkout panel, delivery state |
-| `/share/[token]` | Expiring read-only shared preview |
-| `/account` | Data export and account deletion |
-| `/legal/*` | Draft legal pages |
-| `/api/v1/*` | Product API |
-| `/api/v1/admin/metrics?days=7` | Admin alpha/ops metrics JSON |
-| `/api/v1/admin/metrics/export?days=30` | Admin CSV export for tester review |
-| `/api/v1/admin/engine/health` | Admin live engine check for DB, AI providers, moderation, and storage |
-| `/api/inngest` | Inngest functions |
+Pages: `/` (landing) · `/create` · `/books` (per-child bookshelf) ·
+`/books/[id]` (preview/checkout/delivered + editing) · `/share/[token]` ·
+`/account` (export/delete) · `/signin` + `/auth/callback` · `/legal/*` ·
+`/admin/fulfillments` (founder print queue) · `/r/[bookId]` (QR reorder redirect).
+
+API (`/api/v1`): `books` (+`[id]`, `events`, `feedback`, `pages/[index]`
+(+`regenerate`), `reuse`, `revisions`, `share`) · `consent` · `beta/access` ·
+`payments/order` + `payments/webhook` + `payments/[orderId]` · `heroes/photo` +
+`heroes/[id]/likeness` · `account/export` + `account/delete` · `newsletter` ·
+`marketing/unsubscribe` · admin: `fulfillments` (+`[id]`), `orders/[id]/refund`,
+`books/[id]/rerun` + `deliver`, `review-queue`, `metrics` (+`export`),
+`engine/health` · `/api/inngest`.
 
 ## Setup
 
 ```bash
 npm install
 cp .env.local.example .env.local
-npm run dev
+npm run dev                                              # app on :3000
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest  # pipeline
 ```
 
-Local app: http://localhost:3000
+Minimum env for local preview generation: the Supabase vars
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), `OPENAI_API_KEY` (stories on
+the quality tier + moderation, always), and Gemini — locally either
+`GEMINI_API_KEY` (AI Studio backend) or Google ADC; **production uses Vertex AI
+with keyless WIF** (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE`,
+etc. — see `src/server/config/env.ts`). Payments additionally need the three
+`RAZORPAY_*` vars; admin endpoints need `ADMIN_API_SECRET`.
 
-For preview generation, fill at minimum:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- `GEMINI_API_KEY`
-
-Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` for internal alpha. Set it to `true`
-only after the Razorpay flow has been separately validated.
-
-Set `BETA_ACCESS_CODE` in hosted environments before inviting known testers. The
-code is validated server-side and grants an HTTP-only browser cookie; `/api/v1/books`
-still refuses preview creation without it.
-
-Run Inngest locally in another terminal:
-
-```bash
-npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
-```
-
-Run migrations when `DATABASE_URL` is set:
-
-```bash
-npm run migrate
-```
+Migrations (through `0016`) live in `src/server/db/migrations/` and are mirrored
+in `supabase/migrations/`. Production tracks the Supabase CLI history — apply
+with `node scripts/db-apply.mjs <version_name>`, not `npm run migrate`.
 
 ## Validation
 
 ```bash
-npm run typecheck
-npm run build
-npm test
+npm test          # typecheck + 186 vitest tests (unit + integration + engine + crons + pipelines)
+npm run build     # production build
+npm run rls-check # 60-assertion RLS audit against the live DB (after any table change)
+npm run test:e2e  # Playwright: landing smoke runs anywhere; full flow needs a test env (e2e/README.md)
 ```
 
-`npm test` currently runs the TypeScript check. Add route/pipeline unit tests as
-the next hardening layer before expanding the beta.
-
-Before inviting testers, run the hosted engine health check with the admin token:
+Before inviting testers, run the hosted engine health check:
 
 ```bash
 curl -H "authorization: Bearer $ADMIN_API_SECRET" \
   "$APP_BASE_URL/api/v1/admin/engine/health"
 ```
 
-It performs one live text probe, one live image probe, moderation checks, and a
-temporary private-storage upload/sign/delete. It returns `ok: true` only when the
-real preview engine is ready.
+It performs a live text probe, image probe, moderation checks, and a temporary
+private-storage upload/sign/delete; `ok: true` means the engine is ready.
 
-## Non-Negotiables
+## Non-negotiables
 
-- Child photos are optional and off by default; when enabled they are ephemeral
-  (moderated, single Vertex egress, deleted within 24h), never printed or stored.
-- Never send a child's real name to AI vendors; use tokenization.
-- Consent before processing child details.
-- Signed URLs only for generated assets.
-- Webhook is source of truth for payment unlocks.
-- Parent-scoped queries and RLS defense in depth.
-- Data export/delete must work before any wider beta.
+- Child photos are optional and OFF by default (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`);
+  when enabled they are ephemeral — moderated before use, single Vertex-only
+  egress, deleted within minutes (24h hard cap) — never printed or stored. All
+  public copy about photos is flag-aware and flips with the same switch.
+- Never send a child's real name to AI vendors; tokenization (`{{HERO}}`) +
+  `assertNoSensitive` before egress.
+- Consent before processing child details; marketing emails additionally require
+  opt-in (`canSendMarketing`) and carry one-click unsubscribe (RFC 8058).
+- Moderation fails closed at every gate (input, story text, every rendered image,
+  page edits); blocked content routes to human review, never auto-delivers.
+- Webhook is the source of truth for payment; prices are server-side only.
+- Signed URLs only for generated assets (~10 min expiry).
+- Parent-scoped queries + RLS defense in depth; export/erasure must keep working
+  (including the ephemeral photo bucket).
 
-## Internal Alpha Checklist
+## Launch runbook (what's left)
 
-- Configure Supabase and run migrations.
-- Configure OpenAI + Gemini.
-- Set `BETA_ACCESS_CODE` in Vercel before sharing the app beyond your own device.
-- Start app + Inngest and create 5-10 previews with known test users.
-- Review `/api/v1/admin/metrics?days=7` and export
-  `/api/v1/admin/metrics/export?days=30` before inviting more families.
-- Track preview success rate, time to preview, feedback rating, reported issues,
-  cost per book, preview saves, share-link usage, tweak requests, and download
-  clicks.
-- Verify account export/delete, including storage asset deletion.
-- Keep payment disabled/untrusted until Razorpay live/test flow is separately
-  validated.
-- Replace draft legal placeholders before charging money or inviting strangers.
-
-## Measure Before Expanding
-
-Internal alpha should expand only after the measurement loop is healthy:
-
-- Preview success rate is consistently high for known families.
-- Average time to preview is acceptable and failed books are reviewed quickly.
-- Tester feedback shows parents want the full book, not just the preview.
-- Image/story/safety issues are visible in `book_feedback`, not hidden in chats.
-- Cost per generated book stays within the target range in admin metrics.
-- Download clicks and preview saves show real intent before payment is enabled.
-- Share links and one-tweak requests show whether parents are invested enough
-  to ask for feedback or improve the preview.
-
-## Add Before Wider Beta
-
-These are now implemented in this repo:
-
-- Occasion packs on `/create` for common parent moments like first day school,
-  bedtime independence, new sibling, English practice, moving homes, and reading
-  confidence.
-- Parent reading guides stored from the story engine output and shown on preview
-  pages/shared previews.
-- Expiring private preview links with server-side token hashing and revocation.
-- One free preview tweak per book, capped before checkout and rerun through the
-  same moderated preview pipeline.
-- Trust cues on create/preview/share surfaces plus account export/erasure updates
-  for the new beta data.
+- Fill every `[TODO]` in `src/lib/business.ts` (legal identity — clears the
+  draft banner; required for Razorpay activation review).
+- Razorpay activation day: set live `RAZORPAY_KEY_ID`/`KEY_SECRET`/`WEBHOOK_SECRET`,
+  configure the webhook (`/api/v1/payments/webhook`; events `payment.captured`,
+  `payment.failed`, `refund.processed`), then set
+  `NEXT_PUBLIC_PAYMENTS_ENABLED=true` and REDEPLOY (build-time var).
+- Confirm `EMAIL_FROM` is a verified moonbell.in sender in Resend.
+- Add `SENTRY_DSN` for error monitoring; consider an Inngest plan upgrade
+  (account cap 5 concurrent runs vs configured 4/3/2).
+- Build free-generation abuse controls BEFORE removing the invite gate.
+- Re-run `npm run rls-check` once real beta rows exist (behavioural isolation is
+  vacuous on empty tables).

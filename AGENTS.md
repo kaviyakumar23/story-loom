@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # MoonBell (repo: story-loom) — full-stack app
 
-Next.js 16 (App Router, TypeScript) app for **MoonBell** (moonbell.com) —
+Next.js 16 (App Router, TypeScript) app for **MoonBell** (moonbell.in) —
 personalized AI children's storybooks, India-first. Since June 2026 this repo is
 the **whole product**: web app, `/api/v1/*` route handlers, Supabase data layer,
 and the Inngest generation pipeline in one deployable app. (The old separate
@@ -54,14 +54,18 @@ npm install && cp .env.local.example .env.local   # fill Supabase + AI keys
 npm run dev                                        # app on :3000
 npx inngest-cli@latest dev -u http://localhost:3000/api/inngest  # pipeline
 npm run typecheck && npm test && npm run build     # must pass before shipping
+npm run rls-check                                  # after any table/RLS change
+npm run test:e2e                                   # Playwright (see e2e/README.md)
 ```
 
-`npm test` = typecheck + vitest unit tests (`src/**/*.test.ts`). Handle every
-book status (`generating/preview_ready/paid/complete/failed`) plus
+`npm test` = typecheck + vitest unit + integration tests (`src/**/*.test.ts`).
+Handle every book status (`generating/preview_ready/paid/complete/failed`) plus
 loading/empty/error in UI — never dead-end the parent.
 
 ## Conventions
 
 - TypeScript strict; client components only for interactive/polling pages.
-- Commit only when asked; never push without asking. End commit messages with
-  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- Commit only when asked; never push without asking. End commit messages with a
+  `Co-Authored-By: Claude <model name> <noreply@anthropic.com>` trailer crediting
+  the model that authored the commit (history mostly uses
+  `Claude Opus 4.8 (1M context)`).
