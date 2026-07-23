@@ -25,10 +25,13 @@ export type TableConfig = Record<string, Responder>;
 
 export interface MockDb {
   from: (table: string) => any;
+  rpc: (fn: string, args?: any) => Promise<QueryResult>;
   auth: { admin: { getUserById: (id: string) => Promise<any>; deleteUser: (id: string) => Promise<any> } };
   storage: { from: (bucket: string) => any };
   /** Every query the code ran, in order — for assertions. */
   ops: QueryCtx[];
+  /** Every rpc call: [fn, args] — for assertions. */
+  rpcCalls: [string, any][];
   /** Parent ids passed to auth.admin.deleteUser — for erasure assertions. */
   authDeletes: string[];
 }
@@ -37,6 +40,10 @@ export interface MockOptions {
   tables?: TableConfig;
   /** email returned by auth.admin.getUserById (null = anonymous). */
   userEmail?: string | null;
+  /** email_confirmed_at returned for the user (defaults to set when email exists). */
+  userEmailConfirmedAt?: string | null;
+  /** rpc name -> responder ((args) => result) or fixed result. */
+  rpc?: Record<string, QueryResult | ((args: any) => QueryResult)>;
   storage?: { upload?: QueryResult; remove?: QueryResult; list?: { data?: any[] } };
 }
 
@@ -78,13 +85,32 @@ export function makeSupabase(opts: MockOptions = {}): MockDb {
   });
 
   const authDeletes: string[] = [];
+  const rpcCalls: [string, any][] = [];
   return {
     ops,
     authDeletes,
+    rpcCalls,
     from: builder,
+    rpc: async (fn: string, args?: any) => {
+      rpcCalls.push([fn, args]);
+      const r = opts.rpc?.[fn];
+      if (r === undefined) return { data: null, error: { message: `no rpc mock for ${fn}` } };
+      return typeof r === 'function' ? r(args) : r;
+    },
     auth: {
       admin: {
-        getUserById: async () => ({ data: { user: opts.userEmail === undefined ? null : { email: opts.userEmail } } }),
+        getUserById: async () => ({
+          data: {
+            user:
+              opts.userEmail === undefined
+                ? null
+                : {
+                    email: opts.userEmail,
+                    email_confirmed_at:
+                      opts.userEmailConfirmedAt !== undefined ? opts.userEmailConfirmedAt : opts.userEmail ? '2026-01-01T00:00:00Z' : null,
+                  },
+          },
+        }),
         deleteUser: async (id: string) => { authDeletes.push(id); return { error: null }; },
       },
     },

@@ -86,6 +86,23 @@ const schema = z.object({
   PREVIEW_DAILY_CAP: z.coerce.number().int().min(1).default(10),
   PREVIEW_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
   BETA_ACCESS_CODE: z.string().default(''),
+
+  // Free-generation abuse controls (layered — the financial guardrails once the
+  // invite gate opens; harmless while it's still set). Paid customers bypass all
+  // three. Images are ~90% of spend, so these bound worst-case daily cost.
+  // Global circuit-breaker: total previews/day across ALL accounts. 0 = pause
+  // free previews entirely (kill switch).
+  GLOBAL_DAILY_PREVIEW_CAP: z.coerce.number().int().min(0).default(200),
+  // Per-IP daily cap (DB-backed, salted-hashed IPs). Generous: family/office
+  // NATs share an address.
+  PREVIEW_IP_DAILY_CAP: z.coerce.number().int().min(1).default(30),
+  // Previews allowed before a CONFIRMED email is required (the 1st preview stays
+  // fully anonymous — the conversion magic; 2nd+ captures the lead and caps
+  // account-farming). Set high to effectively disable.
+  EMAIL_GATE_AFTER_PREVIEWS: z.coerce.number().int().min(1).default(1),
+  // Optional salt for IP hashing; falls back to a key derived from the
+  // service-role key so it works with zero config.
+  IP_HASH_SECRET: z.string().default(''),
   // Optional child-photo likeness. OFF by default; only flip ON together with the
   // "no photos" → "photo optional" policy rewrite. Also requires the Vertex
   // backend (photos never egress to the AI-Studio key path). NEXT_PUBLIC_ so the

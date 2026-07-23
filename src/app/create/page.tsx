@@ -90,6 +90,11 @@ export default function Create() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Email gate (abuse controls): a 2nd+ preview needs a confirmed email.
+  const [needsEmail, setNeedsEmail] = useState(false);
+  const [gateEmail, setGateEmail] = useState('');
+  const [gateEmailSent, setGateEmailSent] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   /** One key for this form session, so a retry replays rather than duplicates. */
   const idempotencyKey = useRef<string>('');
@@ -324,8 +329,32 @@ export default function Create() {
       }
       router.push(`/books/${bookId}`);
     } catch (e) {
+      if (e instanceof ApiError && e.code === 'email_required') {
+        // Email gate: show the add-your-email step instead of a bare error.
+        setNeedsEmail(true);
+        setError(null);
+        setSubmitting(false);
+        return;
+      }
       setError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
       setSubmitting(false);
+    }
+  }
+
+  // Email gate: attach + confirm an email on the anonymous account, then retry.
+  async function sendGateEmail() {
+    const email = gateEmail.trim();
+    if (!email) return;
+    setGateBusy(true);
+    setError(null);
+    try {
+      const { error: upErr } = await supabase().auth.updateUser({ email });
+      if (upErr) throw upErr;
+      setGateEmailSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send the confirmation email.');
+    } finally {
+      setGateBusy(false);
     }
   }
 
@@ -594,6 +623,37 @@ export default function Create() {
             </div>
           )}
 
+          {needsEmail && (
+            <div className="card" style={{ padding: '18px 20px', marginTop: 16, background: 'var(--brand-tint)', border: '1px solid var(--hairline)' }}>
+              <p style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>One quick step for your next book</p>
+              {gateEmailSent ? (
+                <p style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-soft)' }}>
+                  Check your inbox and tap the confirmation link — then come back here and press{' '}
+                  <strong style={{ color: 'var(--ink)' }}>See my free preview</strong> again.
+                </p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
+                    Your first preview was free with no sign-up. To make another, add and confirm your email —
+                    it keeps your stories safe and stops misuse of the free preview.
+                  </p>
+                  <div style={{ display: 'flex', gap: 9 }}>
+                    <input
+                      className="input"
+                      type="email"
+                      value={gateEmail}
+                      onChange={(e) => setGateEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      aria-label="Your email"
+                    />
+                    <button className="btn btn-brand" onClick={() => void sendGateEmail()} disabled={gateBusy || !gateEmail.trim()}>
+                      {gateBusy ? <span className="spinner" /> : 'Confirm email'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {error && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 16 }}>{error}</p>}
         </div>
 

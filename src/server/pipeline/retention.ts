@@ -34,6 +34,14 @@ export const retentionPurge = inngest.createFunction(
       return (data ?? []) as { id: string; hero_id: string }[];
     });
 
+    // Hashed per-IP preview counters expire after 30 days (DPDP minimisation —
+    // the abuse cap only ever needs today's row). Runs every day, so it sits
+    // BEFORE the no-expired-previews early return.
+    await step.run('purge-ip-usage', async () => {
+      const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+      await serviceClient().from('preview_ip_usage').delete().lt('day', cutoff);
+    });
+
     if (!expired.length) return { purged: 0, heroesPurged: 0 };
     const bookIds = expired.map((b) => b.id);
 

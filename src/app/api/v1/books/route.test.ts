@@ -7,10 +7,22 @@ const h = vi.hoisted(() => ({
   sends: [] as { name: string }[],
 }));
 
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ PREVIEW_DAILY_CAP: 10 }) }));
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({
+    PREVIEW_DAILY_CAP: 10,
+    GLOBAL_DAILY_PREVIEW_CAP: 200,
+    PREVIEW_IP_DAILY_CAP: 30,
+    EMAIL_GATE_AFTER_PREVIEWS: 1,
+    IP_HASH_SECRET: 'route-test-salt',
+    SUPABASE_SERVICE_ROLE_KEY: 'srk',
+  }),
+}));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/beta-access', () => ({ assertBetaAccess: () => {} }));
-vi.mock('@/server/lib/rate-limit', () => ({ assertRateLimit: () => {} }));
+vi.mock('@/server/lib/rate-limit', () => ({
+  assertRateLimit: () => {},
+  clientIp: (req: Request) => req.headers.get('x-forwarded-for') ?? 'unknown',
+}));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('@/server/providers/index', () => ({
@@ -79,10 +91,67 @@ describe('POST /api/v1/books (integration)', () => {
   });
 
   it('enforces the daily preview cap', async () => {
-    h.db = makeSupabase({ tables: { books: (_op, ctx) => (ctx.head ? { count: 10 } : { data: null }) } });
+    // Confirmed email so the email gate (which runs first) passes.
+    h.db = makeSupabase({ userEmail: 'p@x.co', tables: { books: (_op, ctx) => (ctx.head ? { count: 10 } : { data: null }) } });
     const res = await post(body());
     expect(res.status).toBe(400);
     expect(h.sends).toHaveLength(0);
+  });
+
+  it('pauses free previews at the global daily cap (503 at_capacity)', async () => {
+    h.db = makeSupabase({ userEmail: 'p@x.co', tables: { books: (_op, ctx) => (ctx.head ? { count: 200 } : { data: null }) } });
+    const res = await post(body());
+    expect(res.status).toBe(503);
+    const err = (await res.json()) as { error: { code: string } };
+    expect(err.error.code).toBe('at_capacity');
+    expect(h.sends).toHaveLength(0);
+  });
+
+  it('requires a confirmed email for the 2nd preview (403 email_required)', async () => {
+    h.db = makeSupabase({ userEmail: null, tables: { books: (_op, ctx) => (ctx.head ? { count: 1 } : { data: null }) } });
+    const res = await post(body());
+    expect(res.status).toBe(403);
+    const err = (await res.json()) as { error: { code: string } };
+    expect(err.error.code).toBe('email_required');
+    expect(h.sends).toHaveLength(0);
+  });
+
+  it('caps previews per network (429 ip_capped)', async () => {
+    h.db = makeSupabase({
+      tables: { books: (_op, ctx) => (ctx.head ? { count: 0 } : { data: null }) },
+      rpc: { bump_preview_ip: { data: 31 } },
+    });
+    const res = await POST(
+      new Request('https://m/api/v1/books', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.7' },
+        body: JSON.stringify(body()),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(h.sends).toHaveLength(0);
+  });
+
+  it('exempts paid customers from the abuse gates', async () => {
+    // No email + 1 prior book would trip the email gate — a paid order bypasses it.
+    let bookSelect = 0;
+    h.db = makeSupabase({
+      userEmail: null,
+      tables: {
+        orders: (_op, ctx) => (ctx.head ? { count: 1 } : { data: null }),
+        consent_records: { data: { id: CONSENT, withdrawn_at: null } },
+        profiles: { data: null },
+        heroes: (op) => (op === 'insert' ? { data: { id: 'hero-1' } } : { data: null }),
+        books: (op, ctx) => {
+          if (op === 'insert') return { data: { id: 'book-1' } };
+          if (ctx.head) return { count: 1 };
+          bookSelect += 1;
+          return bookSelect === 1 ? { data: null } : { data: [{ id: 'book-1' }] };
+        },
+      },
+    });
+    const res = await post(body());
+    expect(res.status).toBe(202);
   });
 
   it('creates a book, stamps the model + custom theme, and fires the preview pipeline', async () => {

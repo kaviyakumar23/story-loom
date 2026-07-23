@@ -27,7 +27,7 @@ const OWNER_SCOPED = [
 ];
 // Parents may READ their own rows (exactly one SELECT policy); writes are service-role only.
 const OWNER_READ_ONLY = ['photo_uploads'];
-const SERVICE_ONLY = ['payments', 'generation_events', 'audit_log', 'newsletter_subscribers', 'occasion_nudges'];
+const SERVICE_ONLY = ['payments', 'generation_events', 'audit_log', 'newsletter_subscribers', 'occasion_nudges', 'preview_ip_usage'];
 // owner-scoped tables to hit behaviourally (must return 0 rows for a stranger)
 const BEHAVIOURAL = [
   'books', 'heroes', 'orders', 'shipping_addresses', 'fulfillments', 'book_pages', 'assets',

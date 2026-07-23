@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { loadEnv } from '@/server/config/env';
 import { requireParent } from '@/server/auth';
+import { assertEmailGate, assertGlobalPreviewBudget, bumpAndAssertIpCap, hasPaidOrder } from '@/server/lib/abuse';
 import { audit } from '@/server/lib/audit';
 import { assertBetaAccess } from '@/server/lib/beta-access';
 import { badRequest, internal } from '@/server/lib/errors';
@@ -102,6 +103,15 @@ export async function POST(req: Request): Promise<Response> {
     if (existing) {
       const row = existing as { id: string; status: BookStatus };
       return Response.json({ bookId: row.id, status: row.status } satisfies CreateBookResponse, { status: 202 });
+    }
+
+    // Layered abuse gates (see src/server/lib/abuse.ts): global daily breaker,
+    // confirmed-email gate after the first preview, and a hashed per-IP cap.
+    // Paid customers are proven humans (and likely reordering) — exempt.
+    if (!(await hasPaidOrder(db, parent.id))) {
+      await assertGlobalPreviewBudget(db);
+      await assertEmailGate(db, parent.id);
+      await bumpAndAssertIpCap(db, req);
     }
 
     // Abuse control (§6): cap previews per account per day. This read is only

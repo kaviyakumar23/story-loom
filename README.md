@@ -141,6 +141,11 @@ private-storage upload/sign/delete; `ok: true` means the engine is ready.
 - Confirm `EMAIL_FROM` is a verified moonbell.in sender in Resend.
 - Add `SENTRY_DSN` for error monitoring; consider an Inngest plan upgrade
   (account cap 5 concurrent runs vs configured 4/3/2).
-- Build free-generation abuse controls BEFORE removing the invite gate.
+- Abuse controls are BUILT and active (they stack with the invite gate): a
+  global daily circuit-breaker (`GLOBAL_DAILY_PREVIEW_CAP`, default 200/day,
+  `0` = kill switch), a confirmed-email gate after the first anonymous preview
+  (`EMAIL_GATE_AFTER_PREVIEWS`), and a salted-hashed per-IP daily cap
+  (`PREVIEW_IP_DAILY_CAP`, default 30). Paid customers bypass all three. Tune
+  via env; add Turnstile only if scripted abuse appears.
 - Re-run `npm run rls-check` once real beta rows exist (behavioural isolation is
   vacuous on empty tables).
