@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
 export const metadata: Metadata = { title: 'Terms of Service — MoonBell' };
 
@@ -30,7 +31,10 @@ export default function Terms() {
         MoonBell turns details you provide about a child — a nickname, an age band, appearance attributes
         (such as skin tone, hair, and whether they wear glasses), interests, and a chosen life-lesson goal —
         into a personalized story in which the child is the hero. Stories and illustrations are generated with
-        the help of artificial intelligence. We do not collect photographs of any child.
+        the help of artificial intelligence.{' '}
+        {PHOTO_LIKENESS_ENABLED
+          ? 'A photo is optional: if you add one, it is used only to create the illustrated character and is then deleted — never printed or shared.'
+          : 'We do not collect photographs of any child.'}
       </p>
 
       <h2 className="display" style={h2}>2. Eligibility</h2>

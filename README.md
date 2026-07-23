@@ -7,8 +7,10 @@ generation pipeline in one deployable app.
 ## Current Alpha Scope
 
 - Parent sign-in via Supabase magic link / Google.
-- Attribute-only child intake: no photos, nickname instead of legal name, age
-  band instead of DOB.
+- Attribute-based child intake: nickname instead of legal name, age band instead
+  of DOB. An optional child photo is off by default (behind
+  `NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`); when on, it is ephemeral — used once to
+  seed a stylized likeness, then deleted (never printed or stored).
 - Explicit consent before preview generation.
 - AI preview pipeline: story text, moderation, character sheet, cover, and first
   pages.
@@ -104,7 +106,8 @@ real preview engine is ready.
 
 ## Non-Negotiables
 
-- No child photos.
+- Child photos are optional and off by default; when enabled they are ephemeral
+  (moderated, single Vertex egress, deleted within 24h), never printed or stored.
 - Never send a child's real name to AI vendors; use tokenization.
 - Consent before processing child details.
 - Signed URLs only for generated assets.

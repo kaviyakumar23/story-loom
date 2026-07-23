@@ -16,10 +16,16 @@ import { ScrollRibbon } from '@/components/landing/ScrollRibbon';
 import { StickyCta } from '@/components/landing/StickyCta';
 import { Icon } from '@/components/ui';
 import { BRAND } from '@/lib/brand';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
 const FAQS = [
   { q: 'How much does it cost?', a: `${BRAND.product.priceLabel} for a personalised printed hardcover, shipped to you — and it includes the instant digital PDF. You only pay after you’ve seen your free preview and love it. UPI and cards, in rupees.` },
-  { q: 'Do you need a photo of my child?', a: 'No — never. You describe how they look (skin tone, hair, glasses) and we illustrate an original character. Safer, and fully under your control.' },
+  {
+    q: 'Do you need a photo of my child?',
+    a: PHOTO_LIKENESS_ENABLED
+      ? 'No — a photo is optional. You can just describe how they look (skin tone, hair, glasses), or add a photo, which we use once to shape the illustrated character and then delete — never printed, never shared. Fully under your control.'
+      : 'No — never. You describe how they look (skin tone, hair, glasses) and we illustrate an original character. Safer, and fully under your control.',
+  },
   { q: 'Can I really preview before paying?', a: 'Yes. You’ll see your child’s cover and opening pages free, before you decide. If it isn’t quite right, tweak the details and we’ll regenerate it.' },
   { q: 'Is my child’s data safe?', a: 'Yes. We collect the minimum — a nickname, not a legal name; an age band, not a birth date. Their real name never leaves our system to an AI vendor or is used to train AI, and you can delete everything anytime.' },
   { q: 'How is the book delivered?', a: 'Two ways. The digital PDF is ready the moment you order — read it on any phone or tablet. Your printed hardcover is then printed and shipped to your address within about 7 days (across India).' },
@@ -92,7 +98,7 @@ export default function Landing() {
               {BRAND.hero.primaryCta}
             </Link>
             <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 14 }}>
-              Free preview first · pay by UPI &amp; cards · no photos ever
+              Free preview first · pay by UPI &amp; cards · {PHOTO_LIKENESS_ENABLED ? 'photo optional' : 'no photos ever'}
             </p>
           </div>
         </div>

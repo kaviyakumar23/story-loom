@@ -1,4 +1,5 @@
 import { LogoMark } from '@/components/logo';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
 /**
  * Honest "Backed by trust" panel — real credibility (safety, privacy, made by
@@ -6,7 +7,9 @@ import { LogoMark } from '@/components/logo';
  */
 const POINTS = [
   'Every story is safety-checked before it’s delivered',
-  'No photos, ever — a nickname and age band, never a legal name',
+  PHOTO_LIKENESS_ENABLED
+    ? 'Photos are optional — used once, then deleted; a nickname and age band, never a legal name'
+    : 'No photos, ever — a nickname and age band, never a legal name',
   'Privacy-first by design, aligned with India’s DPDP Act',
   'Made by parents, in India',
 ];

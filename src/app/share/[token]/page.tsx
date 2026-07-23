@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 import { hashShareToken } from '@/server/lib/share-token';
 import { toBook, type BookRow } from '@/server/lib/mappers';
 import { serviceClient } from '@/server/lib/supabase';
@@ -93,7 +94,9 @@ export default async function SharedPreviewPage({ params }: { params: Promise<{ 
             <h2 className="display" style={{ fontSize: 25, marginBottom: 8 }}>Made with care</h2>
             <div style={{ display: 'grid', gap: 12, marginBottom: 18 }}>
               {[
-                ['No photos collected', 'The child is represented with simple attributes.'],
+                PHOTO_LIKENESS_ENABLED
+                  ? ['Photos are optional', 'If a photo was added, it was used once to shape the character, then deleted.']
+                  : ['No photos collected', 'The child is represented with simple attributes.'],
                 ['Parent-controlled', 'Only the family with this private link can view the preview.'],
                 ['AI disclosed', 'Illustrations are AI-generated and should be reviewed by an adult.'],
               ].map(([title, text]) => (

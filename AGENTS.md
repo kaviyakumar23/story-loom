@@ -29,9 +29,15 @@ backend repo at `~/products/storyloom` is superseded; its docs are historical.)
 
 ## Non-negotiables (child safety + payments)
 
-- **No photos; no legal names to vendors.** Attributes + nickname + age band;
-  `src/server/lib/tokenize.ts` swaps the name for `{{HERO}}` before any AI call
-  and every provider calls `assertNoSensitive` before egress.
+- **Optional ephemeral photo, else attributes only; no legal names to vendors.**
+  A child photo is OPTIONAL and OFF by default (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`);
+  when enabled it is ephemeral — moderated before use, sent once to the image model
+  over Vertex only, then deleted (24h hard-cap cron), never printed and never stored
+  on the product. `assertPhotoEgressAllowed` (in `src/server/lib/photo-intake.ts`)
+  gates every photo egress; that module is the only code that touches raw photo bytes.
+  Otherwise: attributes + nickname + age band. `src/server/lib/tokenize.ts` swaps
+  the name for `{{HERO}}` before any AI call; text/image egress calls
+  `assertNoSensitive` (audio guards non-name PII).
 - **Consent before processing** (`POST /api/v1/consent`, enforced at book create).
 - **Moderation fails closed**; blocked images route to human review, never
   auto-deliver.

@@ -8,6 +8,8 @@
  * email/PDF in server/lib/brand.ts). The hexes here are for the rare spot that
  * needs a colour in TS (e.g. an inline SVG); prefer the CSS vars in components.
  */
+import { PHOTO_LIKENESS_ENABLED } from './photo-likeness';
+
 export const BRAND = {
   name: 'MoonBell',
   tagline: 'Stories that stay forever.',
@@ -16,10 +18,13 @@ export const BRAND = {
     headline: 'Their imagination. Their adventure. Their very own book.',
     sub:
       'Create a beautifully illustrated story starring your child — made from their nickname, ' +
-      'appearance, interests and the lesson you want to share. No photos required.',
+      'appearance, interests and the lesson you want to share. ' +
+      (PHOTO_LIKENESS_ENABLED ? 'Add a photo if you like — used once, then deleted.' : 'No photos required.'),
     primaryCta: 'Create a free preview',
     secondaryCta: 'Read a sample story',
-    trustLine: 'Free preview · No photos · Pay only when you love it',
+    trustLine: PHOTO_LIKENESS_ENABLED
+      ? 'Free preview · Photo optional · Pay only when you love it'
+      : 'Free preview · No photos · Pay only when you love it',
     // Concrete spec line for the hero — what it is, who it's for, what it costs.
     specLine: 'A personalised printed hardcover · ages 3–10 · ₹999, incl. instant digital · free preview first',
     // Default name shown on the interactive hero cover before a parent types.

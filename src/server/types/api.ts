@@ -81,8 +81,9 @@ export type FeedbackIssueType = (typeof FEEDBACK_ISSUE_TYPES)[number];
 // ---- Domain shapes ----
 
 /**
- * Data-minimized child representation (§4 heroes, §9). Attributes only — never
- * a photo, never a legal name, never a date of birth.
+ * Data-minimized child representation (§4 heroes, §9). Attributes — never a legal
+ * name, never a date of birth. An optional child photo (off by default) is
+ * ephemeral and never lands here; only the derived stylized sheet persists.
  */
 export interface Avatar {
   skinTone?: string;

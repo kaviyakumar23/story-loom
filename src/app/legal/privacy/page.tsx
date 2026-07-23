@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
 export const metadata: Metadata = { title: 'Privacy Policy — MoonBell' };
 
@@ -36,16 +37,22 @@ export default function Privacy() {
       </p>
 
       <div style={callout}>
-        <strong>The short version:</strong> We do not collect photos of children. We never send a child&apos;s
-        real name to our AI vendors, and your child&apos;s details are never used to train AI. Children do not
-        have accounts and are not tracked, profiled, or advertised to. You can export or delete everything at
-        any time.
+        <strong>The short version:</strong>{' '}
+        {PHOTO_LIKENESS_ENABLED
+          ? 'A photo is optional — if you add one, it is used only to create the illustrated character, then deleted (within minutes; 24 hours at most), and is never printed or shared.'
+          : 'We do not collect photos of children.'}{' '}
+        We never send a child&apos;s real name to our AI vendors, and your child&apos;s details are never used to
+        train AI. Children do not have accounts and are not tracked, profiled, or advertised to. You can export
+        or delete everything at any time.
       </div>
 
       <h2 className="display" style={h2}>1. What we collect</h2>
       <ul style={ul}>
         <li style={li}><strong>Parent account:</strong> your email address (used to sign in and to send you your book).</li>
         <li style={li}><strong>Child details for the story:</strong> a nickname (not a legal name), an age band (not a date of birth), appearance attributes (such as skin tone, hair, and whether they wear glasses), and interests.</li>
+        {PHOTO_LIKENESS_ENABLED && (
+          <li style={li}><strong>Optional photo:</strong> only if you choose to add one. It is used a single time to create the illustrated character, then deleted (see Retention) — never printed, and never shared beyond the AI illustrator and our safety check.</li>
+        )}
         <li style={li}><strong>Goal and reading level:</strong> the life-lesson goal and reading level you choose for the story.</li>
         <li style={li}><strong>Order and payment metadata:</strong> records of purchases and payment status. Card and bank details are handled by our payment processor; we do not store them.</li>
         <li style={li}><strong>Consent records:</strong> the version of consent you agreed to and when.</li>
@@ -54,7 +61,11 @@ export default function Privacy() {
 
       <h2 className="display" style={h2}>2. What we do NOT collect</h2>
       <ul style={ul}>
-        <li style={li}>No photographs or images of any child.</li>
+        <li style={li}>
+          {PHOTO_LIKENESS_ENABLED
+            ? 'No photograph is retained — an optional photo, if added, is deleted right after it seeds the illustration (see Retention).'
+            : 'No photographs or images of any child.'}
+        </li>
         <li style={li}>No legal name, date of birth, school, home address, or phone number of the child.</li>
         <li style={li}>We do not send a child&apos;s real name to any AI vendor (see &quot;Tokenization&quot; below).</li>
         <li style={li}>We do not build advertising profiles of children or track children across the web.</li>
@@ -89,8 +100,8 @@ export default function Privacy() {
       <h2 className="display" style={h2}>6. AI vendors and sub-processors</h2>
       <p style={p}>We use the following service providers to operate MoonBell:</p>
       <ul style={ul}>
-        <li style={li}><strong>OpenAI</strong> — generation of story text and safety moderation.</li>
-        <li style={li}><strong>Google (Gemini)</strong> — generation of illustrations.</li>
+        <li style={li}><strong>OpenAI</strong> — generation of story text and safety moderation{PHOTO_LIKENESS_ENABLED ? ', including checking an optional photo before it is used' : ''}.</li>
+        <li style={li}><strong>Google (Gemini{PHOTO_LIKENESS_ENABLED ? ', via Vertex AI' : ''})</strong> — generation of illustrations{PHOTO_LIKENESS_ENABLED ? ', including a single stylized rendering from an optional photo (inputs are not used to train models)' : ''}.</li>
         <li style={li}><strong>ElevenLabs</strong> — optional audio narration (only if you choose an audio product).</li>
         <li style={li}><strong>Supabase</strong> — authentication, database, and storage of your account and books.</li>
         <li style={li}><strong>Razorpay</strong> — payment processing (INR).</li>
@@ -108,6 +119,9 @@ export default function Privacy() {
 
       <h2 className="display" style={h2}>8. How long we keep data (retention)</h2>
       <ul style={ul}>
+        {PHOTO_LIKENESS_ENABLED && (
+          <li style={li}><strong>Optional photos:</strong> deleted within minutes of creating the illustration, and in every case within 24 hours — they are never part of the finished book.</li>
+        )}
         <li style={li}><strong>Unpurchased previews:</strong> automatically purged after a retention window (approximately 30 days, configurable).</li>
         <li style={li}><strong>Purchased books:</strong> kept available to you so you can re-download them, until you delete them or close your account.</li>
         <li style={li}><strong>Records we must retain:</strong> certain order, tax, and legal records may be retained as required by law.</li>
@@ -126,6 +140,9 @@ export default function Privacy() {
         <li style={li}><strong>Access and export</strong> the data we hold about you and your child&apos;s book.</li>
         <li style={li}><strong>Correct</strong> inaccurate or incomplete details.</li>
         <li style={li}><strong>Erase</strong> your data and the child&apos;s data, and withdraw consent.</li>
+        {PHOTO_LIKENESS_ENABLED && (
+          <li style={li}><strong>Remove a photo-based likeness</strong> — delete the illustrated character created from a photo at any time, so future books are regenerated from attributes only.</li>
+        )}
         <li style={li}><strong>Nominate</strong> another person to exercise your rights in the event of death or incapacity.</li>
         <li style={li}><strong>Grievance redressal</strong> — raise a complaint and receive a response.</li>
       </ul>

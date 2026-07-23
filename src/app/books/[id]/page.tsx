@@ -8,6 +8,7 @@ import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, useRequireAuth } from '@/lib/auth';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 import { openCheckout } from '@/lib/razorpay';
 import { supabase } from '@/lib/supabase';
 import {
@@ -526,7 +527,9 @@ function PreviewTrustList() {
   return (
     <div style={{ marginTop: 18, paddingTop: 18, borderTop: '2px solid var(--hairline)', display: 'grid', gap: 10 }}>
       {[
-        ['No photos', 'The character is built from attributes, not uploads.'],
+        PHOTO_LIKENESS_ENABLED
+          ? ['Photo optional', 'If you add one, it’s used once to shape the character, then deleted.']
+          : ['No photos', 'The character is built from attributes, not uploads.'],
         ['Adult review', 'Please check the story and images before sharing.'],
         ['Private assets', 'Images use short-lived signed links.'],
       ].map(([title, text]) => (

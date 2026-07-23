@@ -1,4 +1,5 @@
 import { LogoMark } from '@/components/logo';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 import { Inscription } from './Inscription';
 
 /**
@@ -6,7 +7,9 @@ import { Inscription } from './Inscription';
  * bookplate with a clean checklist, not a legalistic grid of cards.
  */
 const POINTS = [
-  { t: 'No photos, ever', d: 'You describe how they look — we never ask for or store a single photo.' },
+  PHOTO_LIKENESS_ENABLED
+    ? { t: 'Photos are optional', d: 'Describe how they look — or add a photo we use once to shape the character, then delete. Never printed, never shared.' }
+    : { t: 'No photos, ever', d: 'You describe how they look — we never ask for or store a single photo.' },
   { t: 'A nickname, never a real name', d: 'An age band, not a birthday. The least we can collect to make the magic.' },
   { t: 'Never used to train AI', d: 'Their details are never sent to an AI vendor or used to train models.' },
   { t: 'Delete everything, anytime', d: 'One tap and it’s gone. You stay in control of your family’s data, always.' },

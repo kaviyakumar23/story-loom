@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
 export const metadata: Metadata = { title: 'AI Disclosure — MoonBell' };
 
@@ -36,7 +37,7 @@ export default function AiDisclosure() {
         AI illustrations can have small visual inconsistencies — a detail that shifts slightly from page to
         page, or an element that isn&apos;t quite perfect. That is normal for AI-generated art. The
         illustrations are artistic and fictional; they are not photographs, and they are not a likeness check
-        or any form of identity verification.
+        or any form of identity verification.{PHOTO_LIKENESS_ENABLED ? ' If you choose to add a photo, it is used only to guide a stylized illustration — the result is a hand-illustrated character, not a photorealistic image — and the photo is deleted after use.' : ''}
       </p>
 
       <h2 className="display" style={h2}>Please review your free preview first</h2>

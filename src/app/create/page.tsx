@@ -7,6 +7,7 @@ import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useEnsureSession } from '@/lib/auth';
+import { PHOTO_LIKENESS_ENABLED as PHOTO_ENABLED } from '@/lib/photo-likeness';
 import { supabase } from '@/lib/supabase';
 import {
   AGE_BANDS,
@@ -23,9 +24,9 @@ import {
 } from '@/lib/types';
 
 const CONSENT_VERSION = '2026-01-policy-v1';
-// Optional photo likeness — separate, versioned consent + a build-time switch.
+// Optional photo likeness — separate, versioned consent (PHOTO_ENABLED is the
+// shared flag from @/lib/photo-likeness, imported above).
 const PHOTO_CONSENT_VERSION = '2026-08-photo-v1';
-const PHOTO_ENABLED = process.env.NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED === 'true';
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 // Persist the in-progress form so a refresh / accidental navigation doesn't lose
 // the details a parent already entered. Local to this browser; cleared on submit.
