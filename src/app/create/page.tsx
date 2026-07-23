@@ -7,6 +7,7 @@ import { Header } from '@/components/chrome';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useEnsureSession } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import {
   AGE_BANDS,
   GOAL_LABELS,
@@ -22,6 +23,10 @@ import {
 } from '@/lib/types';
 
 const CONSENT_VERSION = '2026-01-policy-v1';
+// Optional photo likeness — separate, versioned consent + a build-time switch.
+const PHOTO_CONSENT_VERSION = '2026-08-photo-v1';
+const PHOTO_ENABLED = process.env.NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED === 'true';
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 // Persist the in-progress form so a refresh / accidental navigation doesn't lose
 // the details a parent already entered. Local to this browser; cleared on submit.
 const DRAFT_KEY = 'moonbell:create-draft:v1';
@@ -71,6 +76,10 @@ export default function Create() {
   const [interestDraft, setInterestDraft] = useState('');
   const [customTheme, setCustomTheme] = useState('');
   const [consent, setConsent] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoConsent, setPhotoConsent] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [birthMonth, setBirthMonth] = useState<number | ''>('');
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [reuseHeroId, setReuseHeroId] = useState<string | null>(null);
@@ -198,7 +207,34 @@ export default function Create() {
 
   const step1ok = nickname.trim() && ageBand && skinTone && hair;
   const step2ok = goal && readingLevel;
-  const canContinue = step === 1 ? step1ok : step === 2 ? step2ok : consent;
+  // If they've attached a photo, the separate photo consent is required too.
+  const canContinue = step === 1 ? step1ok : step === 2 ? step2ok : consent && (!photoFile || photoConsent);
+
+  function pickPhoto(file: File | null) {
+    setPhotoError(null);
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoUrl((u) => { if (u) URL.revokeObjectURL(u); return null; });
+      setPhotoConsent(false);
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) { setPhotoError('Please choose an image under 8 MB.'); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setPhotoError('Please choose a JPEG, PNG, or WebP image.'); return; }
+    setPhotoFile(file);
+    setPhotoUrl((u) => { if (u) URL.revokeObjectURL(u); return URL.createObjectURL(file); });
+  }
+
+  async function uploadPhoto(file: File, consentId: string): Promise<string> {
+    const { data } = await supabase().auth.getSession();
+    const token = data.session?.access_token;
+    const fd = new FormData();
+    fd.append('photo', file);
+    fd.append('consentId', consentId);
+    const res = await fetch('/api/v1/heroes/photo', { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body: fd });
+    const json = (await res.json().catch(() => ({}))) as { photoUploadId?: string; error?: { code?: string; message?: string } };
+    if (!res.ok) throw new ApiError(res.status, json.error?.code ?? 'error', json.error?.message ?? 'Could not upload the photo.');
+    return json.photoUploadId as string;
+  }
 
   async function unlockBetaAccess(e: React.FormEvent) {
     e.preventDefault();
@@ -249,6 +285,18 @@ export default function Create() {
         method: 'POST',
         body: { consentVersion: CONSENT_VERSION, method: 'explicit_checkbox' },
       });
+
+      // Optional photo: record its own scoped consent, upload it (moderated
+      // server-side before it's ever stored), and attach the id to the book.
+      let photoUploadId: string | undefined;
+      if (PHOTO_ENABLED && photoFile && photoConsent) {
+        const photoConsentRes = await api<CreateConsentResponse>('/consent', {
+          method: 'POST',
+          body: { consentVersion: PHOTO_CONSENT_VERSION, method: 'explicit_checkbox', scope: 'photo_likeness' },
+        });
+        photoUploadId = await uploadPhoto(photoFile, photoConsentRes.consentId);
+      }
+
       const { bookId } = await api<CreateBookResponse>('/books', {
         method: 'POST',
         // Stable for this form session. Minting a fresh key per attempt meant a
@@ -265,6 +313,7 @@ export default function Create() {
           consentId,
           marketingConsent,
           heroId: reuseHeroId ?? undefined,
+          photoUploadId,
         },
       });
       try {
@@ -340,7 +389,7 @@ export default function Create() {
           {step === 1 && (
             <div style={{ animation: 'fadeUp .3s ease both' }}>
               <h2 className="display" style={{ fontSize: 25, marginBottom: 6 }}>Tell us about your hero</h2>
-              <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 22 }}>A nickname is perfect — no photos, no legal names.</p>
+              <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 22 }}>{PHOTO_ENABLED ? 'A nickname is perfect — no legal names needed.' : 'A nickname is perfect — no photos, no legal names.'}</p>
 
               <label className="label">Their nickname</label>
               <input className="input" value={nickname} maxLength={40} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Mia" />
@@ -373,6 +422,25 @@ export default function Create() {
                 <button className={`chip ${glasses ? 'sel' : ''}`} onClick={() => setGlasses(true)}>Yes</button>
                 <button className={`chip ${!glasses ? 'sel' : ''}`} onClick={() => setGlasses(false)}>No</button>
               </div>
+
+              {PHOTO_ENABLED && (
+                <div style={{ marginTop: 18 }}>
+                  <label className="label">Add a photo <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span></label>
+                  <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 8, lineHeight: 1.5 }}>
+                    Used <strong>once</strong> to shape the illustrated character, then deleted — never printed, never shared. You can skip this and just use the options above.
+                  </p>
+                  {photoUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photoUrl} alt="Selected preview" style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', border: '1px solid var(--hairline)' }} />
+                      <button className="btn btn-ghost btn-sm" onClick={() => pickPhoto(null)}>Remove photo</button>
+                    </div>
+                  ) : (
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} aria-label="Add a photo" />
+                  )}
+                  {photoError && <p style={{ color: 'var(--error)', fontSize: 12.5, marginTop: 6 }}>{photoError}</p>}
+                </div>
+              )}
             </div>
           )}
 
@@ -472,13 +540,22 @@ export default function Create() {
                 <span style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)' }}>
                   I’m {nickname || 'this child'}’s parent or guardian and I consent to MoonBell creating a
                   personalized book using these details. I understand the story and illustrations are
-                  AI-generated, that no photos are collected, and that I can delete everything anytime. I agree
+                  AI-generated{PHOTO_ENABLED ? '' : ', that no photos are collected'}, and that I can delete everything anytime. I agree
                   to the{' '}
                   <Link href="/legal/terms" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Terms</Link>{' '}
                   and{' '}
                   <Link href="/legal/privacy" target="_blank" style={{ color: 'var(--brand)', fontWeight: 600 }}>Privacy Policy</Link>.
                 </span>
               </label>
+
+              {PHOTO_ENABLED && photoFile && (
+                <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 14, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={photoConsent} onChange={(e) => setPhotoConsent(e.target.checked)} style={{ marginTop: 3, width: 18, height: 18, accentColor: 'var(--brand)' }} />
+                  <span style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)' }}>
+                    I consent to MoonBell using the photo I added <strong>once</strong> to create an illustrated character. The photo is deleted right after (within 24 hours at most), is never printed or shared, and I can withdraw this anytime.
+                  </span>
+                </label>
+              )}
 
               <div style={{ marginTop: 16, display: 'grid', gap: 14 }}>
                 <label style={{ fontSize: 13.5, color: 'var(--ink)' }}>
@@ -501,7 +578,9 @@ export default function Create() {
 
               <div style={{ marginTop: 18, padding: '16px 0 0', borderTop: '2px solid var(--hairline)', display: 'grid', gap: 11 }}>
                 {[
-                  ['No photos', 'Only attributes and a nickname are used to make the character.'],
+                  PHOTO_ENABLED
+                    ? ['Photos optional', 'If you add one, it’s used once to shape the character, then deleted — never printed or shared.']
+                    : ['No photos', 'Only attributes and a nickname are used to make the character.'],
                   ['One free tweak', 'After the preview, you can ask for one small adjustment before checkout opens.'],
                   ['You stay in control', 'You can export or delete account data from the account page.'],
                 ].map(([title, text]) => (

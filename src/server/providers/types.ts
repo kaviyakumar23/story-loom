@@ -56,11 +56,17 @@ export interface TextProvider {
 // ---- Illustration ----
 
 export interface CharacterSheetRequest {
-  /** Avatar attribute set (skin tone, hair, glasses…). No photo, no name. */
+  /** Avatar attribute set (skin tone, hair, glasses…). No name. */
   avatar: Record<string, unknown>;
   ageBand: AgeBand;
   /** Sensitive terms (e.g. the nickname) the outbound payload must NOT contain. */
   guard: string[];
+  /**
+   * OPTIONAL, consent-gated child photo, used ONCE to seed a *stylized* likeness
+   * on the turnaround view only (never photoreal, never stored on the pack). The
+   * caller must gate egress (Vertex-only) and delete the photo after this call.
+   */
+  likenessPhoto?: { base64: string; mime: string };
 }
 
 /** The canonical "character bible" — reused to anchor every page (§7). */

@@ -34,6 +34,15 @@ function resolveBackend(env: Env): Backend {
   return vertexConfigured ? 'vertex' : 'studio';
 }
 
+/**
+ * The Gemini backend that image calls will actually use. Exposed so the photo
+ * egress guard can hard-refuse sending a child's photo to the AI-Studio key path
+ * (Vertex's GCP terms give a stronger no-training posture for the one call).
+ */
+export function resolveGeminiBackend(): Backend {
+  return resolveBackend(loadEnv());
+}
+
 function vertexUrl(env: Env, model: string, method: string): string {
   const project = resolveVertexProject();
   const location = env.GOOGLE_CLOUD_LOCATION;

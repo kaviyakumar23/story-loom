@@ -17,7 +17,7 @@ export async function GET(req: Request): Promise<Response> {
     assertRateLimit(`export:${parent.id}`, 3, 60_000);
     const db = serviceClient();
 
-    const [profile, consents, heroes, books, orders, bookEvents, bookFeedback, occasionNudges] = await Promise.all([
+    const [profile, consents, heroes, books, orders, bookEvents, bookFeedback, occasionNudges, photoUploads] = await Promise.all([
       db.from('profiles').select('*').eq('id', parent.id).maybeSingle(),
       db.from('consent_records').select('*').eq('parent_id', parent.id),
       db.from('heroes').select('*').eq('parent_id', parent.id),
@@ -26,6 +26,8 @@ export async function GET(req: Request): Promise<Response> {
       db.from('book_events').select('*').eq('parent_id', parent.id),
       db.from('book_feedback').select('*').eq('parent_id', parent.id),
       db.from('occasion_nudges').select('*').eq('parent_id', parent.id),
+      // Metadata only — the bytes are ephemeral and never served/exported.
+      db.from('photo_uploads').select('id, hero_id, consent_id, status, created_at, consumed_at, deleted_at').eq('parent_id', parent.id),
     ]);
     const bookIds = ((books.data ?? []) as { id: string }[]).map((book) => book.id);
     const heroIds = ((heroes.data ?? []) as { id: string }[]).map((hero) => hero.id);
@@ -95,6 +97,7 @@ export async function GET(req: Request): Promise<Response> {
       shareLinks: shareLinks.data ?? [],
       revisionRequests: revisionRequests.data ?? [],
       occasionNudges: occasionNudges.data ?? [],
+      photoUploads: photoUploads.data ?? [],
     });
   } catch (err) {
     return jsonError(err);

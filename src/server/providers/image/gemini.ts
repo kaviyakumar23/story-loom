@@ -50,14 +50,27 @@ export class GeminiImageProvider implements ImageProvider {
     // is to stop the hero drifting between pages.
     let anchor: { base64: string; mime: string } | null = null;
     for (const view of CHARACTER_VIEWS) {
-      const prompt =
+      const isTurnaround = anchor === null;
+      let prompt =
         `Children's picture-book character reference — ${view.replace(/_/g, ' ')}. ` +
         `${descriptor}. Consistent, friendly, soft illustrated style on a plain background. ` +
-        `No text, no logos.` +
-        (anchor
-          ? ` Draw the exact same child as the attached reference — identical face, hair, skin tone, palette, and outfit.`
-          : '');
-      const img = await this.callImage(prompt, anchor ? [anchor] : []);
+        `No text, no logos.`;
+      let refs: { base64: string; mime: string }[] = anchor ? [anchor] : [];
+
+      if (isTurnaround && req.likenessPhoto) {
+        // Seed a STYLIZED likeness from the photo on the turnaround ONLY — this is
+        // the single call the photo is ever attached to. Explicitly non-photoreal.
+        prompt =
+          `Create a soft, STYLIZED children's picture-book character inspired by the attached photo of a child. ` +
+          `Capture a friendly, recognisable likeness (hair, skin tone, general features) but do NOT produce a ` +
+          `photorealistic image — this is a warm hand-illustrated cartoon character, plain background, no text, no logos. ` +
+          `${descriptor}.`;
+        refs = [{ base64: req.likenessPhoto.base64, mime: req.likenessPhoto.mime }];
+      } else if (!isTurnaround) {
+        prompt += ` Draw the exact same child as the attached reference — identical face, hair, skin tone, palette, and outfit.`;
+      }
+
+      const img = await this.callImage(prompt, refs);
       anchor ??= { base64: img.base64, mime: img.mime };
       images.push({ view, base64: img.base64, mime: img.mime });
     }

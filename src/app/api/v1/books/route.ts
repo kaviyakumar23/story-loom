@@ -73,6 +73,8 @@ const createSchema = z.object({
   // Reuse an existing hero (repeat purchase). When set, the child fields above
   // are ignored and the cached character sheet is reused.
   heroId: z.string().uuid().optional(),
+  // Optional, consent-gated photo upload to seed a stylized likeness (Phase 4).
+  photoUploadId: z.string().uuid().optional(),
 });
 
 // ---- POST /api/v1/books — create a book (idempotent per parent+key) ----
@@ -185,6 +187,18 @@ export async function POST(req: Request): Promise<Response> {
     }
     // Roll back only a hero WE created — never a reused one (it has other books).
     const cleanupHero = async () => { if (createdHero) await db.from('heroes').delete().eq('id', heroId); };
+
+    // Link a consented photo upload to this hero, so the pipeline seeds a stylized
+    // likeness from it (once) and then deletes it. Owner + approved + unconsumed only.
+    if (input.photoUploadId) {
+      await db
+        .from('photo_uploads')
+        .update({ hero_id: heroId })
+        .eq('id', input.photoUploadId)
+        .eq('parent_id', parent.id)
+        .eq('status', 'approved')
+        .is('consumed_at', null);
+    }
 
     const stamp = resolveModelStamp();
     const { data: book, error: bookErr } = await db

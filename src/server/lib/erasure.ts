@@ -1,4 +1,5 @@
 import { audit } from './audit';
+import { removePhotos } from './photo-intake';
 import { removeAssets } from './storage';
 import { serviceClient } from './supabase';
 
@@ -56,6 +57,17 @@ export async function eraseParentData(parentId: string): Promise<void> {
 
   // 2. Purge the objects. Throws — see the note on ordering above.
   await removeAssets(keys);
+
+  // 2b. Ephemeral child photos live in a SEPARATE bucket — purge any that a crash
+  // left behind before the photo_uploads rows cascade away with the account.
+  const { data: photos, error: photoErr } = await db
+    .from('photo_uploads')
+    .select('storage_key')
+    .eq('parent_id', parentId)
+    .is('deleted_at', null);
+  if (photoErr) throw new Error(`Erasure failed reading photo uploads: ${photoErr.message}`);
+  const photoKeys = ((photos ?? []) as { storage_key: string }[]).map((p) => p.storage_key);
+  if (photoKeys.length) await removePhotos(photoKeys);
 
   // 3. Scrub the payer's contact details out of the retained webhook payloads.
   const { data: orders, error: orderErr } = await db.from('orders').select('id').eq('parent_id', parentId);

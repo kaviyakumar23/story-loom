@@ -86,6 +86,11 @@ const schema = z.object({
   PREVIEW_DAILY_CAP: z.coerce.number().int().min(1).default(10),
   PREVIEW_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
   BETA_ACCESS_CODE: z.string().default(''),
+  // Optional child-photo likeness. OFF by default; only flip ON together with the
+  // "no photos" → "photo optional" policy rewrite. Also requires the Vertex
+  // backend (photos never egress to the AI-Studio key path). NEXT_PUBLIC_ so the
+  // create UI can show/hide the uploader from the same switch.
+  NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: z.string().default('false'),
 
   INNGEST_EVENT_KEY: z.string().default(''),
   INNGEST_SIGNING_KEY: z.string().default(''),

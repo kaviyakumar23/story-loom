@@ -9,10 +9,23 @@ import { serviceClient } from './supabase';
 const BUCKET = 'assets';
 const DEFAULT_TTL_SECONDS = 60 * 10; // 10 minutes
 
+/**
+ * Guard: the product-asset helpers must NEVER handle a raw child-photo key.
+ * Photos live in the separate 'photo-intake' bucket and only src/server/lib/
+ * photo-intake.ts may touch them — this stops any future code from accidentally
+ * signing or serving one through the assets path.
+ */
+function refusePhotoKey(storageKey: string): void {
+  if (storageKey.startsWith('photo-intake/') || storageKey.startsWith('photo-intake')) {
+    throw new Error('Refusing to handle a photo-intake key through the assets store — use photo-intake.ts.');
+  }
+}
+
 export async function signAsset(
   storageKey: string,
   ttlSeconds = DEFAULT_TTL_SECONDS,
 ): Promise<string | null> {
+  refusePhotoKey(storageKey);
   const { data, error } = await serviceClient()
     .storage.from(BUCKET)
     .createSignedUrl(storageKey, ttlSeconds);
@@ -25,6 +38,7 @@ export async function uploadAsset(
   body: Buffer,
   contentType: string,
 ): Promise<void> {
+  refusePhotoKey(storageKey);
   const { error } = await serviceClient()
     .storage.from(BUCKET)
     .upload(storageKey, body, { contentType, upsert: true });
@@ -33,6 +47,7 @@ export async function uploadAsset(
 
 /** Download an object as a Buffer (e.g. to re-load a cached reference image). */
 export async function downloadAsset(storageKey: string): Promise<Buffer | null> {
+  refusePhotoKey(storageKey);
   const { data, error } = await serviceClient().storage.from(BUCKET).download(storageKey);
   if (error || !data) return null;
   return Buffer.from(await data.arrayBuffer());

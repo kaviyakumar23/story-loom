@@ -3,6 +3,7 @@ import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
 import { recordEvent } from '../lib/cost';
 import { detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrubAll } from '../lib/tokenize';
+import { assertPhotoEgressAllowed, getPhoto, removePhotos } from '../lib/photo-intake';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders, resolveModelStamp } from '../providers/index';
@@ -220,44 +221,108 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
     // Fall through to regenerate if the objects went missing.
   }
 
-  const { value, usage } = await getProviders({ imageModel: ctx.imageModel }).image.generateCharacterSheet({
-    // Scrub the child's name out of free-text avatar features before it reaches
-    // the image model, and guard the payload against it (§9).
-    avatar: scrubAvatar(ctx.avatar, ctx.nickname),
-    ageBand: ctx.ageBand,
-    guard: [ctx.nickname],
-  });
-
-  // Moderate every generated reference view BEFORE it is stored (gate #2). The
-  // sheet anchors every page render, so a bad reference must never reach storage
-  // or downstream pages — fail closed to human review, like page renders (§10).
-  for (const img of value.images) {
-    const verdict = await getProviders().moderator.moderateImage({ base64: img.base64, mime: img.mime });
-    if (!verdict.allowed) return routeToReview(ctx.bookId, 'character_sheet', verdict.reasons);
+  // Optional, consent-gated photo likeness. Load it once, and delete it in the
+  // `finally` no matter what happens below — the photo is used for exactly this
+  // one call and never outlives it.
+  const photo = await loadHeroPhoto(ctx.heroId);
+  let likenessPhoto: { base64: string; mime: string } | undefined;
+  if (photo) {
+    try {
+      // Hard guard: the photo may only reach the image model over Vertex.
+      assertPhotoEgressAllowed('character_sheet');
+      const bytes = await getPhoto(photo.storageKey);
+      if (bytes) likenessPhoto = { base64: bytes.toString('base64'), mime: 'image/jpeg' };
+    } catch {
+      // Backend isn't Vertex → do NOT egress the photo; fall back to attributes.
+      // The photo is still deleted in `finally`.
+      likenessPhoto = undefined;
+    }
   }
 
-  // Persist reference images to object storage; keep only keys in the DB row
-  // (no fat base64 jsonb). Reused to anchor every page — the cached, cheap path.
-  const storedImages: StoredReferencePack['images'] = [];
-  for (const img of value.images) {
-    const ext = img.mime === 'image/jpeg' ? 'jpg' : 'png';
-    const key = `heroes/${ctx.heroId}/sheet/${img.view}.${ext}`;
-    await uploadAsset(key, Buffer.from(img.base64, 'base64'), img.mime);
-    storedImages.push({ view: img.view, storageKey: key, mime: img.mime });
+  try {
+    const { value, usage } = await getProviders({ imageModel: ctx.imageModel }).image.generateCharacterSheet({
+      // Scrub the child's name out of free-text avatar features before it reaches
+      // the image model, and guard the payload against it (§9).
+      avatar: scrubAvatar(ctx.avatar, ctx.nickname),
+      ageBand: ctx.ageBand,
+      guard: [ctx.nickname],
+      likenessPhoto,
+    });
+
+    // Moderate every generated reference view BEFORE it is stored (gate #2). The
+    // sheet anchors every page render, so a bad reference must never reach storage
+    // or downstream pages — fail closed to human review, like page renders (§10).
+    for (const img of value.images) {
+      const verdict = await getProviders().moderator.moderateImage({ base64: img.base64, mime: img.mime });
+      if (!verdict.allowed) return routeToReview(ctx.bookId, 'character_sheet', verdict.reasons);
+    }
+
+    // Persist reference images to object storage; keep only keys in the DB row
+    // (no fat base64 jsonb). Reused to anchor every page — the cached, cheap path.
+    const storedImages: StoredReferencePack['images'] = [];
+    for (const img of value.images) {
+      const ext = img.mime === 'image/jpeg' ? 'jpg' : 'png';
+      const key = `heroes/${ctx.heroId}/sheet/${img.view}.${ext}`;
+      await uploadAsset(key, Buffer.from(img.base64, 'base64'), img.mime);
+      storedImages.push({ view: img.view, storageKey: key, mime: img.mime });
+    }
+    const toStore: StoredReferencePack = {
+      images: storedImages,
+      palette: value.palette,
+      clothingTokens: value.clothingTokens,
+      negativeConstraints: value.negativeConstraints,
+    };
+    await db.from('character_sheets').insert({
+      hero_id: ctx.heroId,
+      version: 1,
+      reference_pack: toStore,
+      model_used: usage.model,
+      source: likenessPhoto ? 'photo' : 'attributes',
+      consent_id: likenessPhoto ? photo?.consentId ?? null : null,
+    });
+    return value;
+  } finally {
+    if (photo) await consumePhoto(photo.id, photo.storageKey);
   }
-  const toStore: StoredReferencePack = {
-    images: storedImages,
-    palette: value.palette,
-    clothingTokens: value.clothingTokens,
-    negativeConstraints: value.negativeConstraints,
-  };
-  await db.from('character_sheets').insert({
-    hero_id: ctx.heroId,
-    version: 1,
-    reference_pack: toStore,
-    model_used: usage.model,
-  });
-  return value;
+}
+
+/**
+ * The hero's pending, consented photo (if any) — only when the feature is on.
+ * Re-checks that the photo consent still stands, so a withdrawal between upload
+ * and render wins.
+ */
+async function loadHeroPhoto(heroId: string): Promise<{ id: string; storageKey: string; consentId: string | null } | null> {
+  if (loadEnv().NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED !== 'true') return null;
+  const db = serviceClient();
+  const { data } = await db
+    .from('photo_uploads')
+    .select('id, storage_key, consent_id')
+    .eq('hero_id', heroId)
+    .eq('status', 'approved')
+    .is('consumed_at', null)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const p = data as { id: string; storage_key: string; consent_id: string | null } | null;
+  if (!p) return null;
+  if (p.consent_id) {
+    const { data: c } = await db.from('consent_records').select('scope, withdrawn_at').eq('id', p.consent_id).maybeSingle();
+    const cc = c as { scope: string; withdrawn_at: string | null } | null;
+    if (!cc || cc.withdrawn_at || cc.scope !== 'photo_likeness') return null;
+  }
+  return { id: p.id, storageKey: p.storage_key, consentId: p.consent_id };
+}
+
+/** Delete the photo object and mark the row consumed — the sheet is what survives. */
+async function consumePhoto(id: string, storageKey: string): Promise<void> {
+  try {
+    await removePhotos([storageKey]);
+  } catch {
+    // The hourly purge cron is the backstop if this delete fails.
+  }
+  const now = new Date().toISOString();
+  await serviceClient().from('photo_uploads').update({ status: 'consumed', consumed_at: now, deleted_at: now }).eq('id', id);
 }
 
 /** DB representation of the character bible — image keys, not inline base64. */
