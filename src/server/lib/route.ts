@@ -13,9 +13,9 @@ export function jsonError(err: unknown): Response {
       { status: err.statusCode },
     );
   }
-  captureError(err);
-  // eslint-disable-next-line no-console
-  console.error('unhandled route error', err);
+  // captureError already logs (redacted); no second raw console.error of `err`,
+  // which could echo user input into logs unredacted.
+  captureError(err, { where: 'unhandled-route' });
   return Response.json({ error: { code: 'internal', message: 'Internal server error' } }, { status: 500 });
 }
 
