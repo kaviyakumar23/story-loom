@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 interface RazorpayWebhook {
   event: string;
   payload?: {
-    payment?: { entity?: { id?: string; order_id?: string; status?: string; amount?: number; error_description?: string } };
+    payment?: { entity?: { id?: string; order_id?: string; status?: string; amount?: number; currency?: string; error_description?: string } };
     refund?: { entity?: { id?: string; payment_id?: string; amount?: number; status?: string } };
   };
 }
@@ -45,9 +45,14 @@ export async function POST(req: Request): Promise<Response> {
       .maybeSingle();
     if (!order) throw notFound('Order not found for webhook');
 
-    const amountOk = typeof payment.amount === 'number' && payment.amount === order.amount;
+    // Verify the money matches the order we priced (§8) — amount AND currency.
+    const amountOk =
+      typeof payment.amount === 'number' &&
+      payment.amount === order.amount &&
+      (payment.currency == null || payment.currency === order.currency);
 
-    // Idempotency (§8): unique razorpay_payment_id — redelivery no-ops.
+    // Idempotency (§8): unique razorpay_payment_id. On redelivery, self-heal a
+    // paid-but-unfulfilled order (a prior emit may have been lost) — don't no-op.
     const { error: payErr } = await db.from('payments').insert({
       order_id: order.id,
       razorpay_payment_id: payment.id,
@@ -57,19 +62,22 @@ export async function POST(req: Request): Promise<Response> {
     });
     if (payErr) {
       if (payErr.code === '23505' || /duplicate key/i.test(payErr.message ?? '')) {
+        if (order.status === 'paid') await ensureFulfillment(db, order.book_id);
         return Response.json({ ok: true, deduped: true });
       }
       throw internal('Could not record payment', payErr.message);
     }
 
     if (!amountOk) {
-      await audit({ actor: 'system', action: 'payment.amount_mismatch', entity: 'orders', entityId: order.id, metadata: { expected: order.amount, received: payment.amount, paymentId: payment.id } });
+      await audit({ actor: 'system', action: 'payment.amount_mismatch', entity: 'orders', entityId: order.id, metadata: { expected: order.amount, expectedCurrency: order.currency, received: payment.amount, receivedCurrency: payment.currency ?? null, paymentId: payment.id } });
       // Real money moved but doesn't match the order — a human must look.
       try {
-        await sendAdminAlert('Payment amount mismatch — manual review needed', {
+        await sendAdminAlert('Payment amount/currency mismatch — manual review needed', {
           orderId: order.id,
           expected: order.amount,
           received: payment.amount,
+          expectedCurrency: order.currency,
+          receivedCurrency: payment.currency ?? null,
           razorpayPaymentId: payment.id,
         });
       } catch {
@@ -78,32 +86,52 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ ok: true, amountMismatch: true });
     }
 
-    // Webhook is the source of truth — unlock and enqueue fulfillment.
-    const paidAt = new Date().toISOString();
-    await db.from('orders').update({ status: 'paid' }).eq('id', order.id);
-    await db
-      .from('books')
-      .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt })
-      .eq('id', order.book_id);
-    await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
-    await inngest.send({ name: EVENTS.fulfillmentRequested, data: { bookId: order.book_id, correlationId: randomUUID() } });
+    // Activate once (webhook is the source of truth). Guard on status so a second
+    // distinct payment for an already-paid order can't re-mark or double-email it.
+    if (order.status !== 'paid') {
+      const paidAt = new Date().toISOString();
+      await db.from('orders').update({ status: 'paid' }).eq('id', order.id);
+      await db
+        .from('books')
+        .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt })
+        .eq('id', order.book_id);
+      await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
 
-    const { data: user } = await db.auth.admin.getUserById(order.parent_id);
-    if (user.user?.email) {
-      try {
-        await sendOrderReceived(user.user.email, order.tier, {
-          orderId: order.id,
-          amount: order.amount,
-          currency: order.currency,
-        });
-      } catch {
-        /* best-effort */
+      const { data: user } = await db.auth.admin.getUserById(order.parent_id);
+      if (user.user?.email) {
+        try {
+          await sendOrderReceived(user.user.email, order.tier, {
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+          });
+        } catch {
+          /* best-effort */
+        }
       }
     }
 
+    // Always (idempotently) ensure fulfilment is running for a paid order whose
+    // book isn't finished — this self-heals a lost emit without a separate outbox.
+    await ensureFulfillment(db, order.book_id);
     return Response.json({ ok: true });
   } catch (err) {
     return jsonError(err);
+  }
+}
+
+/**
+ * Idempotently (re)enqueue fulfilment for a paid order whose book isn't complete.
+ * The fulfilment pipeline's per-book concurrency:1 + "already complete" guard make
+ * re-emitting safe, so this is also the recovery path for a webhook whose earlier
+ * Inngest emit was lost — closing the payment→fulfilment atomicity gap without a
+ * transactional outbox (the reconcile cron stays the final backstop).
+ */
+async function ensureFulfillment(db: ReturnType<typeof serviceClient>, bookId: string): Promise<void> {
+  const { data: book } = await db.from('books').select('status').eq('id', bookId).maybeSingle();
+  const status = (book as { status: string } | null)?.status;
+  if (status && status !== 'complete') {
+    await inngest.send({ name: EVENTS.fulfillmentRequested, data: { bookId, correlationId: randomUUID() } });
   }
 }
 
