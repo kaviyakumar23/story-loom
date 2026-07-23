@@ -75,6 +75,11 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
   };
 
   if (row.status === 'preview_ready' || row.status === 'paid' || row.status === 'complete') {
+    // The full story text exists from preview_ready on (all pages are generated
+    // in one call); surfacing it lets the preview show the whole book, not just
+    // the rendered pages. `preview` keeps its original meaning (rendered pages).
+    const allPages = await loadAllPages(row.id);
+    book.fullStory = { pages: allPages };
     book.preview = { pages: await loadPreviewPages(row.id) };
     book.readingGuide = await loadReadingGuide(row.id);
   }
@@ -130,12 +135,21 @@ async function loadRevisionCount(bookId: string): Promise<number> {
 }
 
 async function loadPreviewPages(bookId: string): Promise<PreviewPage[]> {
-  const { data: pages } = await serviceClient()
+  return loadPages(bookId, true);
+}
+
+/** Every page of the book (text always; image once rendered). */
+async function loadAllPages(bookId: string): Promise<PreviewPage[]> {
+  return loadPages(bookId, false);
+}
+
+async function loadPages(bookId: string, previewOnly: boolean): Promise<PreviewPage[]> {
+  let query = serviceClient()
     .from('book_pages')
     .select('page_index, text, image_asset_id')
-    .eq('book_id', bookId)
-    .eq('is_preview', true)
-    .order('page_index', { ascending: true });
+    .eq('book_id', bookId);
+  if (previewOnly) query = query.eq('is_preview', true);
+  const { data: pages } = await query.order('page_index', { ascending: true });
   if (!pages) return [];
 
   const result: PreviewPage[] = [];

@@ -135,8 +135,14 @@ export interface Book {
   purchasedTier: Tier | null;
   createdAt: string;
   updatedAt: string;
-  /** Present once status reaches preview_ready. */
+  /** Present once status reaches preview_ready. The first few rendered pages. */
   preview?: { pages: PreviewPage[] };
+  /**
+   * Every page of the story once preview_ready — the full text a parent can read
+   * before buying. Images fill in as they render (cover + first pages during
+   * preview; the remaining pages after purchase), so `imageUrl` is null until then.
+   */
+  fullStory?: { pages: PreviewPage[] };
   readingGuide?: ReadingGuide | null;
   revisionCount: number;
   revisionLimit: number;

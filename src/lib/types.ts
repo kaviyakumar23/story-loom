@@ -82,6 +82,8 @@ export interface Book {
   createdAt: string;
   updatedAt: string;
   preview?: { pages: PreviewPage[] };
+  /** Every page's text once preview_ready; images fill in as they render. */
+  fullStory?: { pages: PreviewPage[] };
   readingGuide?: ReadingGuide | null;
   revisionCount: number;
   revisionLimit: number;
