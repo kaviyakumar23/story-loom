@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "migrate": "node --experimental-strip-types --input-type=module -e \"import('./src/server/db/migrate.ts')\"",
     "test": "npm run typecheck && vitest run",
+    "test:e2e": "playwright test",
     "rls-check": "node scripts/rls-check.mjs"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
