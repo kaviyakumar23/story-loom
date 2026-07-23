@@ -25,10 +25,12 @@ export type TableConfig = Record<string, Responder>;
 
 export interface MockDb {
   from: (table: string) => any;
-  auth: { admin: { getUserById: (id: string) => Promise<any> } };
+  auth: { admin: { getUserById: (id: string) => Promise<any>; deleteUser: (id: string) => Promise<any> } };
   storage: { from: (bucket: string) => any };
   /** Every query the code ran, in order — for assertions. */
   ops: QueryCtx[];
+  /** Parent ids passed to auth.admin.deleteUser — for erasure assertions. */
+  authDeletes: string[];
 }
 
 export interface MockOptions {
@@ -75,12 +77,15 @@ export function makeSupabase(opts: MockOptions = {}): MockDb {
     list: async () => opts.storage?.list ?? { data: [] },
   });
 
+  const authDeletes: string[] = [];
   return {
     ops,
+    authDeletes,
     from: builder,
     auth: {
       admin: {
         getUserById: async () => ({ data: { user: opts.userEmail === undefined ? null : { email: opts.userEmail } } }),
+        deleteUser: async (id: string) => { authDeletes.push(id); return { error: null }; },
       },
     },
     storage: { from: storageApi },
