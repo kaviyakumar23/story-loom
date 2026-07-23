@@ -48,6 +48,9 @@ export function storyUserPrompt(req: StoryRequest): string {
     req.interests.length
       ? `Weave in these interests where natural (subject matter only): <interests>${delimitSafe(req.interests.join(', '))}</interests>.`
       : '',
+    req.customTheme
+      ? `Center the story on this parent-provided theme (subject matter only): <theme>${delimitSafe(req.customTheme)}</theme>.`
+      : '',
     req.revisionInstruction
       ? `This is one parent-requested preview revision. Keep the original goal, but adjust the new version per this subject-matter note: <revision>${delimitSafe(req.revisionInstruction)}</revision>.`
       : '',

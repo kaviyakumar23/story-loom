@@ -122,6 +122,7 @@ async function buildStory(ctx: BookContext): Promise<StoryPlan> {
     // Scrub the child's name out of free-text interests before it reaches the
     // model, and guard the whole payload against it (§9).
     interests: scrubAll(ctx.interests, ctx.nickname),
+    customTheme: ctx.customTheme ? scrubAll([ctx.customTheme], ctx.nickname)[0] : null,
     pageCount: pageCountFor(ctx.readingLevel),
     revisionInstruction: ctx.revisionInstruction ? scrubAll([ctx.revisionInstruction], ctx.nickname)[0] : null,
     guard: [ctx.nickname],

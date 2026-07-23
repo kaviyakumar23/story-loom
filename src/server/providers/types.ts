@@ -19,6 +19,8 @@ export interface StoryRequest {
   pageCount: number;
   /** Optional curated beta pack selected during intake. */
   occasionPack?: string | null;
+  /** Optional parent-authored theme, already scrubbed of the child's name. */
+  customTheme?: string | null;
   /** Optional parent-requested revision, already scrubbed of sensitive text. */
   revisionInstruction?: string | null;
   /** Sensitive terms (e.g. the nickname) the outbound payload must NOT contain. */

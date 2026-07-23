@@ -11,7 +11,7 @@ import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { isPdfSafe } from '@/server/lib/text';
 import { EVENTS, inngest } from '@/server/pipeline/client';
-import { resolveModelStamp } from '@/server/providers/index';
+import { getProviders, resolveModelStamp } from '@/server/providers/index';
 import {
   AGE_BANDS,
   GOALS,
@@ -58,6 +58,14 @@ const createSchema = z.object({
   }),
   goal: z.enum(GOALS),
   occasionPack: z.enum(OCCASION_PACKS).nullable().optional(),
+  // Optional parent-authored theme. Not printed directly (the model's output is),
+  // so it need not be PDF-safe — just bounded and stripped of control chars.
+  // Injection is handled at the prompt layer (delimited <theme>, brackets stripped).
+  customTheme: z
+    .string()
+    .max(200)
+    .transform((t) => t.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim())
+    .optional(),
   language: z.enum(LANGUAGES),
   readingLevel: z.enum(READING_LEVELS),
   consentId: z.string().uuid(),
@@ -120,6 +128,25 @@ export async function POST(req: Request): Promise<Response> {
       throw badRequest('This consent has been withdrawn. Please give consent again to make a new book.');
     }
 
+    // Pre-moderate free-text inputs (theme + interests) so bad content is a
+    // friendly 400 here rather than a burned preview that dead-ends at the output
+    // gate. Reject only on a real content flag — if moderation is merely
+    // unavailable, fall through and let the fail-closed output gates (gateText,
+    // image moderation) be the backstop, so a transient outage can't take down
+    // the whole create funnel.
+    const freeText = [input.customTheme, ...input.child.interests].filter(
+      (t): t is string => typeof t === 'string' && t.trim().length > 0,
+    );
+    if (freeText.length) {
+      const verdict = await getProviders().moderator.moderateText(freeText);
+      const onlyUnavailable = verdict.reasons.every(
+        (r) => r === 'moderation_unavailable' || r === 'openai_not_configured',
+      );
+      if (!verdict.allowed && !onlyUnavailable) {
+        throw badRequest('That story theme or interest can’t be used. Please rephrase and try again.');
+      }
+    }
+
     // Opt-in comms — only ever flips consent on, never off, and only by the owner.
     if (input.marketingConsent) {
       await db.from('profiles').update({ marketing_consent: true }).eq('id', parent.id);
@@ -168,6 +195,7 @@ export async function POST(req: Request): Promise<Response> {
         consent_id: input.consentId,
         goal: input.goal,
         occasion_pack: input.occasionPack ?? null,
+        custom_theme: input.customTheme || null,
         language: input.language,
         reading_level: input.readingLevel,
         status: 'generating',

@@ -69,6 +69,7 @@ export default function Create() {
   const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>('');
   const [interests, setInterests] = useState<string[]>([]);
   const [interestDraft, setInterestDraft] = useState('');
+  const [customTheme, setCustomTheme] = useState('');
   const [consent, setConsent] = useState(false);
   const [birthMonth, setBirthMonth] = useState<number | ''>('');
   const [marketingConsent, setMarketingConsent] = useState(false);
@@ -138,6 +139,7 @@ export default function Create() {
         if (d.occasionPack) setOccasionPack(d.occasionPack as OccasionPackId);
         if (typeof d.readingLevel === 'string') setReadingLevel(d.readingLevel as ReadingLevel);
         if (Array.isArray(d.interests)) setInterests(d.interests.filter((x): x is string => typeof x === 'string'));
+        if (typeof d.customTheme === 'string') setCustomTheme(d.customTheme);
         if (typeof d.step === 'number') setStep(Math.min(3, Math.max(1, d.step)));
         if (typeof d.idempotencyKey === 'string') idempotencyKey.current = d.idempotencyKey;
       }
@@ -153,12 +155,12 @@ export default function Create() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, step, idempotencyKey: idempotencyKey.current }),
+        JSON.stringify({ nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
       );
     } catch {
       /* storage full / disabled — non-fatal */
     }
-  }, [loaded, nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, step]);
+  }, [loaded, nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
 
   if (sessionError) {
     return (
@@ -250,6 +252,7 @@ export default function Create() {
           child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests, birthMonth: birthMonth || null },
           goal,
           occasionPack,
+          customTheme: customTheme.trim() || undefined,
           language: 'en',
           readingLevel,
           consentId,
@@ -416,6 +419,20 @@ export default function Create() {
                   ))}
                 </div>
               )}
+
+              <label className="label" style={{ marginTop: 18 }}>Your own theme <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span></label>
+              <textarea
+                className="input"
+                value={customTheme}
+                maxLength={200}
+                rows={3}
+                onChange={(e) => setCustomTheme(e.target.value)}
+                placeholder="e.g. a gentle story about moving to a new city and making one good friend"
+                style={{ resize: 'vertical', lineHeight: 1.5 }}
+              />
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>
+                Anything special you’d like the story to be about — we’ll weave it in. {customTheme.length}/200
+              </span>
             </div>
           )}
 
@@ -435,6 +452,7 @@ export default function Create() {
                   ['Goal', goal ? GOAL_LABELS[goal] : '—'],
                   ['Reading level', readingLevel || '—'],
                   ['Interests', interests.length ? interests.join(', ') : '—'],
+                  ['Your theme', customTheme.trim() || '—'],
                 ].map(([k, v]) => (
                   <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '12px 0', borderBottom: '1px solid var(--hairline)' }}>
                     <span style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{k}</span>

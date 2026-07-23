@@ -26,6 +26,7 @@ export interface BookContext {
   interests: string[];
   goal: Goal;
   occasionPack: OccasionPackId | null;
+  customTheme: string | null;
   readingLevel: ReadingLevel;
   purchasedTier: string | null;
   revisionInstruction: string | null;
@@ -38,7 +39,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
   const db = serviceClient();
   const { data: book } = await db
     .from('books')
-    .select('id, parent_id, hero_id, goal, occasion_pack, reading_level, purchased_tier, text_model, image_model')
+    .select('id, parent_id, hero_id, goal, occasion_pack, custom_theme, reading_level, purchased_tier, text_model, image_model')
     .eq('id', bookId)
     .maybeSingle();
   if (!book) throw new NonRetriableError(`Book ${bookId} not found`);
@@ -55,6 +56,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     hero_id: string;
     goal: Goal;
     occasion_pack: OccasionPackId | null;
+    custom_theme: string | null;
     reading_level: ReadingLevel;
     purchased_tier: string | null;
     text_model: string | null;
@@ -78,6 +80,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     interests: h.interests ?? [],
     goal: b.goal,
     occasionPack: b.occasion_pack ?? null,
+    customTheme: b.custom_theme ?? null,
     readingLevel: b.reading_level,
     purchasedTier: b.purchased_tier,
     revisionInstruction: await loadLatestRevisionInstruction(bookId),
