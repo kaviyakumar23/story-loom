@@ -151,6 +151,53 @@ export async function sendPreviewWinback(
   );
 }
 
+/**
+ * Occasion / birthday reminder to a past buyer (marketing — carries unsubscribe).
+ * Deep-links to a prefilled create flow so the reorder is near-effortless.
+ */
+export async function sendOccasionNudge(
+  to: string,
+  opts: { heroName: string; occasion: string; isBirthday: boolean; isSibling?: boolean; url: string; unsubscribeUrl: string },
+): Promise<void> {
+  const { heroName, occasion, isBirthday, isSibling, url, unsubscribeUrl } = opts;
+
+  let subject: string;
+  let eyebrow: string;
+  let heading: string;
+  let body: string;
+  let cta: string;
+
+  if (isSibling) {
+    subject = `Does ${heroName} have a brother or sister? ✨`;
+    eyebrow = 'A story for two';
+    heading = 'One more little hero?';
+    body = `<p style="margin:0 0 14px">${escapeHtml(heroName)} loved being the star of their own book. If there’s a brother or
+              sister, they can have one all their own — same care, their own adventure.</p>
+            <p style="margin:0">Start a new hero below.</p>`;
+    cta = 'Make their book';
+  } else if (isBirthday) {
+    subject = `${heroName}’s birthday is coming ✨`;
+    eyebrow = 'Birthday soon';
+    heading = `${heroName}’s big day is coming`;
+    body = `<p style="margin:0 0 14px">${escapeHtml(heroName)}’s birthday month is nearly here. A personalised MoonBell hardcover
+              makes a keepsake they’ll remember — and printed books take about a week, so there’s just enough time.</p>
+            <p style="margin:0">Start their next adventure below.</p>`;
+    cta = 'Start their story';
+  } else {
+    subject = `A ${occasion} story for ${heroName} ✨`;
+    eyebrow = occasion;
+    heading = `A story for ${occasion}`;
+    body = `<p style="margin:0 0 14px">${escapeHtml(occasion)} is around the corner. Turn it into a personalised storybook starring
+              <strong style="color:${COLORS.ink}">${escapeHtml(heroName)}</strong> — printed and shipped in about a week.</p>
+            <p style="margin:0">Pick up where you left off below.</p>`;
+    cta = 'Start their story';
+  }
+
+  await send(to, subject, layout({ eyebrow, heading, body, cta: { label: cta, url }, unsubscribeUrl }), {
+    listUnsubscribe: unsubscribeUrl,
+  });
+}
+
 /** Physical order: the printed book has been dispatched. */
 export async function sendShipped(
   to: string,

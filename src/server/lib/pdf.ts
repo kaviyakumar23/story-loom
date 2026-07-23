@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import { COLORS } from './brand';
 import { pdfSafe } from './text';
 
@@ -30,6 +30,10 @@ export interface AssembleInput {
   title: string;
   coverImage: Buffer;
   pages: AssemblePage[];
+  /** Optional closing bookplate: "Book N in {heroName}'s MoonBell Adventures". */
+  series?: { number: number; heroName: string };
+  /** Optional gift dedication printed on the bookplate. */
+  giftMessage?: string | null;
 }
 
 export async function assemblePdf(input: AssembleInput): Promise<Buffer> {
@@ -67,7 +71,39 @@ export async function assemblePdf(input: AssembleInput): Promise<Buffer> {
     });
   }
 
+  // Closing bookplate (series line + optional gift dedication + wordmark).
+  if (input.series || input.giftMessage) {
+    drawBookplate(doc.addPage([SIZE, SIZE]), body, display, input);
+  }
+
   return Buffer.from(await doc.save());
+}
+
+/** A calm final page: "The End", the series line, an optional gift note, wordmark. */
+function drawBookplate(page: PDFPage, body: PDFFont, display: PDFFont, input: AssembleInput): void {
+  paintBg(page);
+  const center = (text: string, y: number, size: number, font: PDFFont, color: ReturnType<typeof rgb>) => {
+    const w = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: (SIZE - w) / 2, y, size, font, color });
+  };
+
+  center('The End', SIZE / 2 + 70, 34, display, hex(COLORS.ink));
+
+  if (input.series) {
+    const line = pdfSafe(`Book ${input.series.number} in ${input.series.heroName}’s MoonBell Adventures`);
+    wrap(line, body, 15, SIZE - 140).forEach((l, i) => center(l, SIZE / 2 + 20 - i * 22, 15, body, hex(COLORS.ink)));
+  }
+
+  if (input.giftMessage) {
+    const gift = pdfSafe(input.giftMessage);
+    let y = SIZE / 2 - 40;
+    wrap(gift, body, 13, SIZE - 160).slice(0, 5).forEach((l) => {
+      center(l, y, 13, body, hex(COLORS.inkSoft));
+      y -= 20;
+    });
+  }
+
+  center('MoonBell', 64, 16, display, hex(COLORS.berry));
 }
 
 function paintBg(page: { drawRectangle: (o: Record<string, unknown>) => void }) {

@@ -109,6 +109,13 @@ export default function Create() {
       })();
     }
 
+    // Occasion deep-link (?pack=): preselect a curated pack, so a reminder email
+    // can open a prefilled book for e.g. Diwali or a birthday.
+    const packParam = new URLSearchParams(window.location.search).get('pack');
+    if (packParam && OCCASION_PACKS.some((p) => p.id === packParam)) {
+      applyOccasionPack(packParam as OccasionPackId);
+    }
+
     api<BetaAccessResponse>('/beta/access', { anon: true })
       .then((status) => {
         if (!cancelled) setAccess(status);

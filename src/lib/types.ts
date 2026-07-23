@@ -106,6 +106,9 @@ export interface BookListItem {
   goal: Goal;
   purchasedTier: Tier | null;
   createdAt: string;
+  heroId: string;
+  nickname: string | null;
+  seriesNumber: number | null;
 }
 
 export interface CreateConsentRequest {

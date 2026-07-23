@@ -57,6 +57,8 @@ export default function BookPage() {
   const [error, setError] = useState<string | null>(null);
   const [tier, setTier] = useState<Tier>('print');
   const [address, setAddress] = useState<ShippingInput>(EMPTY_SHIPPING);
+  const [isGift, setIsGift] = useState(false);
+  const [giftMessage, setGiftMessage] = useState('');
   const [paying, setPaying] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [revisionRequested, setRevisionRequested] = useState(false);
@@ -153,6 +155,10 @@ export default function BookPage() {
         setTier={setTier}
         address={address}
         setAddress={setAddress}
+        isGift={isGift}
+        setIsGift={setIsGift}
+        giftMessage={giftMessage}
+        setGiftMessage={setGiftMessage}
         onBuy={buy}
         onSave={savePreview}
         onEvent={trackEvent}
@@ -185,7 +191,10 @@ export default function BookPage() {
             notes: address.notes.trim() || undefined,
           }
         : undefined;
-      const order = await api<CreateOrderResponse>('/payments/order', { method: 'POST', body: { bookId, tier, shippingAddress } });
+      const order = await api<CreateOrderResponse>('/payments/order', {
+        method: 'POST',
+        body: { bookId, tier, shippingAddress, isGift, giftMessage: isGift ? giftMessage.trim() || undefined : undefined },
+      });
       await openCheckout(order, {
         email: session?.user?.email ?? undefined,
         onPaid: () => setAwaitingPayment(true),
@@ -318,12 +327,16 @@ function DeliveredPending({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function Preview({ book, tier, setTier, address, setAddress, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
+function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, giftMessage, setGiftMessage, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
   book: Book;
   tier: Tier;
   setTier: (t: Tier) => void;
   address: ShippingInput;
   setAddress: (a: ShippingInput) => void;
+  isGift: boolean;
+  setIsGift: (v: boolean) => void;
+  giftMessage: string;
+  setGiftMessage: (v: string) => void;
   onBuy: () => void;
   onSave: (email?: string) => Promise<void>;
   onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>;
@@ -413,6 +426,27 @@ function Preview({ book, tier, setTier, address, setAddress, onBuy, onSave, onEv
 
             {paymentsEnabled && TIER_META[tier].physical && (
               <ShippingForm address={address} setAddress={setAddress} />
+            )}
+
+            {paymentsEnabled && (
+              <div style={{ marginTop: 14 }}>
+                <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', fontSize: 13.5, color: 'var(--ink)' }}>
+                  <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} style={{ width: 17, height: 17, accentColor: 'var(--brand)' }} />
+                  This is a gift 🎁
+                </label>
+                {isGift && (
+                  <textarea
+                    className="input"
+                    value={giftMessage}
+                    onChange={(e) => setGiftMessage(e.target.value)}
+                    maxLength={200}
+                    rows={2}
+                    placeholder="A short message to print inside (optional)"
+                    style={{ resize: 'vertical', marginTop: 8 }}
+                    aria-label="Gift message"
+                  />
+                )}
+              </div>
             )}
 
             {paymentsEnabled ? (

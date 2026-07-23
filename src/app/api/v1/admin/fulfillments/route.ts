@@ -47,7 +47,7 @@ export async function GET(req: Request): Promise<Response> {
     const orderIds = [...new Set(rows.map((r) => r.order_id))];
     const addrIds = rows.map((r) => r.address_id).filter((x): x is string => Boolean(x));
     const [books, orders, addrs] = await Promise.all([
-      bookIds.length ? db.from('books').select('id, title').in('id', bookIds) : Promise.resolve({ data: [] as { id: string; title: string | null }[] }),
+      bookIds.length ? db.from('books').select('id, title, series_number').in('id', bookIds) : Promise.resolve({ data: [] as { id: string; title: string | null; series_number: number | null }[] }),
       orderIds.length ? db.from('orders').select('id, tier, amount, currency').in('id', orderIds) : Promise.resolve({ data: [] as { id: string; tier: string; amount: number; currency: string }[] }),
       addrIds.length ? db.from('shipping_addresses').select('id, recipient_name, phone, line1, line2, city, state, postal_code, country, notes').in('id', addrIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     ]);

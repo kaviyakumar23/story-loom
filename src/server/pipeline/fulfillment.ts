@@ -118,14 +118,22 @@ async function renderRemainingPage(ctx: BookContext, page: PendingPage): Promise
 export async function assemble(ctx: BookContext): Promise<void> {
   const db = serviceClient();
 
-  const [{ data: book }, { data: pageRows }, { data: assetRows }] = await Promise.all([
-    db.from('books').select('title, cover_asset_id').eq('id', ctx.bookId).single(),
+  const [{ data: book }, { data: pageRows }, { data: assetRows }, { data: giftOrder }] = await Promise.all([
+    db.from('books').select('title, cover_asset_id, series_number').eq('id', ctx.bookId).single(),
     db
       .from('book_pages')
       .select('page_index, text, image_asset_id')
       .eq('book_id', ctx.bookId)
       .order('page_index', { ascending: true }),
     db.from('assets').select('id, storage_key').eq('book_id', ctx.bookId).eq('type', 'image'),
+    db
+      .from('orders')
+      .select('gift_message, is_gift')
+      .eq('book_id', ctx.bookId)
+      .eq('status', 'paid')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const keyById = new Map(
@@ -154,10 +162,14 @@ export async function assemble(ctx: BookContext): Promise<void> {
     ),
   ]);
 
+  const seriesNumber = (book as { series_number: number | null }).series_number;
+  const gift = giftOrder as { gift_message: string | null; is_gift: boolean } | null;
   const pdf = await assemblePdf({
     title: (book as { title: string | null }).title ?? 'Your Story',
     coverImage,
     pages,
+    series: seriesNumber ? { number: seriesNumber, heroName: ctx.nickname } : undefined,
+    giftMessage: gift?.is_gift ? gift.gift_message : null,
   });
 
   const key = `books/${ctx.bookId}/book.pdf`;

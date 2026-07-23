@@ -16,6 +16,28 @@ const STATUS_LABEL: Record<BookStatus, { text: string; bg: string; fg: string }>
   failed: { text: 'Needs review', bg: '#F6D5CC', fg: 'var(--error)' },
 };
 
+interface Shelf {
+  heroId: string;
+  nickname: string | null;
+  books: BookListItem[];
+}
+
+/** Group books into per-child shelves, preserving the newest-first order. */
+function groupByHero(books: BookListItem[]): Shelf[] {
+  const shelves = new Map<string, Shelf>();
+  for (const b of books) {
+    const key = b.heroId || '';
+    let shelf = shelves.get(key);
+    if (!shelf) {
+      shelf = { heroId: b.heroId, nickname: b.nickname, books: [] };
+      shelves.set(key, shelf);
+    }
+    if (!shelf.nickname && b.nickname) shelf.nickname = b.nickname;
+    shelf.books.push(b);
+  }
+  return [...shelves.values()];
+}
+
 export default function Dashboard() {
   const { ready } = useRequireAuth();
   const [books, setBooks] = useState<BookListItem[] | null>(null);
@@ -59,20 +81,48 @@ export default function Dashboard() {
         )}
 
         {books && books.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-            {books.map((b) => {
-              const s = STATUS_LABEL[b.status];
-              return (
-                <Link key={b.id} href={`/books/${b.id}`} className="card lift" style={{ padding: '20px 22px', textDecoration: 'none', display: 'block' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <span className="pill" style={{ background: s.bg, color: s.fg, border: 'none' }}>{s.text}</span>
-                    <Icon name="chevron" size={18} stroke="var(--ink-soft)" style={{ transform: 'rotate(-90deg)' }} />
-                  </div>
-                  <h3 className="display" style={{ fontSize: 21, marginBottom: 6 }}>{b.title ?? 'Untitled adventure'}</h3>
-                  <p style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{GOAL_LABELS[b.goal]}</p>
-                </Link>
-              );
-            })}
+          <div style={{ display: 'grid', gap: 34 }}>
+            {groupByHero(books).map((shelf) => (
+              <section key={shelf.heroId || 'ungrouped'}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <h2 className="display" style={{ fontSize: 22 }}>
+                    {shelf.nickname ? `${shelf.nickname}’s shelf` : 'Your books'}
+                    <span style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 400, marginLeft: 10 }}>
+                      {shelf.books.length} {shelf.books.length === 1 ? 'book' : 'books'}
+                    </span>
+                  </h2>
+                  {shelf.heroId && (
+                    <Link href={`/create?from=${shelf.books[0].id}`} className="btn btn-ghost btn-sm">
+                      <Sparkle size={15} color="var(--brand)" /> New adventure{shelf.nickname ? ` for ${shelf.nickname}` : ''}
+                    </Link>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
+                  {shelf.books.map((b) => {
+                    const s = STATUS_LABEL[b.status];
+                    return (
+                      <Link key={b.id} href={`/books/${b.id}`} className="card lift" style={{ padding: '20px 22px', textDecoration: 'none', display: 'block' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                          <span className="pill" style={{ background: s.bg, color: s.fg, border: 'none' }}>{s.text}</span>
+                          {b.seriesNumber ? (
+                            <span className="pill" style={{ background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 11 }}>Vol. {b.seriesNumber}</span>
+                          ) : (
+                            <Icon name="chevron" size={18} stroke="var(--ink-soft)" style={{ transform: 'rotate(-90deg)' }} />
+                          )}
+                        </div>
+                        <h3 className="display" style={{ fontSize: 21, marginBottom: 6 }}>{b.title ?? 'Untitled adventure'}</h3>
+                        <p style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{GOAL_LABELS[b.goal]}</p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+            <div>
+              <Link href="/create" className="btn btn-ghost">
+                <Icon name="heart" size={17} stroke="var(--brand)" /> Add another child
+              </Link>
+            </div>
           </div>
         )}
       </div>

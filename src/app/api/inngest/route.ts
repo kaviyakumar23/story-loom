@@ -2,6 +2,7 @@ import { serve } from 'inngest/next';
 import { inngest } from '@/server/pipeline/client';
 import { applyBookEdit } from '@/server/pipeline/edit';
 import { fulfillmentPipeline } from '@/server/pipeline/fulfillment';
+import { occasionNudges } from '@/server/pipeline/occasions';
 import { previewPipeline } from '@/server/pipeline/preview';
 import { reconcilePaidBooks } from '@/server/pipeline/reconcile';
 import { retentionPurge } from '@/server/pipeline/retention';
@@ -15,5 +16,5 @@ export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [previewPipeline, fulfillmentPipeline, applyBookEdit, reconcilePaidBooks, retentionPurge, previewWinback],
+  functions: [previewPipeline, fulfillmentPipeline, applyBookEdit, reconcilePaidBooks, retentionPurge, previewWinback, occasionNudges],
 });

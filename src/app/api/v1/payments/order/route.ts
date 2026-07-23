@@ -6,6 +6,7 @@ import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
 import { createOrder } from '@/server/lib/razorpay';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
+import { isPdfSafe } from '@/server/lib/text';
 import { TIERS, type CreateOrderResponse } from '@/server/types/api';
 
 export const runtime = 'nodejs';
@@ -26,6 +27,14 @@ const orderSchema = z.object({
   bookId: z.string().uuid(),
   tier: z.enum(TIERS),
   shippingAddress: addressSchema.optional(),
+  isGift: z.boolean().optional(),
+  // Printed on the closing bookplate, so it must be PDF-encodable.
+  giftMessage: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isPdfSafe, { message: 'The gift message can only use Latin letters and common punctuation for now.' })
+    .optional(),
 });
 
 // ---- POST /api/v1/payments/order — server-priced Razorpay order (§8) ----
@@ -56,9 +65,19 @@ export async function POST(req: Request): Promise<Response> {
     if (price.physical && !parsed.data.shippingAddress) {
       throw badRequest('A shipping address is required for a printed book');
     }
+    const isGift = parsed.data.isGift === true;
     const { data: order, error: orderErr } = await db
       .from('orders')
-      .insert({ parent_id: parent.id, book_id: bookId, tier, amount: price.amount, currency: price.currency, status: 'created' })
+      .insert({
+        parent_id: parent.id,
+        book_id: bookId,
+        tier,
+        amount: price.amount,
+        currency: price.currency,
+        status: 'created',
+        is_gift: isGift,
+        gift_message: isGift ? parsed.data.giftMessage ?? null : null,
+      })
       .select('id')
       .single();
     if (orderErr || !order) throw internal('Could not create order', orderErr?.message);

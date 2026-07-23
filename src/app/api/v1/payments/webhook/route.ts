@@ -95,9 +95,13 @@ export async function POST(req: Request): Promise<Response> {
     if (order.status !== 'paid') {
       const paidAt = new Date().toISOString();
       await db.from('orders').update({ status: 'paid' }).eq('id', order.id);
+      // Stamp the series position (1 + the hero's already-purchased books) — for
+      // the bookshelf and the printed spine. Computed before this book is marked
+      // paid, so the count is of PRIOR purchases only.
+      const seriesNumber = await nextSeriesNumber(db, order.book_id);
       await db
         .from('books')
-        .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt, render_credits: POST_PAY_REGEN_CREDITS })
+        .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt, render_credits: POST_PAY_REGEN_CREDITS, series_number: seriesNumber })
         .eq('id', order.book_id);
       await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
 
@@ -122,6 +126,23 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     return jsonError(err);
   }
+}
+
+/**
+ * The next series position for this book's hero: 1 + the count of the hero's
+ * already-purchased books. Best-effort — a stamping failure must not block the
+ * payment, so it defaults to 1 if the hero can't be resolved.
+ */
+async function nextSeriesNumber(db: ReturnType<typeof serviceClient>, bookId: string): Promise<number> {
+  const { data: book } = await db.from('books').select('hero_id').eq('id', bookId).maybeSingle();
+  const heroId = (book as { hero_id: string } | null)?.hero_id;
+  if (!heroId) return 1;
+  const { count } = await db
+    .from('books')
+    .select('id', { count: 'exact', head: true })
+    .eq('hero_id', heroId)
+    .not('purchased_tier', 'is', null);
+  return (count ?? 0) + 1;
 }
 
 /**

@@ -171,6 +171,10 @@ export interface BookListItem {
   goal: Goal;
   purchasedTier: Tier | null;
   createdAt: string;
+  /** For the bookshelf: group books by hero and show the printed series number. */
+  heroId: string;
+  nickname: string | null;
+  seriesNumber: number | null;
 }
 
 // ---- Request / response payloads ----

@@ -26,7 +26,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const BOOK_COLUMNS =
-  'id, status, progress, goal, occasion_pack, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at';
+  'id, status, progress, goal, occasion_pack, language, reading_level, title, theme, purchased_tier, cover_asset_id, error, created_at, updated_at, hero_id, series_number';
 
 const createSchema = z.object({
   child: z.object({
@@ -273,7 +273,15 @@ export async function GET(req: Request): Promise<Response> {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw internal('Could not list books', error.message);
-    const items = (data as BookRow[]).map(toListItem);
+    const rows = data as BookRow[];
+    // Batch-load hero nicknames so the dashboard can group books into per-child
+    // shelves (avoids PostgREST embedding ambiguity).
+    const heroIds = [...new Set(rows.map((r) => r.hero_id).filter((x): x is string => Boolean(x)))];
+    const { data: heroes } = heroIds.length
+      ? await serviceClient().from('heroes').select('id, nickname').in('id', heroIds)
+      : { data: [] as { id: string; nickname: string }[] };
+    const nickById = new Map(((heroes ?? []) as { id: string; nickname: string }[]).map((h) => [h.id, h.nickname]));
+    const items = rows.map((r) => toListItem(r, r.hero_id ? nickById.get(r.hero_id) ?? null : null));
     return Response.json({ books: items, nextOffset: items.length === limit ? offset + limit : null });
   } catch (err) {
     return jsonError(err);

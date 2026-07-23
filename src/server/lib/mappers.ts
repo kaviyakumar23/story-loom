@@ -33,9 +33,12 @@ export interface BookRow {
   /** Present only on the single-book fetch (not the list). */
   render_credits?: number;
   editing_at?: string | null;
+  /** Present on the list fetch (for the bookshelf). */
+  hero_id?: string;
+  series_number?: number | null;
 }
 
-export function toListItem(row: BookRow): BookListItem {
+export function toListItem(row: BookRow, nickname: string | null = null): BookListItem {
   return {
     id: row.id,
     title: row.title,
@@ -43,6 +46,9 @@ export function toListItem(row: BookRow): BookListItem {
     goal: row.goal,
     purchasedTier: row.purchased_tier,
     createdAt: row.created_at,
+    heroId: row.hero_id ?? '',
+    nickname,
+    seriesNumber: row.series_number ?? null,
   };
 }
 
