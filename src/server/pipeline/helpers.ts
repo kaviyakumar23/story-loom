@@ -225,6 +225,14 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
     guard: [ctx.nickname],
   });
 
+  // Moderate every generated reference view BEFORE it is stored (gate #2). The
+  // sheet anchors every page render, so a bad reference must never reach storage
+  // or downstream pages — fail closed to human review, like page renders (§10).
+  for (const img of value.images) {
+    const verdict = await getProviders().moderator.moderateImage({ base64: img.base64, mime: img.mime });
+    if (!verdict.allowed) return routeToReview(ctx.bookId, 'character_sheet', verdict.reasons);
+  }
+
   // Persist reference images to object storage; keep only keys in the DB row
   // (no fat base64 jsonb). Reused to anchor every page — the cached, cheap path.
   const storedImages: StoredReferencePack['images'] = [];

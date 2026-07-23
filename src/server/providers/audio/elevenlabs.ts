@@ -1,5 +1,6 @@
 import { loadEnv } from '../../config/env';
 import { fetchWithTimeout } from '../../lib/http';
+import { assertNoSensitive } from '../../lib/tokenize';
 import type { AudioProvider, AudioResult } from '../types';
 
 /**
@@ -19,6 +20,11 @@ export class ElevenLabsAudioProvider implements AudioProvider {
     if (!env.ELEVENLABS_API_KEY) {
       throw new Error('ELEVENLABS_API_KEY is not configured but an audio tier was purchased');
     }
+    // The narration script is the localized page text — it legitimately contains
+    // the child's spoken nickname, so we do NOT guard on the name here. We DO
+    // fail closed on personal-data patterns (email/phone/URL/long IDs) that
+    // should never appear in a story and must not egress to the voice vendor (§9).
+    assertNoSensitive(script, []);
     const res = await fetchWithTimeout(
       `${ENDPOINT}/${DEFAULT_VOICE_ID}`,
       {

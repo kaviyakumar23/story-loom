@@ -1,6 +1,7 @@
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
 import { sendPreviewWinback } from '../lib/email';
+import { canSendMarketing, unsubscribeUrl } from '../lib/marketing';
 import { serviceClient } from '../lib/supabase';
 import { inngest } from './client';
 
@@ -34,24 +35,36 @@ export const previewWinback = inngest.createFunction(
       return (data ?? []) as { id: string; parent_id: string }[];
     });
 
+    let sent = 0;
     for (const b of targets) {
-      await step.run(`winback-${b.id}`, async () => {
+      // step.run memoizes its return, so accumulate OUTSIDE the step — mutating a
+      // closure variable would reset to 0 on Inngest replay.
+      const didSend = await step.run(`winback-${b.id}`, async () => {
         const db = serviceClient();
-        // Mark sent first (idempotent one-shot) — even if the parent is still
-        // anonymous with no email, we never reconsider this book.
-        await db.from('books').update({ winback_sent_at: new Date().toISOString() }).eq('id', b.id);
         const { data: u } = await db.auth.admin.getUserById(b.parent_id);
         const email = u.user?.email;
-        if (email) {
-          try {
-            await sendPreviewWinback(email, `${env.APP_BASE_URL}/books/${b.id}`);
-            await audit({ actor: 'system', action: 'preview.winback', entity: 'books', entityId: b.id });
-          } catch {
-            // best-effort; the one-shot flag is already set
-          }
+        // Still anonymous (no email): do NOT consume the one-shot — leave the book
+        // eligible so it can be won back if the parent adds an email in-window.
+        if (!email) return false;
+        // Promotional email needs marketing consent (§7). No consent → mark sent
+        // so we stop re-checking daily, but never email.
+        if (!(await canSendMarketing(b.parent_id))) {
+          await db.from('books').update({ winback_sent_at: new Date().toISOString() }).eq('id', b.id);
+          return false;
+        }
+        // Claim the one-shot, THEN send — a lost send beats a double-send.
+        await db.from('books').update({ winback_sent_at: new Date().toISOString() }).eq('id', b.id);
+        try {
+          await sendPreviewWinback(email, `${env.APP_BASE_URL}/books/${b.id}`, unsubscribeUrl(b.parent_id));
+          await audit({ actor: 'system', action: 'preview.winback', entity: 'books', entityId: b.id });
+          return true;
+        } catch {
+          // best-effort; the one-shot flag is already set
+          return false;
         }
       });
+      if (didSend) sent += 1;
     }
-    return { processed: targets.length };
+    return { scanned: targets.length, sent };
   },
 );

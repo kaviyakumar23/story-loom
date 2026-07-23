@@ -12,6 +12,10 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({
   consentVersion: z.string().min(1),
   method: z.enum(['explicit_checkbox', 'adult_payment_signal', 'digilocker']),
+  // Which processing this consent authorizes. Omitted → the DB default
+  // ('book_creation'). A distinct scope (e.g. 'photo_likeness') is granted and
+  // withdrawn independently.
+  scope: z.string().min(1).max(40).optional(),
 });
 
 // ---- POST /api/v1/consent — verifiable parental consent (§9) ----
@@ -21,19 +25,25 @@ export async function POST(req: Request): Promise<Response> {
     const parsed = bodySchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid consent payload', parsed.error.issues);
 
+    // Only reference the `scope` column when a caller explicitly sets one, so
+    // this route works both before and after the scope migration lands; the DB
+    // default fills in 'book_creation' otherwise.
+    const row: Record<string, unknown> = {
+      parent_id: parent.id,
+      method: parsed.data.method,
+      consent_version: parsed.data.consentVersion,
+      ip_country: req.headers.get('x-vercel-ip-country'),
+    };
+    if (parsed.data.scope) row.scope = parsed.data.scope;
+
     const { data, error } = await serviceClient()
       .from('consent_records')
-      .insert({
-        parent_id: parent.id,
-        method: parsed.data.method,
-        consent_version: parsed.data.consentVersion,
-        ip_country: req.headers.get('x-vercel-ip-country'),
-      })
+      .insert(row)
       .select('id')
       .single();
     if (error || !data) throw internal('Could not record consent', error?.message);
 
-    await audit({ actor: 'parent', action: 'consent.recorded', entity: 'consent_records', entityId: data.id, metadata: { method: parsed.data.method, version: parsed.data.consentVersion } });
+    await audit({ actor: 'parent', action: 'consent.recorded', entity: 'consent_records', entityId: data.id, metadata: { method: parsed.data.method, version: parsed.data.consentVersion, scope: parsed.data.scope ?? 'book_creation' } });
     return Response.json({ consentId: data.id } satisfies CreateConsentResponse, { status: 201 });
   } catch (err) {
     return jsonError(err);
@@ -51,18 +61,24 @@ export async function DELETE(req: Request): Promise<Response> {
   try {
     const parent = await requireParent(req);
     const withdrawnAt = new Date().toISOString();
+    // Optional ?scope= withdraws only that scope; no scope → withdraws all live
+    // consents (the easy-as-granting default). Only filter on the column when a
+    // scope is asked for, so this works before the scope migration lands.
+    const scope = new URL(req.url).searchParams.get('scope');
 
-    const { data, error } = await serviceClient()
+    let query = serviceClient()
       .from('consent_records')
       .update({ withdrawn_at: withdrawnAt })
       .eq('parent_id', parent.id)
-      .is('withdrawn_at', null)
-      .select('id');
+      .is('withdrawn_at', null);
+    if (scope) query = query.eq('scope', scope);
+
+    const { data, error } = await query.select('id');
     if (error) throw internal('Could not withdraw consent', error.message);
 
     const ids = (data ?? []).map((row) => (row as { id: string }).id);
     for (const id of ids) {
-      await audit({ actor: 'parent', action: 'consent.withdrawn', entity: 'consent_records', entityId: id });
+      await audit({ actor: 'parent', action: 'consent.withdrawn', entity: 'consent_records', entityId: id, metadata: scope ? { scope } : undefined });
     }
     return Response.json({ withdrawn: ids.length, withdrawnAt });
   } catch (err) {

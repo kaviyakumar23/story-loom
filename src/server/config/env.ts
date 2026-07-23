@@ -31,6 +31,10 @@ const schema = z.object({
   EMAIL_FROM: z.string().default('MoonBell <onboarding@resend.dev>'),
   // Operational alerts (amount mismatches, cost overruns) are emailed here.
   ALERT_EMAIL: z.string().default(''),
+  // HMAC key for one-click unsubscribe links. Optional: when unset we derive a
+  // stable per-deployment key from the service-role key, so unsubscribe works
+  // out of the box without extra config.
+  MARKETING_UNSUBSCRIBE_SECRET: z.string().default(''),
 
   ADMIN_API_SECRET: z.string().default(''),
 

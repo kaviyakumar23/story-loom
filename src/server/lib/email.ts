@@ -19,9 +19,18 @@ function client(): Resend {
   return _client;
 }
 
-async function send(to: string, subject: string, html: string): Promise<void> {
+async function send(
+  to: string,
+  subject: string,
+  html: string,
+  opts?: { listUnsubscribe?: string },
+): Promise<void> {
   const env = loadEnv();
-  const { error } = await client().emails.send({ from: env.EMAIL_FROM, to, subject, html });
+  // RFC 8058 one-click unsubscribe headers — only set for marketing email.
+  const headers = opts?.listUnsubscribe
+    ? { 'List-Unsubscribe': `<${opts.listUnsubscribe}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }
+    : undefined;
+  const { error } = await client().emails.send({ from: env.EMAIL_FROM, to, subject, html, headers });
   if (error) throw new Error(`Email send failed: ${error.message}`);
 }
 
@@ -115,8 +124,16 @@ export async function sendPrintReady(to: string, dashboardUrl: string): Promise<
   );
 }
 
-/** Win-back: an unpurchased preview that's still within the retention window. */
-export async function sendPreviewWinback(to: string, dashboardUrl: string): Promise<void> {
+/**
+ * Win-back: an unpurchased preview that's still within the retention window.
+ * This is promotional, so it carries a one-click unsubscribe link/header and is
+ * only ever sent to a parent who has opted in (see canSendMarketing).
+ */
+export async function sendPreviewWinback(
+  to: string,
+  dashboardUrl: string,
+  unsubscribeUrl: string,
+): Promise<void> {
   await send(
     to,
     'Your storybook preview is still waiting ✨',
@@ -128,7 +145,9 @@ export async function sendPreviewWinback(to: string, dashboardUrl: string): Prom
              <p style="margin:0">Come back to read the full story and turn it into a printed keepsake.
                Your free preview won't be around forever.</p>`,
       cta: { label: 'See your preview', url: dashboardUrl },
+      unsubscribeUrl,
     }),
+    { listUnsubscribe: unsubscribeUrl },
   );
 }
 
@@ -160,9 +179,11 @@ interface LayoutOpts {
   heading: string;
   body: string;
   cta?: { label: string; url: string };
+  /** When set (marketing email only), renders an unsubscribe line in the footer. */
+  unsubscribeUrl?: string;
 }
 
-function layout({ eyebrow, heading, body, cta }: LayoutOpts): string {
+function layout({ eyebrow, heading, body, cta, unsubscribeUrl }: LayoutOpts): string {
   const button = cta
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 4px">
          <tr><td style="border-radius:${RADIUS.pill};background:${COLORS.coral};
@@ -216,7 +237,11 @@ function layout({ eyebrow, heading, body, cta }: LayoutOpts): string {
       <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;margin-top:18px">
         <tr><td style="font-family:${FONTS.sans};font-size:11.5px;color:${COLORS.inkSoft};line-height:1.6;padding:0 8px;">
           You’re receiving this because you created a storybook with MoonBell.<br/>
-          © 2026 MoonBell · Made with care.
+          © 2026 MoonBell · Made with care.${
+            unsubscribeUrl
+              ? `<br/><a href="${escapeAttr(unsubscribeUrl)}" style="color:${COLORS.inkSoft};text-decoration:underline;">Unsubscribe from marketing emails</a>`
+              : ''
+          }
         </td></tr>
       </table>
 

@@ -42,13 +42,15 @@ const createSchema = z.object({
           'Nickname can only use Latin letters and common punctuation for now — we cannot print other scripts in the book yet.',
       }),
     ageBand: z.enum(AGE_BANDS),
+    // Attributes are fixed chips in the UI — pin them server-side too, so the
+    // descriptor that reaches the image model can't carry arbitrary free text.
     avatar: z.object({
-      skinTone: z.string().optional(),
-      hair: z.string().optional(),
-      hairColor: z.string().optional(),
-      eyeColor: z.string().optional(),
+      skinTone: z.enum(['fair', 'light', 'medium', 'tan', 'deep']).optional(),
+      hair: z.enum(['short', 'curly', 'long', 'braids', 'none']).optional(),
+      hairColor: z.string().max(30).optional(),
+      eyeColor: z.string().max(30).optional(),
       glasses: z.boolean().optional(),
-      features: z.array(z.string()).max(20).optional(),
+      features: z.array(z.string().max(40)).max(20).optional(),
     }),
     interests: z.array(z.string().max(40)).max(10),
     // Month only (1–12), never a full DOB — enables birthday nudges (§9 minimisation).
