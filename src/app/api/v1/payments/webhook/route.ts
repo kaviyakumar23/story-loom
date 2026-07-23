@@ -11,6 +11,10 @@ import type { Tier } from '@/server/types/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Small allowance of per-page illustration regenerations, granted once on
+// payment. Text edits are free; only re-rendering an image debits this.
+const POST_PAY_REGEN_CREDITS = 3;
+
 interface RazorpayWebhook {
   event: string;
   payload?: {
@@ -93,7 +97,7 @@ export async function POST(req: Request): Promise<Response> {
       await db.from('orders').update({ status: 'paid' }).eq('id', order.id);
       await db
         .from('books')
-        .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt })
+        .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt, render_credits: POST_PAY_REGEN_CREDITS })
         .eq('id', order.book_id);
       await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
 

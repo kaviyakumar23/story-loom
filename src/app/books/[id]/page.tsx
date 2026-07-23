@@ -113,7 +113,10 @@ export default function BookPage() {
       } else {
         delay = POLL_MS;
         const active =
-          b.status === 'generating' || b.status === 'paid' || (awaitingPayment && b.status === 'preview_ready');
+          b.status === 'generating' ||
+          b.status === 'paid' ||
+          (awaitingPayment && b.status === 'preview_ready') ||
+          b.editing === true; // a page edit is re-assembling — wait for it to finish
         if (!active) return; // terminal state — nothing left to wait for
       }
 
@@ -134,6 +137,13 @@ export default function BookPage() {
   }, [ready, load, awaitingPayment, revisionRequested, pollNonce]);
 
   const retryNow = useCallback(() => setPollNonce((n) => n + 1), []);
+
+  // After a page edit, reload the book and restart polling so the "updating…"
+  // state shows and clears as the re-assembly finishes.
+  const refreshAndPoll = useCallback(async () => {
+    await load();
+    setPollNonce((n) => n + 1);
+  }, [load]);
 
   const previewPanel = () =>
     book && (
@@ -237,7 +247,11 @@ export default function BookPage() {
             preview_ready: () => previewPanel(),
             paid: () => previewPanel(),
             complete: () =>
-              book.pdfUrl ? <Delivered book={book} onEvent={trackEvent} /> : <DeliveredPending onRetry={retryNow} />,
+              book.pdfUrl ? (
+                <Delivered book={book} onEvent={trackEvent} onEdited={refreshAndPoll} />
+              ) : (
+                <DeliveredPending onRetry={retryNow} />
+              ),
           })}
       </div>
     </div>
@@ -319,7 +333,10 @@ function Preview({ book, tier, setTier, address, setAddress, onBuy, onSave, onEv
   paymentsEnabled: boolean;
   isAnon: boolean;
 }) {
-  const pages = book.preview?.pages ?? [];
+  // Show the WHOLE story in preview — every page's text exists at preview_ready;
+  // illustrated pages carry an image, the rest show a "painted after you order"
+  // placeholder. Falls back to the rendered-only preview if fullStory is absent.
+  const pages = book.fullStory?.pages ?? book.preview?.pages ?? [];
   const [page, setPage] = useState(0);
   const [saveEmail, setSaveEmail] = useState('');
   const [saving, setSaving] = useState(false);
@@ -348,7 +365,11 @@ function Preview({ book, tier, setTier, address, setAddress, onBuy, onSave, onEv
               // eslint-disable-next-line @next/next/no-img-element
               <img src={current.imageUrl} alt={`Page ${current.pageIndex + 1}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '70%', objectFit: 'cover' }} />
             ) : (
-              <div className="ph" style={{ position: 'absolute', inset: 0, height: '70%', borderRadius: 0 }} />
+              <div className="ph" style={{ position: 'absolute', inset: 0, height: '70%', borderRadius: 0, display: 'grid', placeItems: 'center' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)', background: 'var(--surface)', padding: '5px 12px', borderRadius: 999, opacity: 0.92 }}>
+                  <Sparkle size={12} /> Illustrated when you order
+                </span>
+              </div>
             )}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '18px 22px', background: 'var(--surface)', minHeight: '30%' }}>
               <p style={{ fontSize: 17, lineHeight: 1.5 }}>{current?.text}</p>
@@ -720,33 +741,182 @@ function AlphaFeedback({ bookId }: { bookId: string }) {
   );
 }
 
-function Delivered({ book, onEvent }: { book: Book; onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void> }) {
+function Delivered({ book, onEvent, onEdited }: { book: Book; onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>; onEdited: () => Promise<void> }) {
   return (
-    <div style={{ maxWidth: 560, margin: '20px auto', textAlign: 'center' }}>
-      <div style={{ width: 84, height: 84, borderRadius: '50%', background: 'var(--soft-2)', margin: '0 auto 22px', display: 'grid', placeItems: 'center', animation: 'floaty 3s ease-in-out infinite' }}>
-        <Icon name="check" size={42} stroke="var(--success)" sw={2.4} />
+    <div style={{ maxWidth: 560, margin: '20px auto' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 84, height: 84, borderRadius: '50%', background: 'var(--soft-2)', margin: '0 auto 22px', display: 'grid', placeItems: 'center', animation: 'floaty 3s ease-in-out infinite' }}>
+          <Icon name="check" size={42} stroke="var(--success)" sw={2.4} />
+        </div>
+        <h1 className="display" style={{ fontSize: 38, marginBottom: 10 }}>{book.title ?? 'Your book'} is ready!</h1>
+        <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 22px' }}>Your digital copy is below — we’ve also emailed you the link.</p>
+        {book.fulfillment && <PrintStatus f={book.fulfillment} />}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360, margin: '0 auto' }}>
+          {book.pdfUrl && (
+            <a className="btn btn-primary btn-block" href={book.pdfUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_pdf_clicked')}>
+              <Icon name="download" size={18} stroke="var(--accent-ink)" /> Download the PDF
+            </a>
+          )}
+          {book.audioUrl && (
+            <a className="btn btn-brand btn-block" href={book.audioUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_audio_clicked')}>
+              <Icon name="book" size={18} stroke="#fff" /> Listen to the narration
+            </a>
+          )}
+          <Link className="btn btn-brand btn-block" href={`/create?from=${book.id}`}>
+            <Icon name="book" size={18} stroke="#fff" /> Another adventure for them
+          </Link>
+          <Link className="btn btn-ghost btn-block" href="/books">My books</Link>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
       </div>
-      <h1 className="display" style={{ fontSize: 38, marginBottom: 10 }}>{book.title ?? 'Your book'} is ready!</h1>
-      <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 22px' }}>Download it below — we’ve also emailed you the link.</p>
-      {book.fulfillment && <PrintStatus f={book.fulfillment} />}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360, margin: '0 auto' }}>
-        {book.pdfUrl && (
-          <a className="btn btn-primary btn-block" href={book.pdfUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_pdf_clicked')}>
-            <Icon name="download" size={18} stroke="var(--accent-ink)" /> Download the PDF
-          </a>
-        )}
-        {book.audioUrl && (
-          <a className="btn btn-brand btn-block" href={book.audioUrl} target="_blank" rel="noopener noreferrer" onClick={() => void onEvent('download_audio_clicked')}>
-            <Icon name="book" size={18} stroke="#fff" /> Listen to the narration
-          </a>
-        )}
-        <Link className="btn btn-brand btn-block" href={`/create?from=${book.id}`}>
-          <Icon name="book" size={18} stroke="#fff" /> Another adventure for them
-        </Link>
-        <Link className="btn btn-ghost btn-block" href="/books">My books</Link>
-      </div>
-      <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
+
+      <EditBook book={book} onEdited={onEdited} />
     </div>
+  );
+}
+
+/**
+ * Post-purchase page editing (§ preview-and-edit). Text edits are free; each
+ * illustration re-render spends one of the book's render credits (refunded if
+ * moderation blocks it). The window is open until the founder starts printing
+ * a physical order — `book.canEdit` reflects that.
+ */
+function EditBook({ book, onEdited }: { book: Book; onEdited: () => Promise<void> }) {
+  const pages = book.fullStory?.pages ?? [];
+  const [sel, setSel] = useState(0);
+  const [draft, setDraft] = useState('');
+  const [editingText, setEditingText] = useState(false);
+  const [instruction, setInstruction] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const creditsAtRegen = useRef<number | null>(null);
+
+  const isEditing = book.editing === true;
+  const credits = book.renderCredits ?? 0;
+  const page = pages[Math.min(sel, Math.max(0, pages.length - 1))];
+
+  // When a re-assembly finishes after a regen, a credit count that didn't drop
+  // means moderation blocked the render and refunded us — tell the parent.
+  useEffect(() => {
+    if (!isEditing && creditsAtRegen.current !== null) {
+      if (credits >= creditsAtRegen.current) {
+        setNotice('We couldn’t safely regenerate that illustration, so your credit was returned. Try a gentler note.');
+      }
+      creditsAtRegen.current = null;
+    }
+  }, [isEditing, credits]);
+
+  if (!pages.length) return null;
+
+  if (!book.canEdit) {
+    return (
+      <section style={{ marginTop: 28, paddingTop: 22, borderTop: '2px solid var(--hairline)', textAlign: 'center' }}>
+        <p className="trust" style={{ justifyContent: 'center', color: 'var(--ink-soft)' }}>
+          <Icon name="lock" size={15} stroke="var(--brand)" /> Changes are closed now that your printed book is on its way.
+        </p>
+      </section>
+    );
+  }
+
+  const move = (next: number) => {
+    setSel(Math.max(0, Math.min(pages.length - 1, next)));
+    setEditingText(false);
+    setErr(null);
+    setNotice(null);
+  };
+
+  async function saveText() {
+    setBusy(true);
+    setErr(null);
+    setNotice(null);
+    try {
+      await api(`/books/${book.id}/pages/${page.pageIndex}`, { method: 'PATCH', body: { text: draft.trim() } });
+      setEditingText(false);
+      await onEdited();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Could not save the change.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regen() {
+    setBusy(true);
+    setErr(null);
+    setNotice(null);
+    creditsAtRegen.current = credits;
+    try {
+      await api(`/books/${book.id}/pages/${page.pageIndex}/regenerate`, {
+        method: 'POST',
+        body: { instruction: instruction.trim() || undefined },
+      });
+      setInstruction('');
+      await onEdited();
+    } catch (e) {
+      creditsAtRegen.current = null;
+      setErr(e instanceof ApiError ? e.message : 'Could not regenerate this illustration.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 28, paddingTop: 22, borderTop: '2px solid var(--hairline)' }}>
+      <h2 className="display" style={{ fontSize: 24, marginBottom: 4 }}>Make a change before we print</h2>
+      <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 16 }}>
+        Fix a word or re-imagine a picture. Text edits are free; illustration re-renders use your{' '}
+        <strong style={{ color: 'var(--ink)' }}>{credits}</strong> included {credits === 1 ? 'redo' : 'redos'}.
+      </p>
+
+      <div className="card" style={{ padding: 16, position: 'relative' }}>
+        {isEditing && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,.72)', borderRadius: 'var(--r-lg)', display: 'grid', placeItems: 'center', zIndex: 2 }}>
+            <span className="trust"><span className="spinner spinner-brand" /> Updating your book…</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => move(sel - 1)} disabled={sel === 0 || busy || isEditing}><Icon name="arrowL" size={16} stroke="var(--brand)" /></button>
+          <span style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>Page {Math.min(sel, pages.length - 1) + 1} / {pages.length}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => move(sel + 1)} disabled={sel >= pages.length - 1 || busy || isEditing}><Icon name="arrow" size={16} stroke="var(--brand)" /></button>
+        </div>
+
+        {page.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={page.imageUrl} alt={`Page ${page.pageIndex + 1}`} style={{ width: '100%', borderRadius: 'var(--r)', aspectRatio: '1', objectFit: 'cover', marginBottom: 12 }} />
+        )}
+
+        {editingText ? (
+          <>
+            <textarea className="input" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={800} rows={4} style={{ resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button className="btn btn-brand btn-block" onClick={saveText} disabled={busy || !draft.trim() || draft.trim() === page.text}>
+                {busy ? <span className="spinner" /> : 'Save text'}
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={() => setEditingText(false)} disabled={busy}>Cancel</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 16, lineHeight: 1.55, marginBottom: 12 }}>{page.text}</p>
+            <button className="btn btn-ghost btn-block" onClick={() => { setDraft(page.text); setEditingText(true); setErr(null); setNotice(null); }} disabled={isEditing}>
+              <Icon name="book" size={16} stroke="var(--brand)" /> Edit this page’s words
+            </button>
+          </>
+        )}
+
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--hairline)' }}>
+          <input className="input" value={instruction} onChange={(e) => setInstruction(e.target.value)} maxLength={200} placeholder="Optional: e.g. “make it night-time”" style={{ marginBottom: 10 }} aria-label="Optional note for the new illustration" />
+          <button className="btn btn-brand btn-block" onClick={regen} disabled={busy || isEditing || credits <= 0}>
+            {busy ? <span className="spinner" /> : <><Sparkle size={16} color="#fff" /> {credits > 0 ? `Re-illustrate this page (${credits} left)` : 'No redos left'}</>}
+          </button>
+        </div>
+
+        {notice && <p style={{ color: 'var(--ink)', background: 'var(--brand-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginTop: 12 }}>{notice}</p>}
+        {err && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 12 }}>{err}</p>}
+      </div>
+    </section>
   );
 }
 

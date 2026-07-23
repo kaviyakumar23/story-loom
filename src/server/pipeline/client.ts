@@ -16,6 +16,7 @@ export const inngest = new Inngest({
 export const EVENTS = {
   previewRequested: 'book/preview.requested',
   fulfillmentRequested: 'book/fulfillment.requested',
+  editApplied: 'book/edit.applied',
 } as const;
 
 export interface PreviewRequested {
@@ -23,4 +24,7 @@ export interface PreviewRequested {
 }
 export interface FulfillmentRequested {
   data: { bookId: string; correlationId?: string };
+}
+export interface EditApplied {
+  data: { bookId: string; pageIndex: number; mode: 'text' | 'image'; instruction?: string | null };
 }

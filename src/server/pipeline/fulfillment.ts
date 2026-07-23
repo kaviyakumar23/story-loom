@@ -115,7 +115,7 @@ async function renderRemainingPage(ctx: BookContext, page: PendingPage): Promise
   });
 }
 
-async function assemble(ctx: BookContext): Promise<void> {
+export async function assemble(ctx: BookContext): Promise<void> {
   const db = serviceClient();
 
   const [{ data: book }, { data: pageRows }, { data: assetRows }] = await Promise.all([
@@ -166,7 +166,7 @@ async function assemble(ctx: BookContext): Promise<void> {
   await recordEvent({ bookId: ctx.bookId, stage: 'assemble', status: 'ok' });
 }
 
-async function synthesizeAudio(ctx: BookContext): Promise<void> {
+export async function synthesizeAudio(ctx: BookContext): Promise<void> {
   const script = await buildScript(ctx.bookId);
   const audio = await getProviders().audio.synthesize(script);
   const key = `books/${ctx.bookId}/audio.mp3`;

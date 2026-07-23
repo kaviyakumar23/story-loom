@@ -152,6 +152,15 @@ export interface Book {
   audioUrl?: string | null;
   /** Print fulfilment status, present for a paid physical order. */
   fulfillment?: FulfillmentStatus | null;
+  /** True while a page edit is being applied (PDF re-assembly in flight). */
+  editing?: boolean;
+  /** Remaining per-page image regenerations for this purchased book. */
+  renderCredits?: number;
+  /**
+   * Whether the parent can still edit pages: the book is complete and, if it's a
+   * physical order, printing hasn't started yet.
+   */
+  canEdit?: boolean;
   error?: { code: string; message: string } | null;
 }
 

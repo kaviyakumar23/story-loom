@@ -30,6 +30,9 @@ export interface BookRow {
   error: { code: string; message: string } | null;
   created_at: string;
   updated_at: string;
+  /** Present only on the single-book fetch (not the list). */
+  render_credits?: number;
+  editing_at?: string | null;
 }
 
 export function toListItem(row: BookRow): BookListItem {
@@ -89,6 +92,14 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
     book.pdfUrl = assets.pdf ? await signAsset(assets.pdf) : null;
     book.audioUrl = assets.audio ? await signAsset(assets.audio) : null;
     book.fulfillment = await loadFulfillment(row.id);
+    // Treat a very old editing flag as cleared, so a dropped re-assembly job
+    // can't strand the reader on an "updating…" spinner forever.
+    book.editing = row.editing_at != null && Date.now() - Date.parse(row.editing_at) < 10 * 60_000;
+    book.renderCredits = row.render_credits ?? 0;
+    // The edit window is open once the book is complete and, for a physical
+    // order, until the founder starts printing it.
+    book.canEdit =
+      row.status === 'complete' && (book.fulfillment == null || book.fulfillment.status === 'print_ready');
   }
 
   return book;

@@ -91,6 +91,12 @@ export interface Book {
   pdfUrl?: string | null;
   audioUrl?: string | null;
   fulfillment?: FulfillmentStatus | null;
+  /** True while a page edit is being applied. */
+  editing?: boolean;
+  /** Remaining per-page image regenerations. */
+  renderCredits?: number;
+  /** Whether pages can still be edited (complete + printing not started). */
+  canEdit?: boolean;
   error?: { code: string; message: string } | null;
 }
 export interface BookListItem {
