@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "migrate": "node --experimental-strip-types --input-type=module -e \"import('./src/server/db/migrate.ts')\"",
-    "test": "npm run typecheck && vitest run"
+    "test": "npm run typecheck && vitest run",
+    "rls-check": "node scripts/rls-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
