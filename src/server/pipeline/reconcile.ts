@@ -11,10 +11,17 @@ import { EVENTS, inngest } from './client';
  * that's been stuck longer than the grace window. Fulfillment is idempotent, so
  * re-enqueuing a book that's actually mid-run is harmless.
  *
+ * A per-book LEASE stops us re-enqueuing the same stuck book on every 15-min
+ * cron: once picked, a book is leased for LEASE_MINUTES and skipped until it
+ * expires. So a genuinely failing book is retried at most once per lease window,
+ * not four times an hour (per-book concurrency:1 is still the real double-run
+ * guard; this just avoids pointless churn).
+ *
  * `failed` books are intentionally NOT retried here — those are moderation
  * blocks awaiting human review (§10).
  */
 const STUCK_AFTER_MINUTES = 15;
+const LEASE_MINUTES = 30;
 
 export const reconcilePaidBooks = inngest.createFunction(
   {
@@ -24,14 +31,22 @@ export const reconcilePaidBooks = inngest.createFunction(
   },
   async ({ step }) => {
     const stuck = await step.run('find-stuck', async () => {
-      const cutoff = new Date(Date.now() - STUCK_AFTER_MINUTES * 60_000).toISOString();
-      const { data } = await serviceClient()
+      const now = Date.now();
+      const cutoff = new Date(now - STUCK_AFTER_MINUTES * 60_000).toISOString();
+      const leaseCutoff = new Date(now - LEASE_MINUTES * 60_000).toISOString();
+      const db = serviceClient();
+      const { data } = await db
         .from('books')
         .select('id')
         .eq('status', 'paid')
         .lt('updated_at', cutoff)
+        // Skip books leased by a recent reconcile run (null lease = never leased).
+        .or(`reconcile_leased_at.is.null,reconcile_leased_at.lt.${leaseCutoff}`)
         .limit(100);
-      return ((data ?? []) as { id: string }[]).map((b) => b.id);
+      const ids = ((data ?? []) as { id: string }[]).map((b) => b.id);
+      // Take the lease before enqueuing, so a concurrent/next cron won't re-pick.
+      if (ids.length) await db.from('books').update({ reconcile_leased_at: new Date(now).toISOString() }).in('id', ids);
+      return ids;
     });
 
     // Evaluate operational alerts on the same cadence (§12).
