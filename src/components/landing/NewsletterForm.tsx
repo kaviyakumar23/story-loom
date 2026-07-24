@@ -10,6 +10,7 @@ export function NewsletterForm({ variant = 'light', source }: { variant?: 'light
   const [email, setEmail] = useState('');
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
 
   if (done) {
     return <p className={`news-done news-${variant}`}>Thanks — we’ll let you know the moment it’s ready. ✦</p>;
@@ -21,13 +22,17 @@ export function NewsletterForm({ variant = 'light', source }: { variant?: 'light
         e.preventDefault();
         if (!email.trim() || busy) return;
         setBusy(true);
+        setError(false);
         try {
-          await fetch('/api/v1/newsletter', {
+          const res = await fetch('/api/v1/newsletter', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ email: email.trim(), source }),
           });
-          setDone(true); // treat as success even if offline — we don't block the parent
+          if (res.ok) setDone(true);
+          else setError(true);
+        } catch {
+          setError(true);
         } finally {
           setBusy(false);
         }
@@ -41,10 +46,12 @@ export function NewsletterForm({ variant = 'light', source }: { variant?: 'light
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         aria-label="Email address"
+        aria-invalid={error}
       />
       <button className="news-btn" type="submit" aria-label="Notify me" disabled={busy}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
+      {error && <p className="news-error" role="alert">Couldn’t save that just now — please try again.</p>}
     </form>
   );
 }

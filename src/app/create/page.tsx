@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/chrome';
+import { NewsletterForm } from '@/components/landing/NewsletterForm';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useEnsureSession } from '@/lib/auth';
@@ -395,10 +396,18 @@ export default function Create() {
                 {accessBusy ? <span className="spinner" /> : <><Icon name="check" size={18} stroke="var(--accent-ink)" /> Unlock preview builder</>}
               </button>
             </form>
-            {accessError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 14 }}>{accessError}</p>}
+            {accessError && <p style={{ color: '#C2410C', fontSize: 13.5, marginTop: 14 }}>{accessError}</p>}
             <p className="trust" style={{ marginTop: 18 }}>
               <Icon name="shield" size={15} stroke="var(--brand)" /> Children never sign in; parents stay in control.
             </p>
+
+            <div style={{ borderTop: '1px solid var(--hairline)', margin: '22px 0 0', paddingTop: 20 }}>
+              <p style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>No code yet?</p>
+              <p style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+                Leave your email and we’ll send you an invite as soon as a spot opens.
+              </p>
+              <NewsletterForm source="beta-wall" />
+            </div>
           </div>
         </div>
       </div>

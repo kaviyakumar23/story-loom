@@ -7,10 +7,6 @@ import { NewsletterForm } from './landing/NewsletterForm';
 import { Logo } from './logo';
 import { Icon } from './ui';
 
-function ChevronDown() {
-  return <svg className="nav-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>;
-}
-
 export function Header({ minimal }: { minimal?: boolean }) {
   const { session } = useAuth();
   return (
@@ -27,9 +23,9 @@ export function Header({ minimal }: { minimal?: boolean }) {
         ) : (
           <nav className="web-nav">
             <Link href="/#how" className="hide-mobile">How it works</Link>
-            <Link href="/#sample" className="hide-mobile">Books</Link>
-            <Link href="/#range" className="hide-mobile nav-caret">Keepsakes<ChevronDown /></Link>
-            <Link href="/#range" className="hide-mobile nav-caret">Gifts<ChevronDown /></Link>
+            <Link href="/#sample" className="hide-mobile">Sample</Link>
+            <Link href="/#pricing" className="hide-mobile">The book</Link>
+            <Link href="/#faq" className="hide-mobile">FAQ</Link>
             <Link href="/#trust" className="hide-mobile">About us</Link>
             <span className="nav-icons">
               <Link href={session ? '/account' : '/signin'} aria-label={session ? 'Account' : 'Sign in'} className="nav-ic">
@@ -46,13 +42,6 @@ export function Header({ minimal }: { minimal?: boolean }) {
     </header>
   );
 }
-
-const SOCIALS: { label: string; d: string }[] = [
-  { label: 'Instagram', d: 'M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm5 5.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM17.5 6.5h.01' },
-  { label: 'Facebook', d: 'M14 8h2V5h-2a3 3 0 0 0-3 3v2H9v3h2v6h3v-6h2.5l.5-3H14V8Z' },
-  { label: 'YouTube', d: 'M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v7A2.5 2.5 0 0 1 18.5 18h-13A2.5 2.5 0 0 1 3 15.5v-7ZM10.5 9.5v5l4-2.5-4-2.5Z' },
-  { label: 'Pinterest', d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.7s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.4 0 .8-.5 2-.8 3.2-.2.9.5 1.7 1.4 1.7 1.7 0 2.9-2.2 2.9-4.7 0-2-1.3-3.4-3.7-3.4a4.2 4.2 0 0 0-4.4 4.2c0 .8.3 1.4.6 1.8.1.2.2.3.1.5l-.2.9c-.1.3-.3.4-.5.2-1.1-.5-1.6-1.8-1.6-3.3 0-2.5 2.1-5.4 6.2-5.4 3.4 0 5.6 2.4 5.6 5 0 3.4-1.9 6-4.7 6-1 0-1.9-.5-2.2-1.1l-.6 2.3c-.2.7-.6 1.5-1 2.1A9 9 0 1 0 12 3Z' },
-];
 
 export function Footer() {
   const cols: { h: string; items: { label: string; href: string }[] }[] = [
@@ -83,14 +72,8 @@ export function Footer() {
           <p style={{ fontSize: 14, lineHeight: 1.6, color: '#C9C7EA', maxWidth: 260, marginTop: 12 }}>
             Personalised printed storybooks that celebrate who they are.
           </p>
-          {/* Social links are placeholders — set real URLs when accounts exist. */}
-          <div className="foot-social">
-            {SOCIALS.map((s) => (
-              <a key={s.label} href="#" aria-label={s.label} className="foot-social-btn">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={s.d} /></svg>
-              </a>
-            ))}
-          </div>
+          {/* Social icons intentionally omitted until real accounts exist —
+              placeholder href="#" links read as broken/dishonest. */}
         </div>
         {cols.map((c) => (
           <div key={c.h}>

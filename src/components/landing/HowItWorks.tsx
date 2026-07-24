@@ -6,7 +6,7 @@ const STEPS: { t: string; d: string; c: string; icon: ReactNode }[] = [
   { t: 'Meet their character', d: 'See your child illustrated as the hero — free, before you pay.', c: 'var(--coral)', icon: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.6-3.3 3.2-5.2 6.5-5.2S17.9 15.7 18.5 19" /></> },
   { t: 'We create the story', d: 'Guided AI writes and illustrates a story made just for them.', c: 'var(--gold)', icon: <><path d="M5 12h5M12 5v5" /><path d="M15 15l5 5M17 13l4-4-2-2-4 4Z" /></> },
   { t: 'Review & revise', d: 'Read the preview and ask for a change if it isn’t quite right.', c: 'var(--sky)', icon: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></> },
-  { t: 'Download the PDF', d: 'Get the full 16–20 page book — reread it, or print at home.', c: 'var(--brand)', icon: <><path d="M12 4v10M8 10l4 4 4-4" /><path d="M5 19h14" /></> },
+  { t: 'We print & ship your hardcover', d: 'Dispatched in about 7 days — with the digital PDF to read tonight.', c: 'var(--brand)', icon: <><path d="M5 4h11a2 2 0 0 1 2 2v14l-6-2.5L6 20V6a2 2 0 0 1 2-2Z" /><path d="M9 8h6" /></> },
 ];
 
 export function HowItWorks() {

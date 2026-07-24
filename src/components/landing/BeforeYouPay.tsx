@@ -4,20 +4,20 @@ import { Inscription } from './Inscription';
 
 /**
  * "What happens before you pay" — removes payment anxiety by spelling out
- * exactly what the free preview includes and what the ₹299 unlocks, so a parent
+ * exactly what the free preview includes and what paying unlocks, so a parent
  * never wonders whether card details are needed up front (they aren't).
  */
 const BEFORE = [
   'Your child illustrated as the hero, on the cover',
-  'The opening pages of their personalised story',
+  'The full story text and opening illustrations',
   'No card or UPI details needed to preview',
-  'Not quite right? Tweak the details and regenerate',
+  'One free tweak — change the details, we regenerate',
 ];
 const AFTER = [
   `Pay ${BRAND.product.priceLabel} — only if you love it`,
-  'The instant digital PDF, ready right away',
-  'Your printed hardcover, shipped in ~7 days',
-  'One free revision to a story or illustration',
+  'The digital PDF, ready within the hour',
+  'Your printed hardcover, dispatched in ~7 days',
+  'Edit any page’s words free, until we start printing',
 ];
 
 function Check() {

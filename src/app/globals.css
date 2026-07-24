@@ -3,7 +3,9 @@
    handoff styles.css). Warm, painted, playful.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Caveat:wght@500;600;700&display=swap');
+/* Fonts are self-hosted via next/font in src/app/layout.tsx, which defines
+   --font-display / --font-sans / --font-hand on <html>. No external @import —
+   that was render-blocking and blanked the hero on slow connections. */
 
 /* ---- MoonBell palette (Moon Indigo · Bell Gold · Story Coral on Paper Cream).
    Semantic var NAMES are unchanged from the old cream/berry system so the whole
@@ -30,8 +32,10 @@
   --brand-deep: var(--plum);
   --brand-tint: #EFEEFF; /* Moon Mist */
 
-  --accent:      var(--coral);
-  --accent-deep: var(--coral-deep);
+  /* Action colour — a deeper coral than the decorative --coral so white text
+     passes WCAG AA (#C9432F on white ≈ 4.9:1; the old #FF7C70 was ≈ 2.5:1). */
+  --accent:      #C9432F;
+  --accent-deep: #96311F;
   --accent-ink:  #FFFFFF;
 
   --soft-blush:  #FFE3DE;
@@ -46,10 +50,10 @@
   --success: #3E9B5F;
   --error:   #E4572E;
 
-  --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: var(--font-display), Georgia, 'Times New Roman', serif;
+  --sans: var(--font-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* Handwriting — decorative inscriptions ONLY, never body/forms/a11y text. */
-  --hand: 'Caveat', 'Segoe Script', cursive;
+  --hand: var(--font-hand), 'Segoe Script', cursive;
   --ink-line: #2b2769;
 
   --r-sm: 12px;
@@ -98,16 +102,16 @@ p { margin: 0; }
 }
 .btn-block { width: 100%; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 5px 0 var(--coral-deep); }
-.btn-primary:not(:disabled):hover { background: #F2784F; }
-.btn-primary:not(:disabled):active { transform: translateY(4px); box-shadow: 0 1px 0 var(--coral-deep); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 5px 0 var(--accent-deep); }
+.btn-primary:not(:disabled):hover { background: #B93B28; }
+.btn-primary:not(:disabled):active { transform: translateY(4px); box-shadow: 0 1px 0 var(--accent-deep); }
 .btn-ghost { background: var(--surface); color: var(--brand); box-shadow: 0 4px 0 var(--hairline); border: 2px solid var(--hairline); }
 .btn-ghost:not(:disabled):hover { border-color: var(--brand); }
 .btn-ghost:not(:disabled):active { transform: translateY(3px); box-shadow: 0 1px 0 var(--hairline); }
 .btn-brand { background: var(--brand); color: #fff; box-shadow: 0 5px 0 var(--plum); }
 .btn-brand:not(:disabled):hover { background: #aa477a; }
 .btn-brand:not(:disabled):active { transform: translateY(4px); box-shadow: 0 1px 0 var(--plum); }
-.btn-sm { padding: 11px 18px; font-size: 14.5px; box-shadow: 0 4px 0 var(--coral-deep); }
+.btn-sm { padding: 11px 18px; font-size: 14.5px; box-shadow: 0 4px 0 var(--accent-deep); }
 .btn-ghost.btn-sm { box-shadow: 0 4px 0 var(--hairline); }
 
 /* Cards */
@@ -160,7 +164,20 @@ p { margin: 0; }
 @keyframes floaty { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-7px);} }
 @keyframes fadeUp { from{ opacity:0; transform: translateY(16px);} to{ opacity:1; transform:none;} }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  /* Loading spinners convey essential state, not decoration — keep them
+     moving (slower) or a stuck spinner reads as a frozen page. */
+  .spinner { animation: spin 1.4s linear infinite !important; }
+}
+
+/* Skip link — visually hidden until keyboard focus. */
+.skip-link {
+  position: absolute; left: -9999px; top: 12px; z-index: 100;
+  background: var(--surface); color: var(--ink); font-weight: 700; font-size: 14px;
+  padding: 10px 16px; border-radius: var(--r-sm); box-shadow: var(--shadow);
+}
+.skip-link:focus { left: 12px; }
 
 /* ============================================================
    WEB LAYOUT
@@ -181,8 +198,6 @@ p { margin: 0; }
 .web-nav { display: flex; align-items: center; gap: 26px; }
 .web-nav a { color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600; white-space: nowrap; font-family: var(--sans); }
 .web-nav a:hover { color: var(--brand); }
-.nav-caret { display: inline-flex; align-items: center; gap: 4px; }
-.nav-chev { opacity: .55; margin-top: 1px; }
 .nav-icons { display: flex; align-items: center; gap: 6px; margin-left: 2px; }
 .nav-ic { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--ink); transition: background .15s; }
 .nav-ic:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
@@ -522,11 +537,13 @@ p { margin: 0; }
 }
 .hero-body { position: relative; z-index: 2; min-height: calc(100vh - 70px); display: flex; align-items: center; padding-top: 24px; padding-bottom: 172px; }
 .hero-copy { max-width: 460px; }
-.hero-eyebrow { font-family: var(--sans); font-size: 12.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #DDA23A; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+/* Gold-brown, not raw Bell Gold — #8F6112 on cream ≈ 5.2:1 (AA); #DDA23A was ≈ 2.2:1. */
+.hero-eyebrow { font-family: var(--sans); font-size: 12.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #8F6112; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .hero-spark { color: var(--gold); font-size: 16px; }
 .hero-title { font-family: var(--display); font-weight: 800; font-size: clamp(42px, 5.6vw, 66px); line-height: 1; color: var(--brand-deep); letter-spacing: -.01em; }
 .hero-sub { font-size: 16.5px; line-height: 1.58; color: var(--ink-soft); margin: 20px 0 14px; max-width: 410px; }
-.hero-spec { font-size: 13.5px; line-height: 1.5; color: var(--ink); font-weight: 600; max-width: 400px; margin-bottom: 24px; }
+.hero-spec { font-size: 15px; line-height: 1.5; color: var(--ink); font-weight: 700; max-width: 420px; margin-bottom: 20px; }
+.hero-beta { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 800; color: var(--brand); background: var(--brand-tint); border: 1.5px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: var(--r-pill); padding: 6px 13px; margin-bottom: 18px; }
 .hero-ctas { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .hero-cta { padding: 15px 28px; font-size: 16px; gap: 10px; }
 .hero-cta-spark { color: var(--gold); font-size: 15px; }
@@ -648,7 +665,11 @@ p { margin: 0; }
 @media (max-width: 560px) { .range-grid { grid-template-columns: 1fr 1fr; } }
 
 /* Newsletter form */
-.news { display: flex; gap: 8px; }
+.news { display: flex; flex-wrap: wrap; gap: 8px; }
+/* #C2410C (not raw --error #E4572E) clears WCAG AA for normal text on both
+   white and cream — 5.18:1 / 4.95:1. The dark variant sits on the footer indigo. */
+.news-error { flex-basis: 100%; margin: 2px 2px 0; font-size: 13px; font-weight: 600; color: #C2410C; }
+.news-dark .news-error { color: #FFC9B8; }
 .news-input { flex: 1; min-width: 0; padding: 12px 15px; font-size: 15px; font-family: var(--sans); border: 1.5px solid var(--hairline); border-radius: var(--r-sm); background: #fff; color: var(--ink); outline: none; }
 .news-input:focus { border-color: var(--brand); }
 .news-btn { flex-shrink: 0; width: 46px; border-radius: var(--r-sm); border: none; background: var(--brand); color: #fff; cursor: pointer; display: grid; place-items: center; }
@@ -662,9 +683,6 @@ p { margin: 0; }
 /* Footer */
 .foot-grid { display: grid; grid-template-columns: 1.6fr .9fr 1.1fr .9fr 1.4fr; gap: 36px; padding: 56px 40px 30px; }
 .foot-h { font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; color: #A9A6D9; margin-bottom: 14px; font-weight: 800; }
-.foot-social { display: flex; gap: 10px; margin-top: 18px; }
-.foot-social-btn { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .22); color: #EAE8FB; display: grid; place-items: center; }
-.foot-social-btn:hover { background: rgba(255, 255, 255, .1); }
 @media (max-width: 900px) {
   .foot-grid { grid-template-columns: 1fr 1fr; gap: 30px 24px; padding: 44px 22px 26px; }
   .foot-brand, .foot-news { grid-column: 1 / -1; }

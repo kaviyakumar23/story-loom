@@ -10,7 +10,10 @@ export function FinalCta() {
         <div className="finalcta">
           <div className="finalcta-copy">
             <h2 className="display">Ready to start their story?</h2>
-            <p>Create a personalised storybook that becomes a part of their world.</p>
+            <p>
+              A {BRAND.product.priceLabel} printed hardcover starring your child — see the free
+              preview first, pay only if you love it.
+            </p>
             <Link href="/create" className="btn finalcta-btn">
               {BRAND.hero.primaryCta}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M5 12h13M13 6l6 6-6 6" stroke="var(--ink-line)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>

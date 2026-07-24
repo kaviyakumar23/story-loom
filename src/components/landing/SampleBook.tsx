@@ -58,7 +58,7 @@ export function SampleBook() {
 
   return (
     <div className="sb">
-      <div className="sb-meta" aria-hidden>
+      <div className="sb-meta">
         {META.map((m) => (
           <span key={m.k} className="sb-meta-item"><strong>{m.k}</strong>{m.v}</span>
         ))}
@@ -94,7 +94,7 @@ export function SampleBook() {
               </div>
             ) : (
               <>
-                <Image src={page.src} alt={page.alt} fill sizes="(max-width: 860px) 94vw, 720px" style={{ objectFit: 'cover' }} priority={i === 0} />
+                <Image src={page.src} alt={page.alt} fill sizes="(max-width: 860px) 94vw, 720px" style={{ objectFit: 'cover' }} />
                 {page.kind === 'cover' ? (
                   <div className="sb-cover-plate">
                     <span className="sb-cover-kicker">A MoonBell sample story</span>
@@ -112,12 +112,12 @@ export function SampleBook() {
       </div>
 
       <div className="sb-controls">
-        <div className="sb-dots" role="tablist" aria-label="Jump to page">
+        <div className="sb-dots" role="group" aria-label="Jump to page">
           {PAGES.map((p, k) => (
-            <button key={k} className={`sb-dot${k === i ? ' on' : ''}`} onClick={() => setI(k)} aria-label={`Go to ${p.label}`} aria-selected={k === i} role="tab" />
+            <button key={k} className={`sb-dot${k === i ? ' on' : ''}`} onClick={() => setI(k)} aria-label={`Go to ${p.label}`} aria-current={k === i ? 'true' : undefined} />
           ))}
         </div>
-        <span className="sb-counter">{page.label} · {i + 1} / {PAGES.length}</span>
+        <span className="sb-counter" aria-live="polite">{page.label} · {i + 1} / {PAGES.length}</span>
       </div>
 
       <div className="sb-foot">

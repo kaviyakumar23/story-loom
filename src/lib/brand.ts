@@ -15,42 +15,45 @@ export const BRAND = {
   tagline: 'Stories that stay forever.',
 
   hero: {
-    headline: 'Their imagination. Their adventure. Their very own book.',
+    // The h1 leads with the concrete product; the tagline is the eyebrow.
+    headline: 'A printed storybook where your child is the hero.',
     sub:
-      'Create a beautifully illustrated story starring your child — made from their nickname, ' +
-      'appearance, interests and the lesson you want to share. ' +
-      (PHOTO_LIKENESS_ENABLED ? 'Add a photo if you like — used once, then deleted.' : 'No photos required.'),
+      'A personalised printed hardcover starring your child — illustrated from their nickname, ' +
+      'how they look and what they love. Free preview first; ₹999 includes the digital PDF. ' +
+      (PHOTO_LIKENESS_ENABLED ? 'Photo optional — used once, then deleted.' : 'No photos required.'),
     primaryCta: 'Create a free preview',
     secondaryCta: 'Read a sample story',
     trustLine: PHOTO_LIKENESS_ENABLED
       ? 'Free preview · Photo optional · Pay only when you love it'
       : 'Free preview · No photos · Pay only when you love it',
     // Concrete spec line for the hero — what it is, who it's for, what it costs.
-    specLine: 'A personalised printed hardcover · ages 3–10 · ₹999, incl. instant digital · free preview first',
+    specLine: 'A personalised printed hardcover · ages 3–10 · ₹999 incl. the digital PDF · free preview first',
     // Default name shown on the interactive hero cover before a parent types.
     sampleName: 'Aarav',
     sampleTitleSuffix: 'and the Star That Listens',
   },
 
   /** The main product: a printed hardcover (founder-fulfilled) that includes the
-   * instant digital PDF. PLACEHOLDER price ₹999 — confirm before launch. */
+   * digital PDF. ₹999 is the confirmed launch price (server truth: pricing.ts).
+   * Page count truth: 8/10/12 interior pages by reading level, plus the cover —
+   * never claim more (pipeline/helpers.ts pageCountFor). */
   product: {
     name: 'Personalised Printed Storybook',
     price: 999,
     priceLabel: '₹999',
     currency: 'INR',
-    pages: '16–20 pages',
+    pages: 'Up to 12 illustrated pages',
     ageRange: 'Ages 3–10',
     format: 'Printed hardcover',
-    delivery: 'Printed & shipped in ~7 days',
-    revision: 'One free revision',
+    delivery: 'Printed & dispatched in ~7 days',
+    revision: 'One free preview tweak',
     unlockCta: 'Order the printed book',
     includes: [
       'A printed hardcover, shipped to your door',
-      'The instant digital PDF, ready the moment you order',
+      'The digital PDF, ready within the hour — usually much sooner',
       'Personalised cover with your child as the hero',
-      '16–20 illustrated pages',
-      'One free revision',
+      'Up to 12 illustrated pages, matched to their reading level',
+      'One free tweak — change the details and we regenerate',
     ],
   },
 
