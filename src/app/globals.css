@@ -184,6 +184,13 @@ p { margin: 0; }
    ============================================================ */
 .web {
   min-height: 100vh;
+  /* Cap the page band on ultra-wide screens and centre it. Content containers
+     stay put (they're centred within this band == centred in the viewport), so
+     nothing shifts or misaligns — only the full-bleed hero art, wave, and band
+     backgrounds stop stretching to the raw viewport edge, which kept the hero
+     lopsided (image glued right, text floating with a huge left gutter). */
+  max-width: 1600px;
+  margin-inline: auto;
   background:
     radial-gradient(36% 30% at 8% 4%, rgba(90,166,214,.16), transparent 70%),
     radial-gradient(34% 26% at 96% 12%, rgba(238,108,69,.13), transparent 70%),
