@@ -549,7 +549,7 @@ p { margin: 0; }
    min() caps the forced height so the hero hugs its content (no dead gap); the
    generous padding-bottom reserves room for the absolutely-positioned feature
    strip (tallest ~237px near 1000px wide) so the trust chips never collide. */
-.hero-body { position: relative; z-index: 2; max-width: none; margin: 0; min-height: min(calc(100vh - 70px), 720px); display: flex; align-items: center; padding: 56px clamp(24px, 5vw, 128px) 196px; }
+.hero-body { position: relative; z-index: 2; max-width: none; margin: 0; min-height: max(calc(100vh - 70px), 820px); display: flex; align-items: center; padding: 56px clamp(24px, 5vw, 128px) 196px; }
 /* The 5-card strip wraps taller when the cards are narrow (~990–1160px wide),
    so reserve a bit more bottom space only there — keeps wide screens gap-free. */
 @media (min-width: 981px) and (max-width: 1280px) { .hero-body { padding-bottom: 244px; } }
