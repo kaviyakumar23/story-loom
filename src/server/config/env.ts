@@ -112,7 +112,15 @@ const schema = z.object({
   INNGEST_EVENT_KEY: z.string().default(''),
   INNGEST_SIGNING_KEY: z.string().default(''),
 
+  // Sentry error tracking. SENTRY_DSN (server/edge) + NEXT_PUBLIC_SENTRY_DSN
+  // (client) both fall back to a baked-in public DSN, so capture works even if
+  // unset. AUTH_TOKEN/ORG/PROJECT are build-time only (source-map upload) and
+  // read directly from process.env in next.config.ts.
   SENTRY_DSN: z.string().default(''),
+  NEXT_PUBLIC_SENTRY_DSN: z.string().default(''),
+  SENTRY_AUTH_TOKEN: z.string().default(''),
+  SENTRY_ORG: z.string().default(''),
+  SENTRY_PROJECT: z.string().default(''),
 });
 
 export type Env = z.infer<typeof schema>;
