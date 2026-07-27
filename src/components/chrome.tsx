@@ -35,7 +35,10 @@ export function Header({ minimal }: { minimal?: boolean }) {
                 <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 8h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.4H8.8a1.5 1.5 0 0 1-1.5-1.4L6.5 8Z" /><path d="M9.2 8V6.6a2.8 2.8 0 0 1 5.6 0V8" /></svg>
               </Link>
             </span>
-            <Link href="/create" className="btn btn-brand btn-sm nav-cta">{BRAND.hero.primaryCta}</Link>
+            <Link href="/create" className="btn btn-brand btn-sm nav-cta">
+              <span className="nav-cta-full">{BRAND.hero.primaryCta}</span>
+              <span className="nav-cta-short">Free preview</span>
+            </Link>
           </nav>
         )}
       </div>
