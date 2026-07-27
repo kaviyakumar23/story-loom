@@ -13,6 +13,7 @@
     "rls-check": "node scripts/rls-check.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.68.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "dotenv": "^17.4.2",
