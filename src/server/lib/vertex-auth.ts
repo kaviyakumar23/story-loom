@@ -24,8 +24,10 @@ import { fetchWithTimeout } from './http';
  *  - Workload Identity Federation — keyless. A runtime OIDC token (e.g. Vercel's
  *    `VERCEL_OIDC_TOKEN`) is exchanged at Google STS for a federated token, then
  *    optionally used to impersonate a service account. This is the path for
- *    hosts where org policy forbids downloadable SA keys. Selected when
- *    `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` is set — it takes precedence over keys.
+ *    hosts where org policy forbids downloadable SA keys. Used when
+ *    `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` is set AND no inline key is present — an
+ *    explicit `GOOGLE_SERVICE_ACCOUNT_KEY` wins, because WIF needs a runtime OIDC
+ *    token that Vercel only injects on Pro+ plans (Hobby leaves it empty).
  *
  * Key/ADC resolution order: inline env key → `GOOGLE_APPLICATION_CREDENTIALS`
  * path → the ADC well-known file.
@@ -244,7 +246,11 @@ export async function getVertexAccessToken(): Promise<string> {
   if (cachedToken && now < cachedToken.expiresAt - 300_000) return cachedToken.token;
 
   const env = loadEnv();
-  const { token, ttl } = env.GOOGLE_WORKLOAD_IDENTITY_AUDIENCE
+  // An explicit service-account key takes precedence over WIF: federation needs
+  // Vercel's VERCEL_OIDC_TOKEN, which is only injected on Pro+ plans, so a key is
+  // the reliable path on Hobby. Fall back to WIF only when no key is configured.
+  const useFederation = Boolean(env.GOOGLE_WORKLOAD_IDENTITY_AUDIENCE) && !env.GOOGLE_SERVICE_ACCOUNT_KEY.trim();
+  const { token, ttl } = useFederation
     ? await mintFederatedToken(env, now)
     : await mintCredentialToken(now);
 
