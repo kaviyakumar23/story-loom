@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: 'Privacy Policy — MoonBell' };
 const h1: React.CSSProperties = { fontSize: 34, marginBottom: 6, lineHeight: 1.1 };
 const meta: React.CSSProperties = { fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 28 };
 const h2: React.CSSProperties = { fontSize: 22, margin: '34px 0 10px', lineHeight: 1.2 };
+const h3: React.CSSProperties = { fontSize: 17, fontWeight: 800, margin: '18px 0 8px' };
 const p: React.CSSProperties = { margin: '0 0 14px' };
 const ul: React.CSSProperties = { margin: '0 0 14px', paddingLeft: 22 };
 const li: React.CSSProperties = { margin: '0 0 7px' };
@@ -47,31 +48,84 @@ export default function Privacy() {
       </div>
 
       <h2 className="display" style={h2}>1. What we collect</h2>
+
+      <h3 style={h3}>About the child</h3>
+      <p style={p}>
+        We collect only the minimum information needed to create a personalised story.
+      </p>
       <ul style={ul}>
-        <li style={li}><strong>Parent account:</strong> your email address (used to sign in and to send you your book).</li>
-        <li style={li}><strong>Child details for the story:</strong> a nickname (not a legal name), an age band (not a date of birth), appearance attributes (such as skin tone, hair, and whether they wear glasses), and interests.</li>
+        <li style={li}><strong>Nickname</strong> — never a legal name.</li>
+        <li style={li}><strong>Age band</strong> — never a full date of birth.</li>
+        <li style={li}><strong>Reading level.</strong></li>
+        <li style={li}>
+          <strong>Appearance (optional)</strong> — skin tone, hair style, hair colour, eye colour,
+          whether they wear glasses, and any distinguishing features you choose to add.
+        </li>
+        <li style={li}><strong>Favourite things / interests.</strong></li>
+        <li style={li}><strong>Story goal</strong> — the gentle lesson you want the story to carry.</li>
+        <li style={li}><strong>Occasion</strong> — such as a birthday, festival, or a new sibling.</li>
+        <li style={li}><strong>Parent&apos;s special message or theme (optional).</strong></li>
+        <li style={li}>
+          <strong>Birth month (optional)</strong> — used only for birthday reminders. The day and year
+          are never collected.
+        </li>
         {PHOTO_LIKENESS_ENABLED && (
-          <li style={li}><strong>Optional photo:</strong> only if you choose to add one. It is used a single time to create the illustrated character, then deleted (see Retention) — never printed, and never shared beyond the AI illustrator and our safety check.</li>
+          <li style={li}>
+            <strong>Reference photo (optional)</strong> — only if you choose to add one. It is used
+            solely to guide the illustrations, is automatically moderated, is processed for a single
+            generation, and is then permanently deleted immediately afterwards. It is never printed,
+            never shared beyond the AI illustrator and our safety check, and never used to train AI models.
+          </li>
         )}
-        <li style={li}><strong>Goal and reading level:</strong> the life-lesson goal and reading level you choose for the story.</li>
-        <li style={li}><strong>Order and payment metadata:</strong> records of purchases and payment status. Card and bank details are handled by our payment processor; we do not store them.</li>
-        <li style={li}><strong>Consent records:</strong> the version of consent you agreed to and when.</li>
-        <li style={li}><strong>Basic technical data:</strong> information needed to keep your session secure and the service working.</li>
+      </ul>
+
+      <h3 style={h3}>About the parent</h3>
+      <ul style={ul}>
+        <li style={li}>
+          <strong>Email</strong> — your first preview can be created from an anonymous session. An email
+          is required to save your books, generate another preview, sign in, or place an order.
+        </li>
+        <li style={li}>
+          <strong>Consent preferences</strong> — the version of the Terms and Privacy Policy you accepted
+          and when, plus your optional consent to marketing email.
+        </li>
+        <li style={li}>
+          <strong>Shipping details</strong> — collected only when you order a printed book: recipient
+          name, phone number, address, city, state, and pincode.
+        </li>
+        <li style={li}>
+          <strong>Payments</strong> — securely processed by Razorpay. MoonBell never stores card or UPI details.
+        </li>
+        <li style={li}>
+          <strong>Operational data</strong> — limited technical information used to prevent fraud, abuse
+          and spam; your book and order history; and anonymous product analytics that contain no personal data.
+        </li>
       </ul>
 
       <h2 className="display" style={h2}>2. What we do NOT collect</h2>
       <ul style={ul}>
         <li style={li}>
           {PHOTO_LIKENESS_ENABLED
-            ? 'No photograph is retained — an optional photo, if added, is deleted right after it seeds the illustration (see Retention).'
+            ? 'No photograph is retained — an optional reference photo, if added, is deleted immediately after it guides the illustration (see Retention).'
             : 'No photographs or images of any child.'}
         </li>
-        <li style={li}>No legal name, date of birth, school, home address, or phone number of the child.</li>
+        <li style={li}>No legal name, full date of birth, school, home address, or phone number of the child.</li>
         <li style={li}>We do not send a child&apos;s real name to any AI vendor (see &quot;Tokenization&quot; below).</li>
         <li style={li}>We do not build advertising profiles of children or track children across the web.</li>
       </ul>
 
-      <h2 className="display" style={h2}>3. Why we use this data (purposes)</h2>
+      <h2 className="display" style={h2}>3. Our privacy principles</h2>
+      <ul style={ul}>
+        <li style={li}>Collect the minimum data required to create and deliver the product.</li>
+        <li style={li}>Never collect a child&apos;s legal name or full date of birth.</li>
+        <li style={li}>Store only the birth month when it is provided.</li>
+        <li style={li}>Collect shipping information only for printed books.</li>
+        <li style={li}>Delete temporary image inputs immediately after generation.</li>
+        <li style={li}>Never use customer stories, photos or personal data to train AI models.</li>
+        <li style={li}>Explain clearly, in plain language, why each piece of information is collected.</li>
+      </ul>
+
+      <h2 className="display" style={h2}>4. Why we use this data (purposes)</h2>
       <ul style={ul}>
         <li style={li}>To generate the personalized story text and illustrations you request.</li>
         <li style={li}>To moderate content for safety and to prevent misuse.</li>
@@ -80,7 +134,7 @@ export default function Privacy() {
       </ul>
       <p style={p}>We practice data minimization — we ask only for what a story needs, and nothing more.</p>
 
-      <h2 className="display" style={h2}>4. Verifiable parental consent and children&apos;s data</h2>
+      <h2 className="display" style={h2}>5. Verifiable parental consent and children&apos;s data</h2>
       <p style={p}>
         Because MoonBell processes data relating to children, we treat that data with special care under the
         DPDP Act. Before creating a book featuring a child, we obtain the verifiable consent of the
@@ -90,14 +144,14 @@ export default function Privacy() {
         removes the associated child data and generated assets.
       </p>
 
-      <h2 className="display" style={h2}>5. Tokenization — the child&apos;s name is protected</h2>
+      <h2 className="display" style={h2}>6. Tokenization — the child&apos;s name is protected</h2>
       <p style={p}>
         The child&apos;s name is tokenized (replaced with a placeholder) before any request is sent to an AI
         vendor, and it is reinserted only within our own systems when the finished book is assembled. Your
         child&apos;s details are <strong>never used to train AI models</strong>.
       </p>
 
-      <h2 className="display" style={h2}>6. AI vendors and sub-processors</h2>
+      <h2 className="display" style={h2}>7. AI vendors and sub-processors</h2>
       <p style={p}>We use the following service providers to operate MoonBell:</p>
       <ul style={ul}>
         <li style={li}><strong>OpenAI</strong> — generation of story text and safety moderation{PHOTO_LIKENESS_ENABLED ? ', including checking an optional photo before it is used' : ''}.</li>
@@ -109,7 +163,7 @@ export default function Privacy() {
         <li style={li}><strong>Vercel</strong> — hosting and delivery of the web application.</li>
       </ul>
 
-      <h2 className="display" style={h2}>7. Cross-border transfer</h2>
+      <h2 className="display" style={h2}>8. Cross-border transfer</h2>
       <p style={p}>
         Some of these providers process data outside India, including in the United States. By using MoonBell
         you understand that limited data needed to generate and deliver your book may be processed outside
@@ -117,7 +171,7 @@ export default function Privacy() {
         vendor receives the request. We rely on appropriate safeguards and our agreements with these providers.
       </p>
 
-      <h2 className="display" style={h2}>8. How long we keep data (retention)</h2>
+      <h2 className="display" style={h2}>9. How long we keep data (retention)</h2>
       <ul style={ul}>
         {PHOTO_LIKENESS_ENABLED && (
           <li style={li}><strong>Optional photos:</strong> deleted within minutes of creating the illustration, and in every case within 24 hours — they are never part of the finished book.</li>
@@ -127,14 +181,14 @@ export default function Privacy() {
         <li style={li}><strong>Records we must retain:</strong> certain order, tax, and legal records may be retained as required by law.</li>
       </ul>
 
-      <h2 className="display" style={h2}>9. Security</h2>
+      <h2 className="display" style={h2}>10. Security</h2>
       <p style={p}>
         We use reasonable technical and organizational measures to protect personal data, including
         authenticated access, owner-scoped data, expiring download links, and encryption in transit. No system
         is perfectly secure, but we work to safeguard your information and to handle any incident responsibly.
       </p>
 
-      <h2 className="display" style={h2}>10. Your rights</h2>
+      <h2 className="display" style={h2}>11. Your rights</h2>
       <p style={p}>As a data principal under the DPDP Act, you have the right to:</p>
       <ul style={ul}>
         <li style={li}><strong>Access and export</strong> the data we hold about you and your child&apos;s book.</li>
@@ -152,7 +206,7 @@ export default function Privacy() {
         data). You may also email us at {BUSINESS.supportEmail}.
       </p>
 
-      <h2 className="display" style={h2}>11. Grievance officer</h2>
+      <h2 className="display" style={h2}>12. Grievance officer</h2>
       <p style={p}>
         Grievance Officer: {BUSINESS.grievanceOfficerName} · {BUSINESS.grievanceOfficerEmail} ·
         {BUSINESS.registeredAddress}. See our{' '}
@@ -160,13 +214,13 @@ export default function Privacy() {
         and timelines.
       </p>
 
-      <h2 className="display" style={h2}>12. Cookies</h2>
+      <h2 className="display" style={h2}>13. Cookies</h2>
       <p style={p}>
         We use essential cookies for authentication and security. See our{' '}
         <Link href="/legal/cookies" style={link}>Cookie Policy</Link> for details.
       </p>
 
-      <h2 className="display" style={h2}>13. Changes to this policy</h2>
+      <h2 className="display" style={h2}>14. Changes to this policy</h2>
       <p style={p}>
         We may update this Privacy Policy. If we make material changes, we will take reasonable steps to notify
         you and, where required, seek fresh consent.
