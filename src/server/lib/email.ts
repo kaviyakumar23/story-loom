@@ -306,6 +306,7 @@ function formatAmount(amount: number, currency: string): string {
 function prettyTier(tier: string): string {
   return (
     {
+      print: 'Printed hardcover',
       pdf: 'Digital PDF',
       pdf_audio_guide: 'PDF + Audio & Guide',
       seven_day_pack: '7-Day Story Pack',

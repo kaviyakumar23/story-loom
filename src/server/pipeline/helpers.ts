@@ -1,4 +1,5 @@
 import { NonRetriableError } from 'inngest';
+import { photoLikenessEnabled } from '../config/beta-flags';
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
 import { recordEvent } from '../lib/cost';
@@ -292,7 +293,7 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
  * and render wins.
  */
 async function loadHeroPhoto(heroId: string): Promise<{ id: string; storageKey: string; consentId: string | null } | null> {
-  if (loadEnv().NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED !== 'true') return null;
+  if (!photoLikenessEnabled()) return null;
   const db = serviceClient();
   const { data } = await db
     .from('photo_uploads')

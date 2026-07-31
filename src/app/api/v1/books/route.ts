@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { photoLikenessEnabled } from '@/server/config/beta-flags';
 import { loadEnv } from '@/server/config/env';
 import { requireParent } from '@/server/auth';
 import { assertEmailGate, assertGlobalPreviewBudget, bumpAndAssertIpCap, hasPaidOrder } from '@/server/lib/abuse';
@@ -101,6 +102,11 @@ export async function POST(req: Request): Promise<Response> {
     const parsed = createSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid book payload', parsed.error.issues);
     const input = parsed.data;
+    // A disabled photo feature must reject the reference, not silently ignore it:
+    // a client that believes it attached a photo has to be told it did not.
+    if (input.photoUploadId && !photoLikenessEnabled()) {
+      throw badRequest('Photo likeness is not enabled — build the character from the appearance options instead.');
+    }
     const db = serviceClient();
 
     // Idempotency (§5, §6): client key, else content + 10s bucket (double-submit guard).

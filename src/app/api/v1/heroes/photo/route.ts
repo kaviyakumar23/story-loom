@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { requireParent } from '@/server/auth';
-import { loadEnv } from '@/server/config/env';
+import { photoLikenessEnabled } from '@/server/config/beta-flags';
 import { audit } from '@/server/lib/audit';
 import { assertBetaAccess } from '@/server/lib/beta-access';
 import { badRequest, forbidden, internal } from '@/server/lib/errors';
@@ -25,7 +25,9 @@ const MAX_DIM = 1024;
 // rejected photo is never stored (nothing to leak), and never shown to a human.
 export async function POST(req: Request): Promise<Response> {
   try {
-    if (loadEnv().NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED !== 'true') throw forbidden('Photo likeness is not enabled');
+    // Refuse before the body is read: a disabled feature must not buffer, sniff,
+    // moderate or store a single byte of a child's photo.
+    if (!photoLikenessEnabled()) throw forbidden('Photo likeness is not enabled');
     const parent = await requireParent(req);
     assertBetaAccess(req);
     assertRateLimit(`photo:${parent.id}`, 3, 60 * 60_000); // 3 / hour

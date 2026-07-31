@@ -40,7 +40,7 @@ export async function openCheckout(
     name: 'MoonBell',
     description: 'Personalized storybook',
     prefill: opts.email ? { email: opts.email } : undefined,
-    theme: { color: '#9C3C6B' },
+    theme: { color: '#5653C6' }, // Moon Indigo — must match globals.css --indigo
     // Source of truth is our webhook — start polling, don't trust this callback.
     handler: () => opts.onPaid(),
     modal: { ondismiss: () => opts.onDismiss() },

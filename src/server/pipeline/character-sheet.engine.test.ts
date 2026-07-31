@@ -26,7 +26,15 @@ const THREE_VIEWS = {
   usage: { model: 'gemini-image', images: 3 },
 };
 
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: h.flag }) }));
+// `flag` drives BOTH photo switches together here: the build-time client flag and
+// the runtime server flag, so these tests read as "the feature is on/off".
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({
+    NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: h.flag,
+    PHOTO_LIKENESS_SERVER_ENABLED: h.flag,
+    MAX_IMAGE_ATTEMPTS: 2,
+  }),
+}));
 vi.mock('../lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('../lib/audit', () => ({ audit: async () => {} }));
 vi.mock('../providers/index', () => ({

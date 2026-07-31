@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   db: null as MockDb | null,
   moderationAllowed: true,
   sends: [] as { name: string }[],
+  photoFlag: 'false',
 }));
 
 vi.mock('@/server/config/env', () => ({
@@ -15,6 +16,8 @@ vi.mock('@/server/config/env', () => ({
     EMAIL_GATE_AFTER_PREVIEWS: 1,
     IP_HASH_SECRET: 'route-test-salt',
     SUPABASE_SERVICE_ROLE_KEY: 'srk',
+    PHOTO_LIKENESS_SERVER_ENABLED: h.photoFlag,
+    NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: h.photoFlag,
   }),
 }));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
@@ -65,7 +68,18 @@ function funnelDb() {
 }
 
 describe('POST /api/v1/books (integration)', () => {
-  beforeEach(() => { h.moderationAllowed = true; h.sends = []; });
+  beforeEach(() => { h.moderationAllowed = true; h.sends = []; h.photoFlag = 'false'; });
+
+  // A hidden uploader is not enough: with photos off, a request that still
+  // carries a photo reference has to fail loudly rather than quietly drop it —
+  // otherwise a parent believes a photo was used when it never was.
+  it('rejects a photoUploadId while the photo feature is off, before any DB work', async () => {
+    h.db = makeSupabase({});
+    const res = await post(body({ photoUploadId: '33333333-3333-4333-8333-333333333333' }));
+    expect(res.status).toBe(400);
+    expect(h.db.ops).toHaveLength(0);
+    expect(h.sends).toHaveLength(0);
+  });
 
   it('rejects an invalid payload before any DB work', async () => {
     h.db = makeSupabase({});

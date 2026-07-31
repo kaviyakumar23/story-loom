@@ -39,7 +39,7 @@ function page(heading: string, message: string): string {
 <title>MoonBell — Email preferences</title></head>
 <body style="margin:0;background:#FBEFD6;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#3A2A22;">
   <div style="max-width:480px;margin:0 auto;padding:64px 24px;text-align:center;">
-    <div style="font-weight:700;font-size:22px;color:#9C3C6B;margin-bottom:28px;">MoonBell</div>
+    <div style="font-weight:700;font-size:22px;color:#5653C6;margin-bottom:28px;">MoonBell</div>
     <div style="background:#fff;border:2px solid #F0E2CE;border-radius:18px;padding:36px 32px;box-shadow:0 18px 44px rgba(58,42,34,.12);">
       <h1 style="margin:0 0 12px;font-size:24px;line-height:1.2;color:#3A2A22;">${esc(heading)}</h1>
       <p style="margin:0;font-size:15.5px;line-height:1.6;color:#6B5A50;">${esc(message)}</p>

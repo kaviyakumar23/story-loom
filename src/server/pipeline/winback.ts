@@ -1,3 +1,4 @@
+import { marketingEmailsEnabled } from '../config/beta-flags';
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
 import { sendPreviewWinback } from '../lib/email';
@@ -16,6 +17,9 @@ const WINBACK_AFTER_DAYS = 2;
 export const previewWinback = inngest.createFunction(
   { id: 'preview-winback', name: 'Win back unpurchased previews', triggers: [{ cron: '32 12 * * *' }] },
   async ({ step }) => {
+    // Off during the narrow paid beta — recruitment is invite-only, so a
+    // broadcast nudge would both break the cohort and contradict the plan.
+    if (!marketingEmailsEnabled()) return { skipped: 'marketing_disabled' as const };
     const env = loadEnv();
     const now = Date.now();
     const olderThan = new Date(now - WINBACK_AFTER_DAYS * 86_400_000).toISOString();

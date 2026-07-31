@@ -4,11 +4,17 @@ import { findOp, makeSupabase, type MockDb } from '@/server/test/supabase-mock';
 const h = vi.hoisted(() => ({
   db: null as MockDb | null,
   flag: 'true',
+  serverFlag: 'true',
   moderationAllowed: true,
   puts: [] as unknown[][],
 }));
 
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: h.flag }) }));
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({
+    NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: h.flag,
+    PHOTO_LIKENESS_SERVER_ENABLED: h.serverFlag,
+  }),
+}));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/beta-access', () => ({ assertBetaAccess: () => {} }));
@@ -47,7 +53,7 @@ function form(bytes: Buffer, consentId = 'c1', type = 'image/jpeg') {
 const liveConsent = { consent_records: { data: { id: 'c1', scope: 'photo_likeness', withdrawn_at: null } } };
 
 describe('POST /api/v1/heroes/photo (integration)', () => {
-  beforeEach(() => { h.flag = 'true'; h.moderationAllowed = true; h.puts = []; });
+  beforeEach(() => { h.flag = 'true'; h.serverFlag = 'true'; h.moderationAllowed = true; h.puts = []; });
 
   it('is 403 when the feature flag is off (before anything else)', async () => {
     h.flag = 'false';
@@ -55,6 +61,18 @@ describe('POST /api/v1/heroes/photo (integration)', () => {
     const res = await POST(form(JPEG));
     expect(res.status).toBe(403);
     expect(h.db.ops).toHaveLength(0);
+  });
+
+  // The NEXT_PUBLIC_ flag is inlined at build time, so a stale deployment can
+  // still render the uploader. The runtime server flag has to be able to refuse
+  // on its own, or "photos are off" would depend on a redeploy landing.
+  it('is 403 on the server flag alone, even with the public flag still on', async () => {
+    h.serverFlag = 'false';
+    h.db = makeSupabase({});
+    const res = await POST(form(JPEG));
+    expect(res.status).toBe(403);
+    expect(h.db.ops).toHaveLength(0);
+    expect(h.puts).toHaveLength(0);
   });
 
   it('accepts a valid, moderated photo: stores it and records the upload', async () => {

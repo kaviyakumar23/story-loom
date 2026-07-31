@@ -10,6 +10,11 @@ describe('photo egress guards', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role';
     process.env.SUPABASE_ANON_KEY = 'test-anon';
     process.env.GEMINI_BACKEND = 'studio';
+    // The feature is off during the beta and refuses everything outright (see
+    // photo-off.negative.test.ts). Enable it here so these tests still cover the
+    // destination allowlist that has to hold whenever it is switched back on.
+    process.env.PHOTO_LIKENESS_SERVER_ENABLED = 'true';
+    process.env.NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED = 'true';
   });
 
   it('allows the moderation destination (OpenAI, pre-use)', () => {
