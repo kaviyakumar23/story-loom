@@ -1,9 +1,11 @@
+import { measureImage } from '../../lib/image-resolution';
 import { assertNoSensitive } from '../../lib/tokenize';
 import { callGemini } from '../gemini-transport';
 import type {
   CharacterReferencePack,
   CharacterSheetRequest,
   ImageProvider,
+  ImageQuality,
   ImageResult,
   RenderedImage,
 } from '../types';
@@ -28,6 +30,17 @@ interface GeminiImageResponse {
 }
 
 const CHARACTER_VIEWS = ['turnaround', 'face_closeup', 'expression_sheet'] as const;
+
+/**
+ * Only the pro image model accepts an explicit size. Sending the field to a
+ * model that does not understand it risks a 400 on every render, so we ask only
+ * where it is supported — and `callImage` falls back once if the API rejects it
+ * anyway, because losing all illustration to an unknown parameter is a far worse
+ * failure than a soft one.
+ */
+function supportsImageSize(model: string): boolean {
+  return /gemini-3.*-image/.test(model);
+}
 
 export class GeminiImageProvider implements ImageProvider {
   readonly name: string;
@@ -89,44 +102,66 @@ export class GeminiImageProvider implements ImageProvider {
   async renderPage(
     prompt: string,
     reference: CharacterReferencePack,
+    quality: ImageQuality = 'preview',
   ): Promise<ImageResult<RenderedImage>> {
     const guided =
       `Illustrate this picture-book scene in a consistent style, using the attached ` +
       `reference images of the character (keep face, hair, palette, and clothing identical): ` +
       `${prompt}. Palette: ${reference.palette.join(', ')}. ` +
       `Avoid: ${reference.negativeConstraints.join(', ')}.`;
-    const img = await this.callImage(guided, reference.images);
+    const img = await this.callImage(guided, reference.images, quality);
     return { value: img, usage: { model: this.model, images: 1 } };
   }
 
   private async callImage(
     prompt: string,
     references: { base64: string; mime: string }[],
+    quality: ImageQuality = 'preview',
   ): Promise<RenderedImage> {
     const parts: InlinePart[] = [
       { text: prompt },
       ...references.map((r) => ({ inlineData: { mimeType: r.mime, data: r.base64 } })),
     ];
-    const res = await callGemini(
-      this.model,
-      'generateContent',
-      {
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseModalities: ['IMAGE'] },
+    const wantsSize = quality === 'print' && supportsImageSize(this.model);
+    const body = (withSize: boolean) => ({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        // Square, because every page in the book is square — letting the model
+        // pick would crop the hero out of a full-bleed placement.
+        ...(withSize ? { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } } : {}),
       },
-      90_000,
-    );
+    });
+
+    let res = await callGemini(this.model, 'generateContent', body(wantsSize), 120_000);
+    if (!res.ok && wantsSize) {
+      const detail = await res.text();
+      // The size parameter is newer than the models; if this deployment rejects
+      // it, render anyway and let the resolution floor deal with the result.
+      if (/imageConfig|imageSize|aspectRatio|Unknown name/i.test(detail)) {
+        console.warn('[gemini] imageConfig rejected, retrying without an explicit size:', detail.slice(0, 200));
+        res = await callGemini(this.model, 'generateContent', body(false), 120_000);
+      } else {
+        throw new Error(`Gemini image generation failed (${res.status}): ${detail}`);
+      }
+    }
     if (!res.ok) {
       throw new Error(`Gemini image generation failed (${res.status}): ${await res.text()}`);
     }
     const data = (await res.json()) as GeminiImageResponse;
     const part = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
     if (!part?.inlineData?.data) throw new Error('Gemini returned no image data');
+
+    // Measure what actually came back. These used to be hard-coded zeros, which
+    // meant nothing in the system could tell a print-ready render from one that
+    // would come off the press soft.
+    const bytes = Buffer.from(part.inlineData.data, 'base64');
+    const { width, height } = await measureImage(bytes);
     return {
       base64: part.inlineData.data,
       mime: part.inlineData.mimeType ?? 'image/png',
-      width: 0,
-      height: 0,
+      width,
+      height,
     };
   }
 }

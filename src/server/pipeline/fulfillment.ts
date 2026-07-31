@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { loadEnv } from '../config/env';
 import { priceFor } from '../config/pricing';
 import { audit } from '../lib/audit';
@@ -5,6 +6,9 @@ import { imageCost, recordEvent } from '../lib/cost';
 import { captureError } from '../lib/observability';
 import { sendBookReady, sendPrintReady } from '../lib/email';
 import { assemblePdf, type AssemblePage } from '../lib/pdf';
+import { buildCasewrap } from '../lib/casewrap';
+import { buildPrintInterior } from '../lib/print-pdf';
+import { preflight } from '../lib/print-preflight';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders } from '../providers/index';
@@ -104,6 +108,10 @@ async function renderRemainingPage(ctx: BookContext, page: PendingPage): Promise
     page.page_index,
     page.illustration_prompt ?? '',
     reference,
+    false,
+    // These pages are destined for paper, so they are asked for at print size
+    // and held to the resolution floor before storage.
+    isPhysical(ctx) ? 'print' : 'preview',
   );
   await recordEvent({
     bookId: ctx.bookId,
@@ -113,6 +121,11 @@ async function renderRemainingPage(ctx: BookContext, page: PendingPage): Promise
     costUsd: imageCost(model, 1),
     status: 'ok',
   });
+}
+
+/** Whether this book ships as an object rather than a file. */
+function isPhysical(ctx: BookContext): boolean {
+  return Boolean(ctx.purchasedTier && priceFor(ctx.purchasedTier as Tier).physical);
 }
 
 export async function assemble(ctx: BookContext): Promise<void> {
@@ -164,17 +177,79 @@ export async function assemble(ctx: BookContext): Promise<void> {
 
   const seriesNumber = (book as { series_number: number | null }).series_number;
   const gift = giftOrder as { gift_message: string | null; is_gift: boolean } | null;
+  const title = (book as { title: string | null }).title ?? 'Your Story';
+  const series = seriesNumber ? { number: seriesNumber, heroName: ctx.nickname } : undefined;
+
+  if (isPhysical(ctx)) {
+    await assemblePrintMaster(ctx, { title, coverImage, pages, series });
+    return;
+  }
+
   const pdf = await assemblePdf({
-    title: (book as { title: string | null }).title ?? 'Your Story',
+    title,
     coverImage,
     pages,
-    series: seriesNumber ? { number: seriesNumber, heroName: ctx.nickname } : undefined,
+    series,
     giftMessage: gift?.is_gift ? gift.gift_message : null,
   });
 
   const key = `books/${ctx.bookId}/book.pdf`;
   await uploadAsset(key, pdf, 'application/pdf');
   await upsertAsset(ctx.bookId, 'pdf', key, 'application/pdf');
+  await recordEvent({ bookId: ctx.bookId, stage: 'assemble', status: 'ok' });
+}
+
+/**
+ * Build the file a printer receives, and the evidence that it is printable.
+ *
+ * The preflight report is stored beside the master rather than merely logged: it
+ * is what the release gate reads before a book is sent, and what a defect is
+ * traced back to afterwards. A master that fails preflight is not stored at all
+ * — an unusable file in the print queue is worse than a book that visibly
+ * failed, because the first one gets printed.
+ */
+async function assemblePrintMaster(
+  ctx: BookContext,
+  input: { title: string; coverImage: Buffer; pages: AssemblePage[]; series?: { number: number; heroName: string } },
+): Promise<void> {
+  const { pdf, lowestPpi, pageCount } = await buildPrintInterior({
+    title: input.title,
+    coverImage: input.coverImage,
+    pages: input.pages.map((p) => ({ text: p.text, image: p.image })),
+    dedication: ctx.dedication,
+    series: input.series ?? null,
+    bookId: ctx.bookId,
+  });
+
+  const report = await preflight(pdf, 'interior');
+  if (!report.ok) {
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`);
+    throw new Error(`Print master for ${ctx.bookId} failed preflight — ${failed.join('; ')}`);
+  }
+
+  const key = `books/${ctx.bookId}/print/interior.pdf`;
+  const sha256 = createHash('sha256').update(pdf).digest('hex');
+  await uploadAsset(key, pdf, 'application/pdf');
+  await upsertAsset(ctx.bookId, 'print_master', key, 'application/pdf', sha256);
+
+  const reportKey = `books/${ctx.bookId}/print/preflight.json`;
+  await uploadAsset(reportKey, Buffer.from(JSON.stringify(report, null, 2)), 'application/json');
+  await upsertAsset(ctx.bookId, 'preflight', reportKey, 'application/json');
+
+  // The case is a separate sheet from the block, and its width depends on how
+  // thick this particular book is — so it is built per book, not once.
+  const wrapPdf = await buildCasewrap({ title: input.title });
+  const wrapKey = `books/${ctx.bookId}/print/casewrap.pdf`;
+  await uploadAsset(wrapKey, wrapPdf, 'application/pdf');
+  await upsertAsset(ctx.bookId, 'casewrap', wrapKey, 'application/pdf', createHash('sha256').update(wrapPdf).digest('hex'));
+
+  await audit({
+    actor: 'system',
+    action: 'print.master_built',
+    entity: 'books',
+    entityId: ctx.bookId,
+    metadata: { sha256, pageCount, lowestPpi },
+  });
   await recordEvent({ bookId: ctx.bookId, stage: 'assemble', status: 'ok' });
 }
 
@@ -253,7 +328,8 @@ async function ensurePrintFulfillment(ctx: BookContext, db: ReturnType<typeof se
       address_id: addr ? (addr as { id: string }).id : null,
       kind: 'print',
       status: 'print_ready',
-      print_master_key: `books/${ctx.bookId}/book.pdf`,
+      // The press file, not the reader's copy — those are different artifacts now.
+      print_master_key: `books/${ctx.bookId}/print/interior.pdf`,
     },
     { onConflict: 'book_id,kind' },
   );
@@ -263,14 +339,15 @@ async function ensurePrintFulfillment(ctx: BookContext, db: ReturnType<typeof se
 /** Insert a delivery asset, or replace an existing one of the same type (idempotent). */
 async function upsertAsset(
   bookId: string,
-  type: 'pdf' | 'audio',
+  type: 'pdf' | 'audio' | 'print_master' | 'preflight' | 'casewrap',
   storageKey: string,
   mime: string,
+  sha256?: string,
 ): Promise<void> {
   const db = serviceClient();
   await db.from('assets').delete().eq('book_id', bookId).eq('type', type);
   const { error } = await db
     .from('assets')
-    .insert({ book_id: bookId, type, storage_key: storageKey, mime });
+    .insert({ book_id: bookId, type, storage_key: storageKey, mime, ...(sha256 ? { sha256 } : {}) });
   if (error) throw new Error(`persist ${type} asset failed: ${error.message}`);
 }
