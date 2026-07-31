@@ -14,8 +14,10 @@ backend repo at `~/products/storyloom` is superseded; its docs are historical.)
 
 ## Map
 
-- `src/app/` — pages + API routes. `globals.css` is the design system (cream
-  `#FBEFD6`, berry `#9C3C6B`, coral `#EE6C45`, Baloo 2 + Hanken Grotesk). Reuse
+- `src/app/` — pages + API routes. `globals.css` is the design system (Paper
+  Cream `#FFF9F0`, Moon Indigo `#5653C6`, Bell Gold `#F5C85B`, action coral
+  `#C9432F`; Playfair Display + Nunito + Caveat, self-hosted via `next/font` in
+  `layout.tsx` — never re-add an `@import`). Reuse
   `.btn/.card/.pill/.chip/.input/.eyebrow` — don't invent new styles.
 - `src/app/legal/*` — policy pages; business identity comes from
   `src/lib/business.ts` (fill every `[TODO]` before charging money).
@@ -24,16 +26,21 @@ backend repo at `~/products/storyloom` is superseded; its docs are historical.)
   erasure, tokenize).
 - `src/lib/types.ts` mirrors `src/server/types/api.ts` — keep in sync (including
   `TIER_META.enabled` ↔ pricing table `enabled`).
-- Migrations: `src/server/db/migrations/*.sql` (runner: `npm run migrate`,
-  needs `DATABASE_URL`) mirrored in `supabase/migrations/` for `supabase db push`.
+- Migrations (through `0017`): `src/server/db/migrations/*.sql` mirrored in
+  `supabase/migrations/`. **Production tracks the Supabase CLI history — apply
+  with `node scripts/db-apply.mjs <version_name>`, never `npm run migrate`.**
+- Observability: `src/server/lib/observability.ts` (`captureError`/`alert`)
+  forwards into Sentry (`@sentry/nextjs`, init in `src/instrumentation.ts` +
+  `sentry.*.config.ts`). Keep it PII-free — contexts are `{stage, bookId}`.
 
 ## Non-negotiables (child safety + payments)
 
 - **Optional ephemeral photo, else attributes only; no legal names to vendors.**
-  A child photo is OPTIONAL and OFF by default (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`);
-  when enabled it is ephemeral — moderated before use, sent once to the image model
-  over Vertex only, then deleted (24h hard-cap cron), never printed and never stored
-  on the product. `assertPhotoEgressAllowed` (in `src/server/lib/photo-intake.ts`)
+  A child photo is OPTIONAL and, as of 2026-07-31, **ENABLED in production**
+  (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED=true`); it is ephemeral — moderated before
+  use, sent once to the image model over Vertex only, then deleted (24h hard-cap
+  cron), never printed and never stored on the product. It requires a private
+  `photo-intake` Supabase bucket, which no migration creates. `assertPhotoEgressAllowed` (in `src/server/lib/photo-intake.ts`)
   gates every photo egress; that module is the only code that touches raw photo bytes.
   Otherwise: attributes + nickname + age band. `src/server/lib/tokenize.ts` swaps
   the name for `{{HERO}}` before any AI call; text/image egress calls
@@ -45,6 +52,9 @@ backend repo at `~/products/storyloom` is superseded; its docs are historical.)
   only starts polling. Prices come from `src/server/config/pricing.ts`; never
   trust client amounts.
 - **Signed URLs only** for generated assets (~10 min expiry; re-fetch to refresh).
+- **Public copy must stay true.** Page counts, delivery windows and privacy
+  claims are load-bearing — `src/lib/brand.ts` is the single source, and the
+  privacy policy's collection list must match what the intake actually asks for.
 - Parent-scoped queries + RLS defense in depth; export/erasure must keep working.
 
 ## Run / validate
@@ -58,7 +68,12 @@ npm run rls-check                                  # after any table/RLS change
 npm run test:e2e                                   # Playwright (see e2e/README.md)
 ```
 
-`npm test` = typecheck + vitest unit + integration tests (`src/**/*.test.ts`).
+`npm test` = typecheck + 207 vitest unit + integration tests (`src/**/*.test.ts`).
+Story generation runs on **OpenAI `gpt-5.6-sol` via the Responses API**
+(`reasoning.effort`, `text.format` json_schema, `max_output_tokens`) — see
+`src/server/providers/text/openai.ts`; images run on Gemini over **Vertex**,
+authenticated with a service-account key (`GOOGLE_SERVICE_ACCOUNT_KEY`), which
+takes precedence over the older keyless WIF vars.
 Handle every book status (`generating/preview_ready/paid/complete/failed`) plus
 loading/empty/error in UI — never dead-end the parent.
 
@@ -69,3 +84,9 @@ loading/empty/error in UI — never dead-end the parent.
   `Co-Authored-By: Claude <model name> <noreply@anthropic.com>` trailer crediting
   the model that authored the commit (history mostly uses
   `Claude Opus 4.8 (1M context)`).
+- Intake collects: nickname, age band, reading level, optional gender (drives
+  pronouns; blank ⇒ they/them, never inferred), up to 3 curated personality
+  traits, and appearance where **hair is three orthogonal facets**
+  (`hairLength`/`hairTexture`/`hairStyle`) — the legacy single `hair` field is
+  still accepted for pre-split heroes. `gender` and `personality` ride inside the
+  hero's `avatar` JSON, so neither needed a migration.

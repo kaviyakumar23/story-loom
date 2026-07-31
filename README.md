@@ -11,7 +11,8 @@ companion. Parents see a free preview first and pay only if they love it.
 
 **Current stage:** invite-gated beta (`BETA_ACCESS_CODE`). Payments are fully
 built but OFF (`NEXT_PUBLIC_PAYMENTS_ENABLED=false`) pending Razorpay
-activation; the print/fulfilment flow is live behind it.
+activation; the print/fulfilment flow is live behind it. The optional child
+photo is **ON** in production (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED=true`).
 
 ## How the funnel works
 
@@ -19,11 +20,15 @@ activation; the print/fulfilment flow is live behind it.
    invite code, and gets an anonymous Supabase session (no signup friction).
    Email sign-in (`/signin`) is the account-upgrade/return path.
 2. **Intake + consent** — nickname (never a legal name), age band (never a DOB),
-   appearance attributes, interests, occasion pack or custom theme, reading
-   level. Explicit parental consent is recorded and enforced at book creation.
-   An optional child photo is off by default (see Non-negotiables).
-3. **Preview** (`previewPipeline`) — ONE structured text call writes the whole
-   story (8/10/12 pages by reading level) → text moderation gate → character
+   reading level, optional gender (sets the story's pronouns; blank means
+   they/them), up to 3 curated personality traits, appearance (skin tone plus
+   hair as three orthogonal facets — length, texture, how it's worn), interests,
+   occasion pack or custom theme. Explicit parental consent is recorded and
+   enforced at book creation. An optional child photo is available (see
+   Non-negotiables).
+3. **Preview** (`previewPipeline`) — ONE structured text call (OpenAI
+   `gpt-5.6-sol` via the Responses API) writes the whole story (8/10/12 pages by
+   reading level) → text moderation gate → character
    sheet (3 anchored views, cached per hero) → cover + first 3 page renders,
    each image-moderated. The preview shows the FULL story text with the
    remaining pages "illustrated when you order".
@@ -85,21 +90,29 @@ Minimum env for local preview generation: the Supabase vars
 (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), `OPENAI_API_KEY` (stories on
 the quality tier + moderation, always), and Gemini — locally either
-`GEMINI_API_KEY` (AI Studio backend) or Google ADC; **production uses Vertex AI
-with keyless WIF** (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE`,
-etc. — see `src/server/config/env.ts`). Payments additionally need the three
-`RAZORPAY_*` vars; admin endpoints need `ADMIN_API_SECRET`.
+`GEMINI_API_KEY` (AI Studio backend) or Google ADC.
 
-Migrations (through `0016`) live in `src/server/db/migrations/` and are mirrored
+**Production Vertex auth uses a service-account key** (`GOOGLE_SERVICE_ACCOUNT_KEY`,
+raw or base64 JSON). Keyless WIF is still implemented and takes over when no key
+is set, but it needs Vercel to inject `VERCEL_OIDC_TOKEN` — a **Pro+ feature**,
+so it cannot work on the current Hobby plan. Story model settings:
+`OPENAI_TEXT_MODEL` (default `gpt-5.6-sol`), `OPENAI_REASONING_EFFORT`
+(default `low`; `off` restores the temperature path for classic models) and
+`OPENAI_MAX_OUTPUT_TOKENS` (default 8000 — reasoning tokens count toward it).
+Payments additionally need the three `RAZORPAY_*` vars; admin endpoints need
+`ADMIN_API_SECRET`. Errors go to Sentry (`SENTRY_DSN`; add `SENTRY_AUTH_TOKEN` +
+`SENTRY_ORG` + `SENTRY_PROJECT` for readable production stack traces).
+
+Migrations (through `0017`) live in `src/server/db/migrations/` and are mirrored
 in `supabase/migrations/`. Production tracks the Supabase CLI history — apply
 with `node scripts/db-apply.mjs <version_name>`, not `npm run migrate`.
 
 ## Validation
 
 ```bash
-npm test          # typecheck + 186 vitest tests (unit + integration + engine + crons + pipelines)
+npm test          # typecheck + 207 vitest tests (unit + integration + engine + crons + pipelines)
 npm run build     # production build
-npm run rls-check # 60-assertion RLS audit against the live DB (after any table change)
+npm run rls-check # 62-assertion RLS audit against the live DB (after any table change)
 npm run test:e2e  # Playwright: landing smoke runs anywhere; full flow needs a test env (e2e/README.md)
 ```
 
@@ -115,10 +128,12 @@ private-storage upload/sign/delete; `ok: true` means the engine is ready.
 
 ## Non-negotiables
 
-- Child photos are optional and OFF by default (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`);
-  when enabled they are ephemeral — moderated before use, single Vertex-only
-  egress, deleted within minutes (24h hard cap) — never printed or stored. All
-  public copy about photos is flag-aware and flips with the same switch.
+- Child photos are optional and, as of 2026-07-31, ENABLED in production
+  (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`); they are ephemeral — moderated before
+  use, single Vertex-only egress, deleted within minutes (24h hard cap) — never
+  printed or stored. All public copy about photos is flag-aware and flips with
+  the same switch. Requires a private `photo-intake` Supabase bucket (no
+  migration creates it; `putPhoto` throws if it is missing).
 - Never send a child's real name to AI vendors; tokenization (`{{HERO}}`) +
   `assertNoSensitive` before egress.
 - Consent before processing child details; marketing emails additionally require
@@ -139,8 +154,9 @@ private-storage upload/sign/delete; `ok: true` means the engine is ready.
   `payment.failed`, `refund.processed`), then set
   `NEXT_PUBLIC_PAYMENTS_ENABLED=true` and REDEPLOY (build-time var).
 - Confirm `EMAIL_FROM` is a verified moonbell.in sender in Resend.
-- Add `SENTRY_DSN` for error monitoring; consider an Inngest plan upgrade
-  (account cap 5 concurrent runs vs configured 4/3/2).
+- Sentry is wired up (`@sentry/nextjs`); add `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/
+  `SENTRY_PROJECT` so production stack traces are un-minified. Consider an
+  Inngest plan upgrade (account cap 5 concurrent runs vs configured 4/3/2).
 - Abuse controls are BUILT and active (they stack with the invite gate): a
   global daily circuit-breaker (`GLOBAL_DAILY_PREVIEW_CAP`, default 200/day,
   `0` = kill switch), a confirmed-email gate after the first anonymous preview
