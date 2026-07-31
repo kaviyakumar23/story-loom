@@ -14,8 +14,17 @@ import type { AgeBand, Goal, OccasionPackId, ReadingLevel } from '../types/api';
 /** Cover + first N interior pages make the free preview (§6 phase A). */
 export const PREVIEW_PAGE_COUNT = 3;
 
-export function pageCountFor(level: ReadingLevel): number {
-  return level === 'emerging' ? 8 : level === 'early' ? 10 : 12;
+/**
+ * Illustrated story pages per book. Fixed at 12 for every reading level: the
+ * printed book is one physical spec (8×8in casebound, 20 interior pages), so a
+ * page count that moved with the reading level would mean a different spine,
+ * template and quote per order. Reading level still shapes the writing —
+ * vocabulary and sentence length — it just no longer shortens the book.
+ */
+export const STORY_PAGE_COUNT = 12;
+
+export function pageCountFor(_level: ReadingLevel): number {
+  return STORY_PAGE_COUNT;
 }
 
 export interface BookContext {
@@ -29,6 +38,8 @@ export interface BookContext {
   goal: Goal;
   occasionPack: OccasionPackId | null;
   customTheme: string | null;
+  /** Parent's dedication line, printed in the book's front matter. */
+  dedication: string | null;
   readingLevel: ReadingLevel;
   purchasedTier: string | null;
   revisionInstruction: string | null;
@@ -41,7 +52,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
   const db = serviceClient();
   const { data: book } = await db
     .from('books')
-    .select('id, parent_id, hero_id, goal, occasion_pack, custom_theme, reading_level, purchased_tier, text_model, image_model')
+    .select('id, parent_id, hero_id, goal, occasion_pack, custom_theme, dedication, reading_level, purchased_tier, text_model, image_model')
     .eq('id', bookId)
     .maybeSingle();
   if (!book) throw new NonRetriableError(`Book ${bookId} not found`);
@@ -59,6 +70,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     goal: Goal;
     occasion_pack: OccasionPackId | null;
     custom_theme: string | null;
+    dedication: string | null;
     reading_level: ReadingLevel;
     purchased_tier: string | null;
     text_model: string | null;
@@ -83,6 +95,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     goal: b.goal,
     occasionPack: b.occasion_pack ?? null,
     customTheme: b.custom_theme ?? null,
+    dedication: b.dedication ?? null,
     readingLevel: b.reading_level,
     purchasedTier: b.purchased_tier,
     revisionInstruction: await loadLatestRevisionInstruction(bookId),

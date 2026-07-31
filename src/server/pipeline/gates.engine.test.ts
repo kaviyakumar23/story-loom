@@ -31,7 +31,7 @@ import { gateText, renderAndStorePage, type BookContext } from './helpers';
 
 const ctx: BookContext = {
   bookId: 'book-1', parentId: 'p1', heroId: 'hero-1', nickname: 'Aarav', ageBand: '5-6',
-  avatar: {}, interests: [], goal: 'reading_confidence', occasionPack: null, customTheme: null,
+  avatar: {}, interests: [], goal: 'reading_confidence', occasionPack: null, customTheme: null, dedication: null,
   readingLevel: 'early', purchasedTier: null, revisionInstruction: null, textModel: 't', imageModel: 'i',
 };
 const reference = { images: [{ view: 'turnaround', base64: 'r', mime: 'image/png' }], palette: ['warm'], clothingTokens: [], negativeConstraints: ['no text'] };

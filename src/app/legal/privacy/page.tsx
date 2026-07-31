@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { OCCASION_PACKS_ENABLED } from '@/lib/beta-flags';
 import { BUSINESS } from '@/lib/business';
 import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 
@@ -66,14 +67,19 @@ export default function Privacy() {
           is worn, hair colour, eye colour, whether they wear glasses, and any distinguishing features
           you choose to add.
         </li>
-        <li style={li}><strong>Favourite things / interests.</strong></li>
+        <li style={li}><strong>Favourite things / interests</strong> — up to three.</li>
         <li style={li}>
           <strong>Personality (optional)</strong> — up to three traits (such as curious, brave or
           kind) that shape how the hero behaves in the story.
         </li>
         <li style={li}><strong>Story goal</strong> — the gentle lesson you want the story to carry.</li>
-        <li style={li}><strong>Occasion</strong> — such as a birthday, festival, or a new sibling.</li>
-        <li style={li}><strong>Parent&apos;s special message or theme (optional).</strong></li>
+        {OCCASION_PACKS_ENABLED && (
+          <li style={li}><strong>Occasion</strong> — such as a birthday, festival, or a new sibling.</li>
+        )}
+        <li style={li}>
+          <strong>Dedication (optional)</strong> — a short line you write, printed on its own page at
+          the front of the book.
+        </li>
         <li style={li}>
           <strong>Birth month (optional)</strong> — used only for birthday reminders. The day and year
           are never collected.
@@ -91,8 +97,8 @@ export default function Privacy() {
       <h3 style={h3}>About the parent</h3>
       <ul style={ul}>
         <li style={li}>
-          <strong>Email</strong> — your first preview can be created from an anonymous session. An email
-          is required to save your books, generate another preview, sign in, or place an order.
+          <strong>Email</strong> — yours, not your child&apos;s. We ask for it before we build the
+          preview so we can send it to you, and we use it for order and delivery updates if you buy.
         </li>
         <li style={li}>
           <strong>Consent preferences</strong> — the version of the Terms and Privacy Policy you accepted

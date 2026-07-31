@@ -59,7 +59,7 @@ import { resolveCharacterSheet, type BookContext } from './helpers';
 const ctx: BookContext = {
   bookId: 'book-1', parentId: 'p1', heroId: 'hero-1', nickname: 'Aarav', ageBand: '5-6',
   avatar: { skinTone: 'medium', hair: 'short' }, interests: [], goal: 'reading_confidence',
-  occasionPack: null, customTheme: null, readingLevel: 'early', purchasedTier: null,
+  occasionPack: null, customTheme: null, dedication: null, readingLevel: 'early', purchasedTier: null,
   revisionInstruction: null, textModel: 't', imageModel: 'i',
 };
 

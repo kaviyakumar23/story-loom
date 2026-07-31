@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { requireParent } from '@/server/auth';
+import { isKnownConsentVersion } from '@/server/config/consent';
 import { audit } from '@/server/lib/audit';
 import { badRequest, internal } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
@@ -24,6 +25,13 @@ export async function POST(req: Request): Promise<Response> {
     const parent = await requireParent(req);
     const parsed = bodySchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid consent payload', parsed.error.issues);
+
+    // The version is our only record of which policy a parent agreed to, so it
+    // has to name one that was actually published.
+    const scope = parsed.data.scope ?? 'book_creation';
+    if (!isKnownConsentVersion(scope, parsed.data.consentVersion)) {
+      throw badRequest('Unknown consent version — please reload the page and try again.');
+    }
 
     // Only reference the `scope` column when a caller explicitly sets one, so
     // this route works both before and after the scope migration lands; the DB

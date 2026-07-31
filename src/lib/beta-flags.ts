@@ -18,3 +18,10 @@ export const SELF_SERVE_EDITING_ENABLED = process.env.NEXT_PUBLIC_SELF_SERVE_EDI
 
 /** Whether a printed order also delivers a downloadable copy. */
 export const DIGITAL_COMPANION_ENABLED = process.env.NEXT_PUBLIC_DIGITAL_COMPANION_ENABLED === 'true';
+
+/**
+ * Curated occasion packs (the "first day of school", "new sibling" shortcuts).
+ * Off for the beta: the cohort is one product with one story brief, and eight
+ * entry points would split a 75-order sample into meaningless slices.
+ */
+export const OCCASION_PACKS_ENABLED = process.env.NEXT_PUBLIC_OCCASION_PACKS_ENABLED === 'true';

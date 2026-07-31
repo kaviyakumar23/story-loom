@@ -8,6 +8,7 @@ import { NewsletterForm } from '@/components/landing/NewsletterForm';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useEnsureSession } from '@/lib/auth';
+import { OCCASION_PACKS_ENABLED } from '@/lib/beta-flags';
 import { PHOTO_LIKENESS_ENABLED as PHOTO_ENABLED } from '@/lib/photo-likeness';
 import { supabase } from '@/lib/supabase';
 import {
@@ -24,7 +25,7 @@ import {
   type ReadingLevel,
 } from '@/lib/types';
 
-const CONSENT_VERSION = '2026-01-policy-v1';
+const CONSENT_VERSION = '2026-08-beta-v1';
 // Optional photo likeness — separate, versioned consent (PHOTO_ENABLED is the
 // shared flag from @/lib/photo-likeness, imported above).
 const PHOTO_CONSENT_VERSION = '2026-08-photo-v1';
@@ -47,10 +48,14 @@ const HAIR_STYLES = ['loose', 'ponytail', 'braids', 'bun', 'buzz'];
 // Parent-stated; blank means the story uses they/them (never inferred).
 const PERSONALITY_TRAITS = ['curious', 'brave', 'kind', 'funny', 'imaginative', 'thoughtful'];
 const MAX_TRAITS = 3;
+// Three interests at most: a story asked to serve ten serves none of them well.
+const MAX_INTERESTS = 3;
+// Pronouns are stated by the parent, never inferred. Left blank, the story uses
+// they/them.
 const GENDER_OPTIONS = [
-  { id: 'girl', label: 'Girl' },
-  { id: 'boy', label: 'Boy' },
-  { id: 'neutral', label: 'Prefer not to say' },
+  { id: 'girl', label: 'She / her' },
+  { id: 'boy', label: 'He / him' },
+  { id: 'neutral', label: 'They / them' },
 ];
 
 function Progress({ step }: { step: number }) {
@@ -92,7 +97,10 @@ export default function Create() {
   const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>('');
   const [interests, setInterests] = useState<string[]>([]);
   const [interestDraft, setInterestDraft] = useState('');
-  const [customTheme, setCustomTheme] = useState('');
+  const [dedication, setDedication] = useState('');
+  // Transactional contact for a printed order. Captured before generation, but
+  // never gated on a confirmation click — that detour loses parents mid-funnel.
+  const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -144,7 +152,7 @@ export default function Create() {
             else if (legacy === 'braids') setHairStyle('braids');
           }
           if (typeof h.avatar.glasses === 'boolean') setGlasses(h.avatar.glasses);
-          if (Array.isArray(h.interests)) setInterests(h.interests);
+          if (Array.isArray(h.interests)) setInterests(h.interests.slice(0, MAX_INTERESTS));
           if (h.birthMonth) setBirthMonth(h.birthMonth);
         } catch {
           /* fall back to a normal new book */
@@ -192,8 +200,9 @@ export default function Create() {
         if (typeof d.goal === 'string') setGoal(d.goal as Goal);
         if (d.occasionPack) setOccasionPack(d.occasionPack as OccasionPackId);
         if (typeof d.readingLevel === 'string') setReadingLevel(d.readingLevel as ReadingLevel);
-        if (Array.isArray(d.interests)) setInterests(d.interests.filter((x): x is string => typeof x === 'string'));
-        if (typeof d.customTheme === 'string') setCustomTheme(d.customTheme);
+        if (Array.isArray(d.interests)) setInterests(d.interests.filter((x): x is string => typeof x === 'string').slice(0, MAX_INTERESTS));
+        if (typeof d.dedication === 'string') setDedication(d.dedication);
+        if (typeof d.email === 'string') setEmail(d.email);
         if (typeof d.step === 'number') setStep(Math.min(3, Math.max(1, d.step)));
         if (typeof d.idempotencyKey === 'string') idempotencyKey.current = d.idempotencyKey;
       }
@@ -209,12 +218,12 @@ export default function Create() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
+        JSON.stringify({ nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, dedication, email, step, idempotencyKey: idempotencyKey.current }),
       );
     } catch {
       /* storage full / disabled — non-fatal */
     }
-  }, [loaded, nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
+  }, [loaded, nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, dedication, email, step]);
 
   if (sessionError) {
     return (
@@ -245,8 +254,12 @@ export default function Create() {
 
   const step1ok = nickname.trim() && ageBand && skinTone && hairLength && hairTexture;
   const step2ok = goal && readingLevel;
+  // A printed order has to be reachable, so the email is required — but only as
+  // a field, never as a "go and click the link in your inbox" detour.
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   // If they've attached a photo, the separate photo consent is required too.
-  const canContinue = step === 1 ? step1ok : step === 2 ? step2ok : consent && (!photoFile || photoConsent);
+  const canContinue =
+    step === 1 ? step1ok : step === 2 ? step2ok : consent && emailOk && (!photoFile || photoConsent);
 
   function pickPhoto(file: File | null) {
     setPhotoError(null);
@@ -295,7 +308,7 @@ export default function Create() {
 
   function addInterest() {
     const v = interestDraft.trim();
-    if (v && interests.length < 10 && !interests.includes(v)) setInterests([...interests, v]);
+    if (v && interests.length < MAX_INTERESTS && !interests.includes(v)) setInterests([...interests, v]);
     setInterestDraft('');
   }
 
@@ -308,7 +321,7 @@ export default function Create() {
     setInterests((current) => {
       const merged = [...current];
       for (const interest of pack.interests) {
-        if (merged.length >= 10) break;
+        if (merged.length >= MAX_INTERESTS) break;
         if (!merged.includes(interest)) merged.push(interest);
       }
       return merged;
@@ -319,6 +332,18 @@ export default function Create() {
     setSubmitting(true);
     setError(null);
     try {
+      // Attach the email to the (anonymous) account first, so we can reach a
+      // parent about their order even if they never come back to this tab.
+      // Deliberately not awaited for confirmation: Supabase sends a verify link,
+      // and blocking generation on that click would cost us the preview.
+      const trimmedEmail = email.trim();
+      if (trimmedEmail) {
+        const { data } = await supabase().auth.getUser();
+        if (data.user && data.user.email !== trimmedEmail) {
+          await supabase().auth.updateUser({ email: trimmedEmail }).catch(() => undefined);
+        }
+      }
+
       const { consentId } = await api<CreateConsentResponse>('/consent', {
         method: 'POST',
         body: { consentVersion: CONSENT_VERSION, method: 'explicit_checkbox' },
@@ -353,7 +378,7 @@ export default function Create() {
           },
           goal,
           occasionPack,
-          customTheme: customTheme.trim() || undefined,
+          dedication: dedication.trim() || undefined,
           language: 'en',
           readingLevel,
           consentId,
@@ -579,6 +604,7 @@ export default function Create() {
               <h2 className="display" style={{ fontSize: 25, marginBottom: 6 }}>Shape their story</h2>
               <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', marginBottom: 22 }}>The goal and interests guide the whole adventure.</p>
 
+              {OCCASION_PACKS_ENABLED && (<>
               <label className="label">Quick occasion packs</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
                 {OCCASION_PACKS.map((pack) => (
@@ -597,6 +623,7 @@ export default function Create() {
                   </button>
                 ))}
               </div>
+              </>)}
 
               <label className="label">Story goal</label>
               <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
@@ -612,10 +639,10 @@ export default function Create() {
                 ))}
               </div>
 
-              <label className="label" style={{ marginTop: 18 }}>Things they love <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional, up to 10)</span></label>
+              <label className="label" style={{ marginTop: 18 }}>Things they love <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional, up to {MAX_INTERESTS})</span></label>
               <div style={{ display: 'flex', gap: 9 }}>
                 <input className="input" value={interestDraft} onChange={(e) => setInterestDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }} placeholder="dinosaurs, space…" />
-                <button className="btn btn-ghost" onClick={addInterest} disabled={!interestDraft.trim() || interests.length >= 10}>Add</button>
+                <button className="btn btn-ghost" onClick={addInterest} disabled={!interestDraft.trim() || interests.length >= MAX_INTERESTS}>Add</button>
               </div>
               {interests.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
@@ -624,20 +651,10 @@ export default function Create() {
                   ))}
                 </div>
               )}
-
-              <label className="label" style={{ marginTop: 18 }}>Your own theme <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span></label>
-              <textarea
-                className="input"
-                value={customTheme}
-                maxLength={200}
-                rows={3}
-                onChange={(e) => setCustomTheme(e.target.value)}
-                placeholder="e.g. a gentle story about moving to a new city and making one good friend"
-                style={{ resize: 'vertical', lineHeight: 1.5 }}
-              />
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>
-                Anything special you’d like the story to be about — we’ll weave it in. {customTheme.length}/200
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 8 }}>
+                A few favourites work better than a long list — they get woven into the adventure.
               </span>
+
             </div>
           )}
 
@@ -654,11 +671,13 @@ export default function Create() {
                   ['Age', ageBand || '—'],
                   ['Personality', personality.length ? personality.join(', ') : '—'],
                   ['Looks', [skinTone, [hairLength, hairTexture].filter(Boolean).join(' ') + ' hair', hairStyle || null, glasses ? 'glasses' : null].filter(Boolean).join(', ')],
-                  ['Pack', occasionPack ? OCCASION_PACKS.find((p) => p.id === occasionPack)?.label ?? occasionPack : '—'],
+                  ...(OCCASION_PACKS_ENABLED
+                    ? [['Pack', occasionPack ? OCCASION_PACKS.find((p) => p.id === occasionPack)?.label ?? occasionPack : '—']]
+                    : []),
                   ['Goal', goal ? GOAL_LABELS[goal] : '—'],
                   ['Reading level', readingLevel || '—'],
                   ['Interests', interests.length ? interests.join(', ') : '—'],
-                  ['Your theme', customTheme.trim() || '—'],
+                  ['Dedication', dedication.trim() || '—'],
                 ].map(([k, v]) => (
                   <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '12px 0', borderBottom: '1px solid var(--hairline)' }}>
                     <span style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{k}</span>
@@ -689,6 +708,38 @@ export default function Create() {
               )}
 
               <div style={{ marginTop: 16, display: 'grid', gap: 14 }}>
+                <label style={{ fontSize: 13.5, color: 'var(--ink)' }}>
+                  <span style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Where should we send your preview?</span>
+                  <input
+                    className="input"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    aria-label="Your email"
+                  />
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>
+                    Yours, not your child’s — it’s how we send the preview and, if you order, your delivery updates.
+                  </span>
+                </label>
+                <label style={{ fontSize: 13.5, color: 'var(--ink)' }}>
+                  <span style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Dedication <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span>
+                  </span>
+                  <input
+                    className="input"
+                    value={dedication}
+                    maxLength={120}
+                    onChange={(e) => setDedication(e.target.value)}
+                    placeholder="For Mia, who is braver than she knows."
+                    aria-label="Dedication"
+                  />
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>
+                    Printed on its own page at the front of the book. {dedication.length}/120
+                  </span>
+                </label>
                 <label style={{ fontSize: 13.5, color: 'var(--ink)' }}>
                   <span style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
                     {nickname || 'Their'}’s birthday month <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span>
