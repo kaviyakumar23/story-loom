@@ -115,7 +115,8 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
     // The edit window is open once the book is complete and, for a physical
     // order, until the founder starts printing it.
     book.canEdit =
-      row.status === 'complete' && (book.fulfillment == null || book.fulfillment.status === 'print_ready');
+      row.status === 'complete' &&
+      (book.fulfillment == null || ['qc_pending', 'qc_hold', 'print_ready'].includes(book.fulfillment.status));
   }
 
   return book;

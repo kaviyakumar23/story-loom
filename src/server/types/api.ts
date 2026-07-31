@@ -132,7 +132,7 @@ export interface ReadingGuide {
 }
 
 export interface FulfillmentStatus {
-  status: 'print_ready' | 'printing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'qc_pending' | 'qc_hold' | 'print_ready' | 'printing' | 'shipped' | 'delivered' | 'cancelled';
   carrier: string | null;
   trackingNumber: string | null;
   shippedAt: string | null;

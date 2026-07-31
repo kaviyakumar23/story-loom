@@ -298,8 +298,12 @@ async function deliver(ctx: BookContext): Promise<void> {
 }
 
 /**
- * Queue the printed book for manual founder fulfilment once it's paid + complete.
- * Idempotent (unique book_id+kind); the print master is the assembled book.pdf.
+ * Queue the printed book for founder review once it's paid + complete.
+ *
+ * It lands at `qc_pending`, not `print_ready`. Generation finishing is not the
+ * same as the book being fit to print, and this is the last point where a
+ * mistake costs nothing — after release it is a physical object in the post.
+ * Idempotent (unique book_id+kind).
  */
 async function ensurePrintFulfillment(ctx: BookContext, db: ReturnType<typeof serviceClient>): Promise<void> {
   if (!ctx.purchasedTier || !priceFor(ctx.purchasedTier as Tier).physical) return;
@@ -327,7 +331,7 @@ async function ensurePrintFulfillment(ctx: BookContext, db: ReturnType<typeof se
       order_id: orderId,
       address_id: addr ? (addr as { id: string }).id : null,
       kind: 'print',
-      status: 'print_ready',
+      status: 'qc_pending',
       // The press file, not the reader's copy — those are different artifacts now.
       print_master_key: `books/${ctx.bookId}/print/interior.pdf`,
     },

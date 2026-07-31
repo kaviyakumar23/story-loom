@@ -50,7 +50,9 @@ export async function loadEditableTarget(
     .eq('kind', 'print')
     .maybeSingle();
   const fStatus = (f as { status: string } | null)?.status;
-  if (fStatus && fStatus !== 'print_ready') {
+  // Anything before the file is released is still changeable; once it is at the
+  // printer it is not.
+  if (fStatus && !['qc_pending', 'qc_hold', 'print_ready'].includes(fStatus)) {
     throw conflict('We’ve already started printing this book, so it can’t be changed now.');
   }
 

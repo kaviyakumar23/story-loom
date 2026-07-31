@@ -1035,6 +1035,10 @@ function EditBook({ book, onEdited }: { book: Book; onEdited: () => Promise<void
 
 function PrintStatus({ f }: { f: FulfillmentStatus }) {
   const MAP: Record<FulfillmentStatus['status'], { icon: string; text: string }> = {
+    // Every book is read by a person before it prints; the parent should know
+    // that is what the wait is, rather than assuming nothing is happening.
+    qc_pending: { icon: '👀', text: 'We’re checking every page of your book by hand before it goes to print.' },
+    qc_hold: { icon: '👀', text: 'We’re taking a closer look at one of the pages — we’ll be in touch if anything needs your input.' },
     print_ready: { icon: '🖨️', text: 'Your printed hardcover is queued for printing — it ships within about 7 days.' },
     printing: { icon: '🖨️', text: 'Your printed hardcover is being printed now — it ships within about 7 days.' },
     shipped: { icon: '🚚', text: 'Your printed book has shipped!' },

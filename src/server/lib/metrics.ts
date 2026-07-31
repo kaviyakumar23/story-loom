@@ -232,9 +232,12 @@ export async function buildAlphaMetricsCsv(windowDays = 30): Promise<string> {
     feedbackByBook.set(item.book_id, list);
   }
 
+  // No parent id and no free text a customer wrote. An operational export that
+  // carries both is a personal-data export nobody asked for, and it ends up in
+  // spreadsheets and email attachments. Ratings and issue categories say what
+  // this file is for; the comment itself stays in the database.
   const headers = [
     'bookId',
-    'parentId',
     'status',
     'goal',
     'occasionPack',
@@ -257,7 +260,7 @@ export async function buildAlphaMetricsCsv(windowDays = 30): Promise<string> {
     'latestFeedbackIssue',
     'wantsFullBook',
     'latestFeedbackAt',
-    'latestFeedbackComments',
+    'latestFeedbackHasComment',
   ];
 
   const lines = [headers.map(csvCell).join(',')];
@@ -269,7 +272,6 @@ export async function buildAlphaMetricsCsv(windowDays = 30): Promise<string> {
     const latest = bookFeedback[0];
     const values = [
       book.id,
-      book.parent_id,
       book.status,
       book.goal,
       book.occasion_pack ?? '',
@@ -292,7 +294,7 @@ export async function buildAlphaMetricsCsv(windowDays = 30): Promise<string> {
       latest?.issue_type ?? '',
       latest ? String(latest.wants_full_book) : '',
       latest?.created_at ?? '',
-      latest?.comments ?? '',
+      latest?.comments?.trim() ? 'yes' : '',
     ];
     lines.push(values.map(csvCell).join(','));
   }
