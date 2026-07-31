@@ -20,7 +20,7 @@ export interface PriceEntry {
   enabled: boolean;
 }
 
-const PRICE_TABLE: Record<Tier, PriceEntry> = {
+export const PRICE_TABLE: Record<Tier, PriceEntry> = {
   pdf: { amount: 29900, currency: 'INR', includesAudio: false, physical: false, enabled: true },
   pdf_audio_guide: { amount: 49900, currency: 'INR', includesAudio: true, physical: false, enabled: false },
   seven_day_pack: { amount: 99900, currency: 'INR', includesAudio: true, physical: false, enabled: false },

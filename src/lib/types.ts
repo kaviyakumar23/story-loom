@@ -102,8 +102,13 @@ export interface Book {
   purchasedTier: Tier | null;
   createdAt: string;
   updatedAt: string;
+  /** Cover + the first few rendered pages, from preview_ready. */
   preview?: { pages: PreviewPage[] };
-  /** Every page's text once preview_ready; images fill in as they render. */
+  /** Signed cover image, from preview_ready. Null until the cover renders. */
+  coverUrl?: string | null;
+  /** Total story pages in the finished book (so the preview can say what's locked). */
+  pageCount?: number;
+  /** Every page — owner-only, and only once paid. Absent during the preview. */
   fullStory?: { pages: PreviewPage[] };
   readingGuide?: ReadingGuide | null;
   revisionCount: number;

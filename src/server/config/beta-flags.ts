@@ -31,3 +31,32 @@ export function photoLikenessEnabled(): boolean {
 export function marketingEmailsEnabled(): boolean {
   return on(loadEnv().MARKETING_EMAILS_ENABLED);
 }
+
+/**
+ * Whether a physical order also delivers a digital copy. Off for the beta: the
+ * hardcover IS the product, so the assembled PDF exists only as the print master
+ * and is never signed for the parent. The tests being run are "will a stranger
+ * pay for a printed book" and "can we deliver one" — a downloadable copy would
+ * blur both.
+ */
+export function digitalCompanionEnabled(): boolean {
+  return on(loadEnv().DIGITAL_COMPANION_ENABLED);
+}
+
+/**
+ * Shareable preview links. Off for the beta: a link that forwards a child's
+ * story to anyone who holds it is exactly the surface the capped cohort is
+ * meant to avoid, and the plan lists public sharing as out of scope.
+ */
+export function publicSharingEnabled(): boolean {
+  return on(loadEnv().PUBLIC_SHARING_ENABLED);
+}
+
+/**
+ * Self-serve changes after purchase — per-page text edits and paid image
+ * re-renders. Off for the beta: a single founder-reviewed correction replaces
+ * them, so no wording or artwork reaches the printer without a human seeing it.
+ */
+export function selfServeEditingEnabled(): boolean {
+  return on(loadEnv().SELF_SERVE_EDITING_ENABLED);
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { selfServeEditingEnabled } from '../config/beta-flags';
 import { badRequest, conflict, forbidden, notFound } from './errors';
 import { serviceClient } from './supabase';
 
@@ -19,6 +20,11 @@ export async function loadEditableTarget(
   indexRaw: string,
   parentId: string,
 ): Promise<EditableTarget> {
+  // Both edit endpoints funnel through here, so the beta's "one founder-reviewed
+  // correction instead of self-serve changes" rule is enforced in one place.
+  if (!selfServeEditingEnabled()) {
+    throw forbidden('Changes go through our team during the beta — reply to your order email and we’ll sort it.');
+  }
   if (!z.string().uuid().safeParse(bookId).success) throw badRequest('Invalid book id');
   const pageIndex = Number.parseInt(indexRaw, 10);
   if (!Number.isInteger(pageIndex) || pageIndex < 0) throw badRequest('Invalid page index');

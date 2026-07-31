@@ -126,6 +126,20 @@ const schema = z.object({
   // narrow paid beta — the beta recruits by invite, not by broadcast.
   MARKETING_EMAILS_ENABLED: z.string().default('false'),
 
+  // Whether a physical order also hands the parent a digital copy. Off for the
+  // beta: the hardcover is the whole product and the assembled PDF is only the
+  // print master.
+  DIGITAL_COMPANION_ENABLED: z.string().default('false'),
+
+  // Shareable preview links (/share/:token). Off for the beta — a forwarded
+  // link carries a child's story to an unbounded audience.
+  PUBLIC_SHARING_ENABLED: z.string().default('false'),
+
+  // Post-purchase self-serve page edits and paid image re-renders. Off for the
+  // beta: one founder-reviewed correction replaces them, so nothing reaches the
+  // printer unseen.
+  SELF_SERVE_EDITING_ENABLED: z.string().default('false'),
+
   INNGEST_EVENT_KEY: z.string().default(''),
   INNGEST_SIGNING_KEY: z.string().default(''),
 

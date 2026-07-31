@@ -153,10 +153,18 @@ export interface Book {
   updatedAt: string;
   /** Present once status reaches preview_ready. The first few rendered pages. */
   preview?: { pages: PreviewPage[] };
+  /** Signed cover image, present from preview_ready. Null until the cover renders. */
+  coverUrl?: string | null;
   /**
-   * Every page of the story once preview_ready — the full text a parent can read
-   * before buying. Images fill in as they render (cover + first pages during
-   * preview; the remaining pages after purchase), so `imageUrl` is null until then.
+   * Total story pages in the finished book. Present from preview_ready so the
+   * preview can say honestly how much is still locked, without shipping the
+   * locked pages themselves.
+   */
+  pageCount?: number;
+  /**
+   * Every page of the story — the paid product. Present only for the OWNER of a
+   * paid book: the text of the locked pages must never be serialised before
+   * payment, so this is deliberately absent at preview_ready.
    */
   fullStory?: { pages: PreviewPage[] };
   readingGuide?: ReadingGuide | null;

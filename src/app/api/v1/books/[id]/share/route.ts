@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { requireParent } from '@/server/auth';
+import { publicSharingEnabled } from '@/server/config/beta-flags';
 import { loadEnv } from '@/server/config/env';
 import { audit } from '@/server/lib/audit';
 import { badRequest, forbidden, internal, notFound } from '@/server/lib/errors';
@@ -19,6 +20,7 @@ type Ctx = { params: Promise<{ id: string }> };
 // ---- POST /api/v1/books/:id/share — create an expiring private preview link ----
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   try {
+    if (!publicSharingEnabled()) throw forbidden('Preview sharing is not available right now');
     const parent = await requireParent(req);
     const { id } = await ctx.params;
     const book = await loadOwnedShareableBook(id, parent.id);
