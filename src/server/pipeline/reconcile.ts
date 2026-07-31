@@ -1,5 +1,6 @@
 import { audit } from '../lib/audit';
 import { evaluateAlerts } from '../lib/metrics';
+import { applyRefundForPayment } from '../lib/refunds';
 import { serviceClient } from '../lib/supabase';
 import { EVENTS, inngest } from './client';
 
@@ -43,11 +44,32 @@ export const reconcilePaidBooks = inngest.createFunction(
         // Skip books leased by a recent reconcile run (null lease = never leased).
         .or(`reconcile_leased_at.is.null,reconcile_leased_at.lt.${leaseCutoff}`)
         .limit(100);
-      const ids = ((data ?? []) as { id: string }[]).map((b) => b.id);
-      // Take the lease before enqueuing, so a concurrent/next cron won't re-pick.
-      if (ids.length) await db.from('books').update({ reconcile_leased_at: new Date(now).toISOString() }).in('id', ids);
+      const candidates = ((data ?? []) as { id: string }[]).map((b) => b.id);
+      if (!candidates.length) return [];
+
+      // Only re-enqueue books whose order is still paid. A refunded order leaves
+      // the book at 'paid' for as long as it takes the refund to land, and this
+      // cron would otherwise keep restarting generation for a book nobody is
+      // paying for — spending image budget on an order that has been undone.
+      const { data: liveOrders } = await db
+        .from('orders')
+        .select('book_id')
+        .in('book_id', candidates)
+        .eq('status', 'paid');
+      const payable = new Set(((liveOrders ?? []) as { book_id: string }[]).map((o) => o.book_id));
+      const ids = candidates.filter((id) => payable.has(id));
+
+      // Lease every candidate, including the ones we skipped: a book with no
+      // paid order will never become enqueueable, so re-checking it every cron
+      // is pure churn.
+      await db.from('books').update({ reconcile_leased_at: new Date(now).toISOString() }).in('id', candidates);
       return ids;
     });
+
+    // Re-apply webhook events that arrived before the thing they referred to —
+    // typically a refund whose capture had not landed yet. Dropping those meant
+    // a refunded payment could still be printed.
+    await step.run('replay-deferred', async () => replayDeferredEvents());
 
     // Evaluate operational alerts on the same cadence (§12).
     await step.run('evaluate-alerts', async () => evaluateAlerts());
@@ -70,3 +92,53 @@ export const reconcilePaidBooks = inngest.createFunction(
     return { reEnqueued: stuck.length };
   },
 );
+
+/**
+ * Replay webhook events parked as 'deferred' — a refund that arrived before the
+ * capture it refers to. Without this, the refund is lost and the later capture
+ * happily marks the order paid and sends a refunded book to print.
+ *
+ * Replayed through the same code path as a live refund, so there is one
+ * implementation of what a refund means rather than two that can drift.
+ */
+async function replayDeferredEvents(): Promise<number> {
+  const db = serviceClient();
+  const { data } = await db
+    .from('webhook_events')
+    .select('id, event_type, raw')
+    .eq('status', 'deferred')
+    .order('created_at', { ascending: true })
+    .limit(50);
+
+  const rows = (data ?? []) as {
+    id: string;
+    event_type: string;
+    raw: { payload?: { refund?: { entity?: { id?: string; payment_id?: string; amount?: number } } } };
+  }[];
+  let applied = 0;
+  for (const row of rows) {
+    const refund = row.raw?.payload?.refund?.entity;
+    if (row.event_type !== 'refund.processed' || !refund?.id || !refund.payment_id) continue;
+    try {
+      const result = await applyRefundForPayment({
+        razorpayPaymentId: refund.payment_id,
+        refundId: refund.id,
+        amount: refund.amount ?? null,
+      });
+      // Still unresolvable — leave it parked rather than marking it done and
+      // losing a refund that has genuinely not been applied anywhere.
+      if (!result.applied && result.reason === 'unknown_payment') continue;
+      await db
+        .from('webhook_events')
+        .update({ status: 'processed', processed_at: new Date().toISOString() })
+        .eq('id', row.id);
+      applied += 1;
+    } catch (err) {
+      await db
+        .from('webhook_events')
+        .update({ error: err instanceof Error ? err.message : String(err) })
+        .eq('id', row.id);
+    }
+  }
+  return applied;
+}

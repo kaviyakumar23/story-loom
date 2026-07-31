@@ -3,6 +3,7 @@ import { requireAdmin } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
 import { badRequest, notFound } from '@/server/lib/errors';
 import { refundPayment } from '@/server/lib/razorpay';
+import { applyRefundForPayment } from '@/server/lib/refunds';
 import { jsonError } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 
@@ -23,18 +24,43 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (status === 'refunded') return Response.json({ ok: true, status: 'refunded', alreadyRefunded: true });
     if (status !== 'paid') throw badRequest('Only paid orders can be refunded');
 
-    const { data: payment } = await db.from('payments').select('razorpay_payment_id').eq('order_id', id).maybeSingle();
+    // An order can hold more than one payment row: a declined first attempt
+    // followed by a successful one. maybeSingle() errors on two rows and
+    // discarded the error, so refunding any customer whose card failed once was
+    // impossible — and without the status filter it could have picked the
+    // failed attempt to refund.
+    const { data: payment } = await db
+      .from('payments')
+      .select('razorpay_payment_id')
+      .eq('order_id', id)
+      .eq('status', 'captured')
+      .order('captured_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (!payment) throw badRequest('No captured payment found for this order');
+    const razorpayPaymentId = (payment as { razorpay_payment_id: string }).razorpay_payment_id;
 
     const refund = await refundPayment({
-      paymentId: (payment as { razorpay_payment_id: string }).razorpay_payment_id,
+      paymentId: razorpayPaymentId,
       amount: (order as { amount: number }).amount,
       idempotencyKey: `refund-${id}`,
     });
 
-    await db.from('orders').update({ status: 'refunded' }).eq('id', id);
+    // Stop the book in the same transaction that marks the order refunded —
+    // cancelling any fulfilment that has not gone to print, and telling us if it
+    // already has.
+    const result = await applyRefundForPayment({
+      razorpayPaymentId,
+      refundId: refund.id,
+      amount: refund.amount,
+    });
     await audit({ actor: 'admin', action: 'order.refunded', entity: 'orders', entityId: id, metadata: { refundId: refund.id, amount: refund.amount } });
-    return Response.json({ ok: true, status: 'refunded', refundId: refund.id });
+    return Response.json({
+      ok: true,
+      status: 'refunded',
+      refundId: refund.id,
+      alreadyReleased: result.applied ? result.outcome.alreadyReleased : false,
+    });
   } catch (err) {
     return jsonError(err);
   }
