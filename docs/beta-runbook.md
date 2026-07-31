@@ -49,7 +49,15 @@ Apply in order with `node scripts/db-apply.mjs <name>` — **never**
                                  release_to_print(), apply_refund(), deferred erasure
 0022_beta_caps_price_arms        price arms, claim_beta_order_slot()
 0023_funnel_events               funnel telemetry
+0024_beta_review_fixes           shipping-address index fix, cap hold window,
+                                 webhook 'received' state
 ```
+
+**`0022` and `0024` are not optional for correctness.** Without `0022` the
+`next_price_arm_block` function is missing and every visitor silently falls back
+to one price — the experiment collects nothing while appearing to work (the
+server logs a `[price-arm]` error if this happens). Without `0024` the
+shipping-address upsert fails at plan time and no checkout can complete at all.
 
 Run `npm run rls-check` afterwards. `0021` changes a foreign key and adds
 functions the app calls by name — if `apply_refund` is missing, refunds throw
