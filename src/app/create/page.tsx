@@ -7,6 +7,7 @@ import { Header } from '@/components/chrome';
 import { NewsletterForm } from '@/components/landing/NewsletterForm';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useEnsureSession } from '@/lib/auth';
 import { OCCASION_PACKS_ENABLED } from '@/lib/beta-flags';
 import { PHOTO_LIKENESS_ENABLED as PHOTO_ENABLED } from '@/lib/photo-likeness';
@@ -331,6 +332,7 @@ export default function Create() {
   async function submit() {
     setSubmitting(true);
     setError(null);
+    track('preview_start');
     try {
       // Attach the email to the (anonymous) account first, so we can reach a
       // parent about their order even if they never come back to this tab.
@@ -344,10 +346,12 @@ export default function Create() {
         }
       }
 
+      if (trimmedEmail) track('email_captured');
       const { consentId } = await api<CreateConsentResponse>('/consent', {
         method: 'POST',
         body: { consentVersion: CONSENT_VERSION, method: 'explicit_checkbox' },
       });
+      track('consent_given');
 
       // Optional photo: record its own scoped consent, upload it (moderated
       // server-side before it's ever stored), and attach the id to the book.
@@ -392,8 +396,10 @@ export default function Create() {
       } catch {
         /* non-fatal */
       }
+      track('preview_complete');
       router.push(`/books/${bookId}`);
     } catch (e) {
+      if (e instanceof ApiError) track('intake_error', { reason: e.code.slice(0, 40) });
       if (e instanceof ApiError && e.code === 'email_required') {
         // Email gate: show the add-your-email step instead of a bare error.
         setNeedsEmail(true);
@@ -424,7 +430,7 @@ export default function Create() {
   }
 
   function next() {
-    if (step < 3) setStep(step + 1);
+    if (step < 3) { track('intake_step', { step: step + 1 }); setStep(step + 1); }
     else void submit();
   }
   function back() {

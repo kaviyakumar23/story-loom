@@ -44,12 +44,16 @@ export const retentionPurge = inngest.createFunction(
     // soon as the book is out of our hands.
     const erased = await step.run('run-deferred-erasures', async () => runDeferredErasures());
 
+    // Logs are kept for at least 180 days (CERT-In direction 5), so nothing here
+    // is purged earlier — see docs/retention-matrix.md.
+    const logsPurged = await step.run('purge-old-logs', async () => purgeOldLogs());
+
     await step.run('purge-ip-usage', async () => {
       const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
       await serviceClient().from('preview_ip_usage').delete().lt('day', cutoff);
     });
 
-    if (!expired.length) return { purged: 0, heroesPurged: 0, erased };
+    if (!expired.length) return { purged: 0, heroesPurged: 0, erased, logsPurged };
     const bookIds = expired.map((b) => b.id);
 
     await step.run('purge-books', async () => {
@@ -101,9 +105,36 @@ export const retentionPurge = inngest.createFunction(
       }),
     );
 
-    return { purged: bookIds.length, heroesPurged, erased };
+    return { purged: bookIds.length, heroesPurged, erased, logsPurged };
   },
 );
+
+/**
+ * Age out the operational logs, never before the statutory floor.
+ *
+ * 180 days is a MINIMUM, not a target: CERT-In direction 5 requires that logs
+ * are retained for 180 days, so this deletes at 400 to leave clear headroom for
+ * an investigation that starts late. Aggregates are unaffected.
+ */
+const LOG_RETENTION_DAYS = 400;
+
+async function purgeOldLogs(): Promise<number> {
+  const db = serviceClient();
+  const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 86_400_000).toISOString();
+  let purged = 0;
+  for (const table of ['funnel_events', 'webhook_events', 'audit_log'] as const) {
+    const { error, count } = await db
+      .from(table)
+      .delete({ count: 'exact' })
+      .lt('created_at', cutoff);
+    if (error) {
+      captureError(error, { stage: 'retention-logs' });
+      continue;
+    }
+    purged += count ?? 0;
+  }
+  return purged;
+}
 
 /**
  * Complete the erasures that had to wait for a printed order to finish.

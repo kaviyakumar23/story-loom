@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { audit } from '@/server/lib/audit';
 import { sendAdminAlert, sendOrderReceived } from '@/server/lib/email';
 import { badRequest, internal, notFound } from '@/server/lib/errors';
+import { recordFunnel } from '@/server/lib/funnel';
 import { verifyWebhookSignature } from '@/server/lib/razorpay';
 import { applyRefundForPayment } from '@/server/lib/refunds';
 import { jsonError } from '@/server/lib/route';
@@ -56,7 +57,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, parent_id, book_id, tier, amount, currency, status')
+      .select('id, parent_id, book_id, tier, amount, currency, status, price_arm')
       .eq('razorpay_order_id', payment.order_id)
       .maybeSingle();
     if (!order) {
@@ -143,6 +144,15 @@ export async function POST(req: Request): Promise<Response> {
         .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt, render_credits: POST_PAY_REGEN_CREDITS, series_number: seriesNumber })
         .eq('id', order.book_id);
       await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
+      // The end of the funnel, written server-side: a purchase counted from the
+      // client would count intentions, and the webhook is the only thing that
+      // knows money actually moved.
+      await recordFunnel('purchase', {
+        orderId: order.id,
+        bookId: order.book_id,
+        arm: (order as { price_arm?: 'A' | 'B' }).price_arm ?? null,
+        props: { amount: order.amount },
+      });
 
       const { data: user } = await db.auth.admin.getUserById(order.parent_id);
       if (user.user?.email) {

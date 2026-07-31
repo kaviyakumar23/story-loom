@@ -7,6 +7,7 @@ import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useAuth, useRequireAuth } from '@/lib/auth';
 import { PUBLIC_SHARING_ENABLED, SELF_SERVE_EDITING_ENABLED } from '@/lib/beta-flags';
 import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
@@ -177,8 +178,10 @@ export default function BookPage() {
     const physical = Boolean(TIER_META[tier].physical);
     if (physical && !isShippingComplete(address)) {
       setError('Please complete the shipping address (a valid 6-digit PIN is required).');
+      track('checkout_open', { ok: false, reason: 'incomplete_address' });
       return;
     }
+    track('checkout_open', { ok: true });
     setPaying(true);
     setError(null);
     try {
@@ -198,12 +201,16 @@ export default function BookPage() {
         method: 'POST',
         body: { bookId, tier, shippingAddress, isGift, giftMessage: isGift ? giftMessage.trim() || undefined : undefined },
       });
+      track('payment_initiated');
       await openCheckout(order, {
         email: session?.user?.email ?? undefined,
         onPaid: () => setAwaitingPayment(true),
-        onDismiss: () => setPaying(false),
+        onDismiss: () => { track('payment_dismissed'); setPaying(false); },
       });
     } catch (e) {
+      // The refusals worth counting are ours — not serviceable, beta full,
+      // already ordered — so the code travels with the event.
+      track('payment_failed', { reason: e instanceof ApiError ? e.code.slice(0, 40) : 'unknown' });
       setError(e instanceof ApiError ? e.message : 'Could not start checkout.');
       setPaying(false);
     }

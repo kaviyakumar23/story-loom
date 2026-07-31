@@ -5,6 +5,7 @@ import { FinalCta } from '@/components/landing/FinalCta';
 import { HeroCover } from '@/components/landing/HeroCover';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Personalisation } from '@/components/landing/Personalisation';
+import { PageAnalytics } from '@/components/landing/PageAnalytics';
 import { PriceBlock } from '@/components/landing/PriceBlock';
 import { ProductBlock } from '@/components/landing/ProductBlock';
 import { SampleBook } from '@/components/landing/SampleBook';
@@ -112,6 +113,7 @@ export default async function Landing() {
   return (
     <div className="web">
       <a href="#main-content" className="skip-link">Skip to content</a>
+      <PageAnalytics />
       <ScrollRibbon />
       <Header />
 

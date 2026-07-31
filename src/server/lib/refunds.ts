@@ -1,5 +1,5 @@
 import { audit } from './audit';
-import { sendAdminAlert } from './email';
+import { sendAdminAlert, sendRefundConfirmation } from './email';
 import { internal } from './errors';
 import { serviceClient } from './supabase';
 
@@ -67,6 +67,30 @@ export async function applyRefundForPayment(input: {
       alreadyReleased: outcome.alreadyReleased,
     },
   });
+
+  // Tell the customer. Until now nothing did, so the only way to learn a refund
+  // had happened was to notice it on a bank statement — which is how a refund
+  // becomes a support ticket.
+  try {
+    const { data: order } = await db
+      .from('orders')
+      .select('id, parent_id, amount, currency')
+      .eq('id', row.order_id)
+      .maybeSingle();
+    const o = order as { id: string; parent_id: string | null; amount: number; currency: string } | null;
+    if (o?.parent_id) {
+      const { data: user } = await db.auth.admin.getUserById(o.parent_id);
+      if (user.user?.email) {
+        await sendRefundConfirmation(user.user.email, {
+          orderId: o.id,
+          amount: o.amount,
+          currency: o.currency,
+        });
+      }
+    }
+  } catch {
+    /* best-effort — the refund itself has already gone through */
+  }
 
   if (outcome.alreadyReleased) {
     // The file is at the printer. Nothing here can pull it back, so the only

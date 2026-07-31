@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { loadEnv } from '@/server/config/env';
 import { requireAdmin } from '@/server/auth';
 import { audit } from '@/server/lib/audit';
-import { sendShipped } from '@/server/lib/email';
+import { sendCancellation, sendDelivered, sendShipped } from '@/server/lib/email';
 import { badRequest, conflict, internal, notFound } from '@/server/lib/errors';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -108,23 +108,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
 
-    // Notify the parent when their printed book ships (best-effort).
-    if (next === 'shipped') {
+    // Tell the parent what happened. Best-effort in every case — the status
+    // change has already succeeded, and a mail failure must not undo it.
+    if (next === 'shipped' || next === 'delivered' || next === 'cancelled') {
       try {
-        const { data: bk } = await db.from('books').select('parent_id').eq('id', cur.book_id).maybeSingle();
-        const parentId = (bk as { parent_id: string } | null)?.parent_id;
-        if (parentId) {
-          const { data: u } = await db.auth.admin.getUserById(parentId);
-          if (u.user?.email) {
-            await sendShipped(u.user.email, {
-              dashboardUrl: `${loadEnv().APP_BASE_URL}/books/${cur.book_id}`,
-              carrier: (patch.carrier as string | undefined) ?? cur.carrier,
-              trackingNumber: (patch.tracking_number as string | undefined) ?? cur.tracking_number,
-            });
-          }
+        const email = await parentEmail(db, cur.book_id);
+        const dashboardUrl = `${loadEnv().APP_BASE_URL}/books/${cur.book_id}`;
+        if (email && next === 'shipped') {
+          await sendShipped(email, {
+            dashboardUrl,
+            carrier: (patch.carrier as string | undefined) ?? cur.carrier,
+            trackingNumber: (patch.tracking_number as string | undefined) ?? cur.tracking_number,
+          });
+        } else if (email && next === 'delivered') {
+          // The courier's scan is not the same as a parent knowing, and this is
+          // the moment to ask how it went while the book is in their hands.
+          await sendDelivered(email, { dashboardUrl });
+        } else if (email && next === 'cancelled') {
+          // Silence here reads as a book that is simply never coming.
+          await sendCancellation(email, { orderId: cur.order_id, refunded: orderStatus === 'refunded' });
         }
       } catch {
-        // shipped email is best-effort; the status change already succeeded.
+        /* best-effort */
       }
     }
 
@@ -132,6 +137,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } catch (err) {
     return jsonError(err);
   }
+}
+
+/** The account holder's email for a book, or null if we cannot resolve one. */
+async function parentEmail(db: ReturnType<typeof serviceClient>, bookId: string): Promise<string | null> {
+  const { data: bk } = await db.from('books').select('parent_id').eq('id', bookId).maybeSingle();
+  const parentId = (bk as { parent_id: string } | null)?.parent_id;
+  if (!parentId) return null;
+  const { data: u } = await db.auth.admin.getUserById(parentId);
+  return u.user?.email ?? null;
 }
 
 const releaseSchema = z.object({
