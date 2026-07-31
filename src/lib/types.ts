@@ -37,8 +37,22 @@ export type BookEventName =
   | 'download_audio_clicked';
 export type FeedbackIssueType = 'none' | 'story_quality' | 'image_quality' | 'safety' | 'technical' | 'other';
 
+/** Mirrors src/server/types/api.ts — keep in sync. */
+export const HAIR_LENGTHS = ['short', 'medium', 'long'] as const;
+export const HAIR_TEXTURES = ['straight', 'wavy', 'curly', 'coily'] as const;
+export const HAIR_STYLES = ['loose', 'ponytail', 'braids', 'bun', 'buzz'] as const;
+export const GENDERS = ['girl', 'boy', 'neutral'] as const;
+export type HairLength = (typeof HAIR_LENGTHS)[number];
+export type HairTexture = (typeof HAIR_TEXTURES)[number];
+export type HairStyle = (typeof HAIR_STYLES)[number];
+export type Gender = (typeof GENDERS)[number];
+
 export interface Avatar {
   skinTone?: string;
+  hairLength?: string;
+  hairTexture?: string;
+  hairStyle?: string;
+  /** @deprecated legacy single hair field, kept for pre-split heroes */
   hair?: string;
   hairColor?: string;
   eyeColor?: string;
@@ -48,6 +62,8 @@ export interface Avatar {
 export interface ChildInput {
   nickname: string;
   ageBand: AgeBand;
+  /** Parent-stated, optional; omitted/'neutral' means they/them. */
+  gender?: Gender;
   avatar: Avatar;
   interests: string[];
 }

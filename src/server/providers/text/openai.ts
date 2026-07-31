@@ -9,8 +9,12 @@ import type { Story, StoryRequest, TextProvider, TextResult } from '../types';
  * Quality-tier text provider — OpenAI (§3, §7), via REST. Uses Structured
  * Outputs (`response_format: json_schema`, strict) to force schema-valid story
  * JSON. Re-confirm the model at build time; swap the constant to change it.
+ *
+ * Reasoning models take `reasoning_effort` and reject `temperature`, so the two
+ * are mutually exclusive below (`OPENAI_REASONING_EFFORT=off` restores the
+ * classic temperature path for models like gpt-4o).
  */
-const DEFAULT_MODEL = 'gpt-4o';
+const DEFAULT_MODEL = 'gpt-5.6-sol';
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 interface ChatResponse {
@@ -45,7 +49,11 @@ export class OpenAITextProvider implements TextProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          temperature: env.STORY_TEMPERATURE,
+          // Reasoning models take an effort level and reject temperature; classic
+          // models take temperature. Never send both.
+          ...(env.OPENAI_REASONING_EFFORT === 'off'
+            ? { temperature: env.STORY_TEMPERATURE }
+            : { reasoning_effort: env.OPENAI_REASONING_EFFORT }),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },

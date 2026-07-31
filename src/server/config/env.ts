@@ -75,7 +75,10 @@ const schema = z.object({
   // Env var that holds the inbound OIDC token (Vercel injects VERCEL_OIDC_TOKEN).
   GOOGLE_SUBJECT_TOKEN_ENV: z.string().default('VERCEL_OIDC_TOKEN'),
 
-  OPENAI_TEXT_MODEL: z.string().default('gpt-4o'),
+  OPENAI_TEXT_MODEL: z.string().default('gpt-5.6-sol'),
+  // Reasoning effort for reasoning-capable OpenAI models. 'off' omits the
+  // parameter entirely (and keeps temperature) for classic models like gpt-4o.
+  OPENAI_REASONING_EFFORT: z.enum(['off', 'minimal', 'low', 'medium', 'high']).default('low'),
   GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),
   GEMINI_IMAGE_MODEL_COST: z.string().default('gemini-2.5-flash-image'),
   GEMINI_IMAGE_MODEL_QUALITY: z.string().default('gemini-3-pro-image'),

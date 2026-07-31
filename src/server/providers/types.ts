@@ -13,6 +13,8 @@ export interface StoryRequest {
   ageBand: AgeBand;
   readingLevel: ReadingLevel;
   goal: Goal;
+  /** Parent-stated. Omitted or 'neutral' → the story uses they/them. */
+  gender?: 'girl' | 'boy' | 'neutral' | null;
   /** Already scrubbed of the child's name before reaching the provider. */
   interests: string[];
   /** Number of interior pages to plan for. */

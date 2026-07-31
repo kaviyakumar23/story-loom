@@ -40,10 +40,18 @@ function delimitSafe(s: string): string {
   return s.replace(/[<>]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/** Pronouns for the hero. Nothing is inferred — unstated means they/them. */
+function pronounDirective(gender: StoryRequest['gender']): string {
+  if (gender === 'girl') return `Refer to ${HERO_TOKEN} with she/her pronouns.`;
+  if (gender === 'boy') return `Refer to ${HERO_TOKEN} with he/him pronouns.`;
+  return `Refer to ${HERO_TOKEN} with they/them pronouns, and keep the writing gender-neutral.`;
+}
+
 export function storyUserPrompt(req: StoryRequest): string {
   return [
     `Write a ${req.pageCount}-page picture book for a child in the ${req.ageBand} age band.`,
     `Reading level: ${req.readingLevel}. Story goal: ${req.goal.replace(/_/g, ' ')}.`,
+    pronounDirective(req.gender),
     req.occasionPack ? `Occasion pack: ${req.occasionPack.replace(/_/g, ' ')}.` : '',
     req.interests.length
       ? `Weave in these interests where natural (subject matter only): <interests>${delimitSafe(req.interests.join(', '))}</interests>.`

@@ -49,3 +49,22 @@ describe('story prompt injection-hardening', () => {
     expect(sys).toContain('<interests>');
   });
 });
+
+describe('hero pronouns', () => {
+  it('uses she/her when the parent says girl', () => {
+    expect(storyUserPrompt(req({ gender: 'girl' }))).toContain('she/her pronouns');
+  });
+
+  it('uses he/him when the parent says boy', () => {
+    expect(storyUserPrompt(req({ gender: 'boy' }))).toContain('he/him pronouns');
+  });
+
+  it('defaults to they/them when gender is unstated — never inferred', () => {
+    for (const g of [undefined, null, 'neutral' as const]) {
+      const p = storyUserPrompt(req({ gender: g }));
+      expect(p).toContain('they/them pronouns');
+      expect(p).not.toContain('she/her');
+      expect(p).not.toContain('he/him');
+    }
+  });
+});

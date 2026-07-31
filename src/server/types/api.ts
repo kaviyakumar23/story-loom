@@ -87,6 +87,14 @@ export type FeedbackIssueType = (typeof FEEDBACK_ISSUE_TYPES)[number];
  */
 export interface Avatar {
   skinTone?: string;
+  /**
+   * Hair is three orthogonal facets, because the old single `hair` field
+   * conflated them (hair can be short AND curly AND in braids).
+   */
+  hairLength?: string;
+  hairTexture?: string;
+  hairStyle?: string;
+  /** @deprecated Legacy single-field hair; still read for heroes created before the split. */
   hair?: string;
   hairColor?: string;
   eyeColor?: string;
@@ -99,6 +107,11 @@ export interface ChildInput {
   /** Nickname preferred over legal name (§9 data minimization). */
   nickname: string;
   ageBand: AgeBand;
+  /**
+   * Parent-stated, optional. Drives the story's pronouns and how the character
+   * is drawn. 'neutral' (or omitted) means they/them — never inferred.
+   */
+  gender?: 'girl' | 'boy' | 'neutral';
   avatar: Avatar;
   interests: string[];
 }

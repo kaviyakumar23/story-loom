@@ -39,7 +39,17 @@ const SKIN_TONES = [
   { id: 'tan', c: '#A2683F' },
   { id: 'deep', c: '#6F4327' },
 ];
-const HAIRS = ['short', 'curly', 'long', 'braids', 'none'];
+// Hair is three orthogonal choices — a child's hair can be short AND curly AND
+// worn in braids, which the old single list couldn't express.
+const HAIR_LENGTHS = ['short', 'medium', 'long'];
+const HAIR_TEXTURES = ['straight', 'wavy', 'curly', 'coily'];
+const HAIR_STYLES = ['loose', 'ponytail', 'braids', 'bun', 'buzz'];
+// Parent-stated; blank means the story uses they/them (never inferred).
+const GENDER_OPTIONS = [
+  { id: 'girl', label: 'Girl' },
+  { id: 'boy', label: 'Boy' },
+  { id: 'neutral', label: 'Prefer not to say' },
+];
 
 function Progress({ step }: { step: number }) {
   const labels = ['About them', 'Their story', 'Review'];
@@ -69,7 +79,10 @@ export default function Create() {
   const [nickname, setNickname] = useState('');
   const [ageBand, setAgeBand] = useState<AgeBand | ''>('');
   const [skinTone, setSkinTone] = useState('');
-  const [hair, setHair] = useState('');
+  const [gender, setGender] = useState('');
+  const [hairLength, setHairLength] = useState('');
+  const [hairTexture, setHairTexture] = useState('');
+  const [hairStyle, setHairStyle] = useState('');
   const [glasses, setGlasses] = useState(false);
   const [goal, setGoal] = useState<Goal | ''>('');
   const [occasionPack, setOccasionPack] = useState<OccasionPackId | null>(null);
@@ -110,12 +123,22 @@ export default function Create() {
     if (from) {
       void (async () => {
         try {
-          const h = await api<{ heroId: string; nickname: string; ageBand: string; avatar: { skinTone?: string; hair?: string; glasses?: boolean }; interests: string[]; birthMonth: number | null }>(`/books/${from}/reuse`);
+          const h = await api<{ heroId: string; nickname: string; ageBand: string; avatar: { skinTone?: string; gender?: string; hairLength?: string; hairTexture?: string; hairStyle?: string; hair?: string; glasses?: boolean }; interests: string[]; birthMonth: number | null }>(`/books/${from}/reuse`);
           setReuseHeroId(h.heroId);
           setNickname(h.nickname);
           setAgeBand(h.ageBand as AgeBand);
           if (h.avatar.skinTone) setSkinTone(h.avatar.skinTone);
-          if (h.avatar.hair) setHair(h.avatar.hair);
+          if (h.avatar.gender) setGender(h.avatar.gender);
+          if (h.avatar.hairLength) setHairLength(h.avatar.hairLength);
+          if (h.avatar.hairTexture) setHairTexture(h.avatar.hairTexture);
+          if (h.avatar.hairStyle) setHairStyle(h.avatar.hairStyle);
+          // Pre-split hero: map the old single value onto its best facet.
+          if (h.avatar.hair && !h.avatar.hairLength && !h.avatar.hairTexture) {
+            const legacy = h.avatar.hair;
+            if (legacy === 'short' || legacy === 'long') setHairLength(legacy);
+            else if (legacy === 'curly') setHairTexture('curly');
+            else if (legacy === 'braids') setHairStyle('braids');
+          }
           if (typeof h.avatar.glasses === 'boolean') setGlasses(h.avatar.glasses);
           if (Array.isArray(h.interests)) setInterests(h.interests);
           if (h.birthMonth) setBirthMonth(h.birthMonth);
@@ -156,7 +179,10 @@ export default function Create() {
         if (typeof d.nickname === 'string') setNickname(d.nickname);
         if (typeof d.ageBand === 'string') setAgeBand(d.ageBand as AgeBand);
         if (typeof d.skinTone === 'string') setSkinTone(d.skinTone);
-        if (typeof d.hair === 'string') setHair(d.hair);
+        if (typeof d.gender === 'string') setGender(d.gender);
+        if (typeof d.hairLength === 'string') setHairLength(d.hairLength);
+        if (typeof d.hairTexture === 'string') setHairTexture(d.hairTexture);
+        if (typeof d.hairStyle === 'string') setHairStyle(d.hairStyle);
         if (typeof d.glasses === 'boolean') setGlasses(d.glasses);
         if (typeof d.goal === 'string') setGoal(d.goal as Goal);
         if (d.occasionPack) setOccasionPack(d.occasionPack as OccasionPackId);
@@ -178,12 +204,12 @@ export default function Create() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
+        JSON.stringify({ nickname, ageBand, skinTone, gender, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
       );
     } catch {
       /* storage full / disabled — non-fatal */
     }
-  }, [loaded, nickname, ageBand, skinTone, hair, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
+  }, [loaded, nickname, ageBand, skinTone, gender, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
 
   if (sessionError) {
     return (
@@ -212,7 +238,7 @@ export default function Create() {
     );
   }
 
-  const step1ok = nickname.trim() && ageBand && skinTone && hair;
+  const step1ok = nickname.trim() && ageBand && skinTone && hairLength && hairTexture;
   const step2ok = goal && readingLevel;
   // If they've attached a photo, the separate photo consent is required too.
   const canContinue = step === 1 ? step1ok : step === 2 ? step2ok : consent && (!photoFile || photoConsent);
@@ -311,7 +337,14 @@ export default function Create() {
         // double-submit the header exists to prevent.
         headers: { 'Idempotency-Key': idempotencyKey.current },
         body: {
-          child: { nickname: nickname.trim(), ageBand, avatar: { skinTone, hair, glasses }, interests, birthMonth: birthMonth || null },
+          child: {
+            nickname: nickname.trim(),
+            ageBand,
+            ...(gender ? { gender } : {}),
+            avatar: { skinTone, hairLength, hairTexture, ...(hairStyle ? { hairStyle } : {}), glasses },
+            interests,
+            birthMonth: birthMonth || null,
+          },
           goal,
           occasionPack,
           customTheme: customTheme.trim() || undefined,
@@ -440,6 +473,18 @@ export default function Create() {
                 ))}
               </div>
 
+              <label className="label" style={{ marginTop: 18 }}>
+                Gender <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                {GENDER_OPTIONS.map((g) => (
+                  <button key={g.id} className={`chip ${gender === g.id ? 'sel' : ''}`} onClick={() => setGender(gender === g.id ? '' : g.id)}>{g.label}</button>
+                ))}
+              </div>
+              <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 7, lineHeight: 1.5 }}>
+                Sets the pronouns in the story. Leave it blank and we&apos;ll write with they/them.
+              </p>
+
               <label className="label" style={{ marginTop: 18 }}>Skin tone</label>
               <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
                 {SKIN_TONES.map((t) => (
@@ -449,10 +494,26 @@ export default function Create() {
                 ))}
               </div>
 
-              <label className="label" style={{ marginTop: 18 }}>Hair</label>
+              <label className="label" style={{ marginTop: 18 }}>Hair length</label>
               <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-                {HAIRS.map((h) => (
-                  <button key={h} className={`chip ${hair === h ? 'sel' : ''}`} onClick={() => setHair(h)}>{h}</button>
+                {HAIR_LENGTHS.map((h) => (
+                  <button key={h} className={`chip ${hairLength === h ? 'sel' : ''}`} onClick={() => setHairLength(h)}>{h}</button>
+                ))}
+              </div>
+
+              <label className="label" style={{ marginTop: 18 }}>Hair texture</label>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                {HAIR_TEXTURES.map((h) => (
+                  <button key={h} className={`chip ${hairTexture === h ? 'sel' : ''}`} onClick={() => setHairTexture(h)}>{h}</button>
+                ))}
+              </div>
+
+              <label className="label" style={{ marginTop: 18 }}>
+                How do they wear it? <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                {HAIR_STYLES.map((h) => (
+                  <button key={h} className={`chip ${hairStyle === h ? 'sel' : ''}`} onClick={() => setHairStyle(hairStyle === h ? '' : h)}>{h}</button>
                 ))}
               </div>
 
@@ -561,7 +622,7 @@ export default function Create() {
                 {[
                   ['Nickname', nickname || '—'],
                   ['Age', ageBand || '—'],
-                  ['Looks', [skinTone, `${hair} hair`, glasses ? 'glasses' : null].filter(Boolean).join(', ')],
+                  ['Looks', [skinTone, [hairLength, hairTexture].filter(Boolean).join(' ') + ' hair', hairStyle || null, glasses ? 'glasses' : null].filter(Boolean).join(', ')],
                   ['Pack', occasionPack ? OCCASION_PACKS.find((p) => p.id === occasionPack)?.label ?? occasionPack : '—'],
                   ['Goal', goal ? GOAL_LABELS[goal] : '—'],
                   ['Reading level', readingLevel || '—'],

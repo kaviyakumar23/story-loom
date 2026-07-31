@@ -118,6 +118,7 @@ async function buildStory(ctx: BookContext): Promise<StoryPlan> {
     ageBand: ctx.ageBand,
     readingLevel: ctx.readingLevel,
     goal: ctx.goal,
+    gender: (ctx.avatar as { gender?: 'girl' | 'boy' | 'neutral' } | undefined)?.gender ?? null,
     occasionPack: ctx.occasionPack,
     // Scrub the child's name out of free-text interests before it reaches the
     // model, and guard the whole payload against it (§9).

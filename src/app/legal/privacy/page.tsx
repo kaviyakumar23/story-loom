@@ -58,8 +58,13 @@ export default function Privacy() {
         <li style={li}><strong>Age band</strong> — never a full date of birth.</li>
         <li style={li}><strong>Reading level.</strong></li>
         <li style={li}>
-          <strong>Appearance (optional)</strong> — skin tone, hair style, hair colour, eye colour,
-          whether they wear glasses, and any distinguishing features you choose to add.
+          <strong>Gender (optional)</strong> — used only to choose the pronouns in the story. If you
+          leave it blank, we write with they/them.
+        </li>
+        <li style={li}>
+          <strong>Appearance (optional)</strong> — skin tone, hair length, hair texture, how the hair
+          is worn, hair colour, eye colour, whether they wear glasses, and any distinguishing features
+          you choose to add.
         </li>
         <li style={li}><strong>Favourite things / interests.</strong></li>
         <li style={li}><strong>Story goal</strong> — the gentle lesson you want the story to carry.</li>

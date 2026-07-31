@@ -142,15 +142,26 @@ const NEGATIVE_CONSTRAINTS = [
 function describeAvatar(avatar: Record<string, unknown>, ageBand: string): string {
   const a = avatar as {
     skinTone?: string;
+    gender?: string;
+    hairLength?: string;
+    hairTexture?: string;
+    hairStyle?: string;
     hair?: string;
     hairColor?: string;
     eyeColor?: string;
     glasses?: boolean;
     features?: string[];
   };
-  const bits = [`a young child (${ageBand} years)`];
+  const child =
+    a.gender === 'girl' ? 'a young girl' : a.gender === 'boy' ? 'a young boy' : 'a young child';
+  const bits = [`${child} (${ageBand} years)`];
   if (a.skinTone) bits.push(`${a.skinTone} skin`);
-  if (a.hairColor || a.hair) bits.push(`${[a.hairColor, a.hair].filter(Boolean).join(' ')} hair`);
+  // Length + texture + colour compose into one phrase; `hair` is the legacy
+  // single field, used only when the split facets are absent (older heroes).
+  const hairPhrase = [a.hairColor, a.hairLength, a.hairTexture].filter(Boolean).join(' ')
+    || [a.hairColor, a.hair].filter(Boolean).join(' ');
+  if (hairPhrase) bits.push(`${hairPhrase} hair`);
+  if (a.hairStyle && a.hairStyle !== 'loose') bits.push(`worn in a ${a.hairStyle}`);
   if (a.eyeColor) bits.push(`${a.eyeColor} eyes`);
   if (a.glasses) bits.push('wearing glasses');
   if (a.features?.length) bits.push(a.features.join(', '));

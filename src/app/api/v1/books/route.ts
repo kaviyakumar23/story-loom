@@ -43,10 +43,17 @@ const createSchema = z.object({
           'Nickname can only use Latin letters and common punctuation for now — we cannot print other scripts in the book yet.',
       }),
     ageBand: z.enum(AGE_BANDS),
+    // Parent-stated; omitted or 'neutral' means the story uses they/them.
+    gender: z.enum(['girl', 'boy', 'neutral']).optional(),
     // Attributes are fixed chips in the UI — pin them server-side too, so the
     // descriptor that reaches the image model can't carry arbitrary free text.
     avatar: z.object({
       skinTone: z.enum(['fair', 'light', 'medium', 'tan', 'deep']).optional(),
+      // Hair split into orthogonal facets (short AND curly AND braided is valid).
+      hairLength: z.enum(['short', 'medium', 'long']).optional(),
+      hairTexture: z.enum(['straight', 'wavy', 'curly', 'coily']).optional(),
+      hairStyle: z.enum(['loose', 'ponytail', 'braids', 'bun', 'buzz']).optional(),
+      // Legacy single field — still accepted so pre-split heroes can be reused.
       hair: z.enum(['short', 'curly', 'long', 'braids', 'none']).optional(),
       hairColor: z.string().max(30).optional(),
       eyeColor: z.string().max(30).optional(),
@@ -185,7 +192,11 @@ export async function POST(req: Request): Promise<Response> {
           parent_id: parent.id,
           nickname: input.child.nickname,
           age_band: input.child.ageBand,
-          avatar: input.child.avatar,
+          // Gender rides inside the avatar JSON so it reaches both the story
+          // prompt (pronouns) and the character sheet without a schema change.
+          avatar: input.child.gender
+            ? { ...input.child.avatar, gender: input.child.gender }
+            : input.child.avatar,
           interests: input.child.interests,
           birth_month: input.child.birthMonth ?? null,
         })
