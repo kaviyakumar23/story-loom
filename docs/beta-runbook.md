@@ -139,7 +139,7 @@ Named here because the code is finished and these are not:
 Only when all of the above is true:
 
 1. `PHOTO_LIKENESS_SERVER_ENABLED=false` and the rest of the table confirmed.
-2. Apply migrations `0018`–`0023`; `npm run rls-check`.
+2. Apply migrations `0018`–`0024`; `npm run rls-check`.
 3. `EMAIL_FROM` on a verified domain; `ALERT_EMAIL` set and tested.
 4. Set `NEXT_PUBLIC_PAYMENTS_ENABLED=true` and redeploy.
 5. Take one order yourself, end to end, before inviting anyone.
