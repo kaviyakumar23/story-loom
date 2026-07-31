@@ -684,6 +684,7 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
 }) {
   const [instruction, setInstruction] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function requestRevision() {
@@ -700,18 +701,29 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
         body: { instruction: trimmed } satisfies CreateBookRevisionRequest,
       });
       await onEvent('preview_tweak_requested', { length: trimmed.length });
+      setSent(true);
+      // Nothing regenerates until a human approves it, so there is no new state
+      // to poll for — refresh once so the used-up change is reflected.
       await onRevisionStarted();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not request a preview tweak.');
+      setError(e instanceof ApiError ? e.message : 'Could not request a change.');
+    } finally {
       setSaving(false);
     }
   }
 
   return (
     <section style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid var(--hairline)' }}>
-      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>One free tweak</h3>
-      {book.canRequestRevision ? (
+      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>Ask for one change</h3>
+      {sent ? (
+        <p className="trust">
+          <Icon name="check" size={15} stroke="var(--success)" /> Got it — we read every request by hand and will email you within a day.
+        </p>
+      ) : book.canRequestRevision ? (
         <>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
+            Tell us what to change and we’ll look at it ourselves before rebuilding the preview. One change per book.
+          </p>
           <textarea
             className="input"
             value={instruction}
@@ -722,12 +734,12 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
             style={{ resize: 'vertical', minHeight: 92 }}
           />
           <button className="btn btn-brand btn-block" style={{ marginTop: 12 }} onClick={requestRevision} disabled={saving || instruction.trim().length < 8}>
-            {saving ? <span className="spinner" /> : <><Sparkle size={17} color="#fff" /> Regenerate preview</>}
+            {saving ? <span className="spinner" /> : <><Sparkle size={17} color="#fff" /> Send my change</>}
           </button>
         </>
       ) : (
         <p className="trust">
-          <Icon name="check" size={15} stroke="var(--success)" /> Free tweak used for this preview.
+          <Icon name="check" size={15} stroke="var(--success)" /> You’ve used the one change for this book.
         </p>
       )}
       {error && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 10 }}>{error}</p>}
