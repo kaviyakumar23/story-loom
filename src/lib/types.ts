@@ -42,10 +42,13 @@ export const HAIR_LENGTHS = ['short', 'medium', 'long'] as const;
 export const HAIR_TEXTURES = ['straight', 'wavy', 'curly', 'coily'] as const;
 export const HAIR_STYLES = ['loose', 'ponytail', 'braids', 'bun', 'buzz'] as const;
 export const GENDERS = ['girl', 'boy', 'neutral'] as const;
+export const PERSONALITY_TRAITS = ['curious', 'brave', 'kind', 'funny', 'imaginative', 'thoughtful'] as const;
+export const MAX_PERSONALITY_TRAITS = 3;
 export type HairLength = (typeof HAIR_LENGTHS)[number];
 export type HairTexture = (typeof HAIR_TEXTURES)[number];
 export type HairStyle = (typeof HAIR_STYLES)[number];
 export type Gender = (typeof GENDERS)[number];
+export type PersonalityTrait = (typeof PERSONALITY_TRAITS)[number];
 
 export interface Avatar {
   skinTone?: string;
@@ -64,6 +67,8 @@ export interface ChildInput {
   ageBand: AgeBand;
   /** Parent-stated, optional; omitted/'neutral' means they/them. */
   gender?: Gender;
+  /** Up to 3 traits that shape how the hero behaves in the story. */
+  personality?: PersonalityTrait[];
   avatar: Avatar;
   interests: string[];
 }

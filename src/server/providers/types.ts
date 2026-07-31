@@ -15,6 +15,8 @@ export interface StoryRequest {
   goal: Goal;
   /** Parent-stated. Omitted or 'neutral' → the story uses they/them. */
   gender?: 'girl' | 'boy' | 'neutral' | null;
+  /** Up to 3 curated personality traits (already validated server-side). */
+  personality?: string[];
   /** Already scrubbed of the child's name before reaching the provider. */
   interests: string[];
   /** Number of interior pages to plan for. */

@@ -45,6 +45,8 @@ const HAIR_LENGTHS = ['short', 'medium', 'long'];
 const HAIR_TEXTURES = ['straight', 'wavy', 'curly', 'coily'];
 const HAIR_STYLES = ['loose', 'ponytail', 'braids', 'bun', 'buzz'];
 // Parent-stated; blank means the story uses they/them (never inferred).
+const PERSONALITY_TRAITS = ['curious', 'brave', 'kind', 'funny', 'imaginative', 'thoughtful'];
+const MAX_TRAITS = 3;
 const GENDER_OPTIONS = [
   { id: 'girl', label: 'Girl' },
   { id: 'boy', label: 'Boy' },
@@ -83,6 +85,7 @@ export default function Create() {
   const [hairLength, setHairLength] = useState('');
   const [hairTexture, setHairTexture] = useState('');
   const [hairStyle, setHairStyle] = useState('');
+  const [personality, setPersonality] = useState<string[]>([]);
   const [glasses, setGlasses] = useState(false);
   const [goal, setGoal] = useState<Goal | ''>('');
   const [occasionPack, setOccasionPack] = useState<OccasionPackId | null>(null);
@@ -123,12 +126,13 @@ export default function Create() {
     if (from) {
       void (async () => {
         try {
-          const h = await api<{ heroId: string; nickname: string; ageBand: string; avatar: { skinTone?: string; gender?: string; hairLength?: string; hairTexture?: string; hairStyle?: string; hair?: string; glasses?: boolean }; interests: string[]; birthMonth: number | null }>(`/books/${from}/reuse`);
+          const h = await api<{ heroId: string; nickname: string; ageBand: string; avatar: { skinTone?: string; gender?: string; personality?: string[]; hairLength?: string; hairTexture?: string; hairStyle?: string; hair?: string; glasses?: boolean }; interests: string[]; birthMonth: number | null }>(`/books/${from}/reuse`);
           setReuseHeroId(h.heroId);
           setNickname(h.nickname);
           setAgeBand(h.ageBand as AgeBand);
           if (h.avatar.skinTone) setSkinTone(h.avatar.skinTone);
           if (h.avatar.gender) setGender(h.avatar.gender);
+          if (Array.isArray(h.avatar.personality)) setPersonality(h.avatar.personality.slice(0, MAX_TRAITS));
           if (h.avatar.hairLength) setHairLength(h.avatar.hairLength);
           if (h.avatar.hairTexture) setHairTexture(h.avatar.hairTexture);
           if (h.avatar.hairStyle) setHairStyle(h.avatar.hairStyle);
@@ -180,6 +184,7 @@ export default function Create() {
         if (typeof d.ageBand === 'string') setAgeBand(d.ageBand as AgeBand);
         if (typeof d.skinTone === 'string') setSkinTone(d.skinTone);
         if (typeof d.gender === 'string') setGender(d.gender);
+        if (Array.isArray(d.personality)) setPersonality(d.personality.slice(0, MAX_TRAITS));
         if (typeof d.hairLength === 'string') setHairLength(d.hairLength);
         if (typeof d.hairTexture === 'string') setHairTexture(d.hairTexture);
         if (typeof d.hairStyle === 'string') setHairStyle(d.hairStyle);
@@ -204,12 +209,12 @@ export default function Create() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ nickname, ageBand, skinTone, gender, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
+        JSON.stringify({ nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step, idempotencyKey: idempotencyKey.current }),
       );
     } catch {
       /* storage full / disabled — non-fatal */
     }
-  }, [loaded, nickname, ageBand, skinTone, gender, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
+  }, [loaded, nickname, ageBand, skinTone, gender, personality, hairLength, hairTexture, hairStyle, glasses, goal, occasionPack, readingLevel, interests, customTheme, step]);
 
   if (sessionError) {
     return (
@@ -341,6 +346,7 @@ export default function Create() {
             nickname: nickname.trim(),
             ageBand,
             ...(gender ? { gender } : {}),
+            ...(personality.length ? { personality } : {}),
             avatar: { skinTone, hairLength, hairTexture, ...(hairStyle ? { hairStyle } : {}), glasses },
             interests,
             birthMonth: birthMonth || null,
@@ -485,6 +491,30 @@ export default function Create() {
                 Sets the pronouns in the story. Leave it blank and we&apos;ll write with they/them.
               </p>
 
+              <label className="label" style={{ marginTop: 18 }}>
+                Personality <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(pick up to {MAX_TRAITS})</span>
+              </label>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                {PERSONALITY_TRAITS.map((t) => {
+                  const on = personality.includes(t);
+                  const full = personality.length >= MAX_TRAITS && !on;
+                  return (
+                    <button
+                      key={t}
+                      className={`chip ${on ? 'sel' : ''}`}
+                      disabled={full}
+                      style={full ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                      onClick={() => setPersonality(on ? personality.filter((x) => x !== t) : [...personality, t])}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 7, lineHeight: 1.5 }}>
+                We show these traits through what they do in the story, never by labelling them.
+              </p>
+
               <label className="label" style={{ marginTop: 18 }}>Skin tone</label>
               <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
                 {SKIN_TONES.map((t) => (
@@ -622,6 +652,7 @@ export default function Create() {
                 {[
                   ['Nickname', nickname || '—'],
                   ['Age', ageBand || '—'],
+                  ['Personality', personality.length ? personality.join(', ') : '—'],
                   ['Looks', [skinTone, [hairLength, hairTexture].filter(Boolean).join(' ') + ' hair', hairStyle || null, glasses ? 'glasses' : null].filter(Boolean).join(', ')],
                   ['Pack', occasionPack ? OCCASION_PACKS.find((p) => p.id === occasionPack)?.label ?? occasionPack : '—'],
                   ['Goal', goal ? GOAL_LABELS[goal] : '—'],

@@ -45,6 +45,11 @@ const createSchema = z.object({
     ageBand: z.enum(AGE_BANDS),
     // Parent-stated; omitted or 'neutral' means the story uses they/them.
     gender: z.enum(['girl', 'boy', 'neutral']).optional(),
+    // Curated traits only (no free text) — they reach the model verbatim.
+    personality: z
+      .array(z.enum(['curious', 'brave', 'kind', 'funny', 'imaginative', 'thoughtful']))
+      .max(3)
+      .optional(),
     // Attributes are fixed chips in the UI — pin them server-side too, so the
     // descriptor that reaches the image model can't carry arbitrary free text.
     avatar: z.object({
@@ -194,9 +199,11 @@ export async function POST(req: Request): Promise<Response> {
           age_band: input.child.ageBand,
           // Gender rides inside the avatar JSON so it reaches both the story
           // prompt (pronouns) and the character sheet without a schema change.
-          avatar: input.child.gender
-            ? { ...input.child.avatar, gender: input.child.gender }
-            : input.child.avatar,
+          avatar: {
+            ...input.child.avatar,
+            ...(input.child.gender ? { gender: input.child.gender } : {}),
+            ...(input.child.personality?.length ? { personality: input.child.personality } : {}),
+          },
           interests: input.child.interests,
           birth_month: input.child.birthMonth ?? null,
         })

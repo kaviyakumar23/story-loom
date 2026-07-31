@@ -52,6 +52,9 @@ export function storyUserPrompt(req: StoryRequest): string {
     `Write a ${req.pageCount}-page picture book for a child in the ${req.ageBand} age band.`,
     `Reading level: ${req.readingLevel}. Story goal: ${req.goal.replace(/_/g, ' ')}.`,
     pronounDirective(req.gender),
+    req.personality?.length
+      ? `Let ${HERO_TOKEN}'s character come through as ${req.personality.join(', ')} — show these traits through what they do and say, never by labelling them.`
+      : '',
     req.occasionPack ? `Occasion pack: ${req.occasionPack.replace(/_/g, ' ')}.` : '',
     req.interests.length
       ? `Weave in these interests where natural (subject matter only): <interests>${delimitSafe(req.interests.join(', '))}</interests>.`

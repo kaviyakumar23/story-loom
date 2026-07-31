@@ -67,6 +67,10 @@ export default function Privacy() {
           you choose to add.
         </li>
         <li style={li}><strong>Favourite things / interests.</strong></li>
+        <li style={li}>
+          <strong>Personality (optional)</strong> — up to three traits (such as curious, brave or
+          kind) that shape how the hero behaves in the story.
+        </li>
         <li style={li}><strong>Story goal</strong> — the gentle lesson you want the story to carry.</li>
         <li style={li}><strong>Occasion</strong> — such as a birthday, festival, or a new sibling.</li>
         <li style={li}><strong>Parent&apos;s special message or theme (optional).</strong></li>

@@ -112,6 +112,8 @@ export interface ChildInput {
    * is drawn. 'neutral' (or omitted) means they/them — never inferred.
    */
   gender?: 'girl' | 'boy' | 'neutral';
+  /** Up to 3 curated traits shaping how the hero behaves (story only). */
+  personality?: string[];
   avatar: Avatar;
   interests: string[];
 }

@@ -79,6 +79,9 @@ const schema = z.object({
   // Reasoning effort for reasoning-capable OpenAI models. 'off' omits the
   // parameter entirely (and keeps temperature) for classic models like gpt-4o.
   OPENAI_REASONING_EFFORT: z.enum(['off', 'minimal', 'low', 'medium', 'high']).default('low'),
+  // Responses API output budget. Reasoning tokens count toward it, so leave
+  // headroom above the longest book; raise this if stories come back incomplete.
+  OPENAI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(1000).max(32000).default(8000),
   GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),
   GEMINI_IMAGE_MODEL_COST: z.string().default('gemini-2.5-flash-image'),
   GEMINI_IMAGE_MODEL_QUALITY: z.string().default('gemini-3-pro-image'),
