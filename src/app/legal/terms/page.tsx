@@ -101,9 +101,12 @@ export default function Terms() {
       <h2 className="display" style={h2}>8. Pricing and payments</h2>
       <p style={p}>
         You can generate a free preview before paying. Purchases are made in Indian Rupees (INR) through our
-        payment processor, Razorpay. Prices shown at checkout are the prices that apply to your order. At
-        launch we deliver a digital PDF; printed books are not offered yet (see our{' '}
-        <Link href="/legal/shipping" style={link}>Shipping Policy</Link>).
+        payment processor, Razorpay. Prices shown at checkout are the prices that apply to your order,
+        and include shipping and applicable tax. What you buy is a printed hardcover, delivered to the
+        address you give us — see our{' '}
+        <Link href="/legal/shipping" style={link}>Shipping Policy</Link> for where and when we
+        deliver. Your order is confirmed when the payment is captured, not when the payment window
+        closes.
       </p>
 
       <h2 className="display" style={h2}>9. Refunds and cancellation</h2>

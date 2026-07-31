@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { loadEnv } from '@/server/config/env';
+import { SERVICEABLE_SUMMARY, metroForPincode } from '@/server/config/beta-geo';
 import { priceFor } from '@/server/config/pricing';
 import { requireParent } from '@/server/auth';
 import { badRequest, conflict, forbidden, internal, notFound } from '@/server/lib/errors';
 import { createOrder } from '@/server/lib/razorpay';
+import { armForVisitor, readVisitorId } from '@/server/lib/price-arm';
 import { assertRateLimit } from '@/server/lib/rate-limit';
 import { jsonError, readJson } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -80,13 +82,34 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // NEVER trust a client amount — price server-side from the tier.
-    const price = priceFor(tier);
+    // NEVER trust a client amount — price server-side, from the arm this visitor
+    // was assigned on their first visit. Reading it from the request would let
+    // someone shop for the cheaper price and poison the experiment.
+    const arm = await armForVisitor(readVisitorId(req));
+    const price = priceFor(tier, arm);
     if (!price.enabled) throw badRequest('This tier is not available yet');
     // A printed book cannot be created without somewhere to ship it.
     if (price.physical && !parsed.data.shippingAddress) {
       throw badRequest('A shipping address is required for a printed book');
     }
+
+    // Where it is going, and whether we can take another one at all. Both are
+    // checked BEFORE a Razorpay order exists: discovering at the payment screen
+    // that we do not deliver to someone, or that the beta is full, is a refund
+    // and a bad first impression rather than a growth experiment.
+    let metro: string | null = null;
+    if (price.physical) {
+      const pincode = parsed.data.shippingAddress!.postalCode;
+      metro = metroForPincode(pincode);
+      if (!metro) {
+        throw badRequest(
+          `We're only delivering to ${SERVICEABLE_SUMMARY} while we're in beta — we can't ship to ${pincode} yet.`,
+        );
+      }
+      const slot = await claimSlot(db, metro);
+      if (slot !== 'ok') throw conflict(CAP_MESSAGES[slot] ?? CAP_MESSAGES.default);
+    }
+
     const isGift = parsed.data.isGift === true;
 
     const { data: created, error: orderErr } = await db
@@ -98,6 +121,8 @@ export async function POST(req: Request): Promise<Response> {
         amount: price.amount,
         currency: price.currency,
         status: 'created',
+        price_arm: arm,
+        metro,
         is_gift: isGift,
         gift_message: isGift ? parsed.data.giftMessage ?? null : null,
       })
@@ -174,6 +199,34 @@ export async function POST(req: Request): Promise<Response> {
     return jsonError(err);
   }
 }
+
+/**
+ * Ask the database whether the beta can take another order right now.
+ *
+ * The counting happens under a lock inside Postgres, because two people
+ * checking out in the same second must not both take the last slot — and the
+ * whole point of a capped beta is that the cap holds on the day it matters.
+ */
+async function claimSlot(db: ReturnType<typeof serviceClient>, metro: string): Promise<string> {
+  const { data, error } = await db.rpc('claim_beta_order_slot', { p_metro: metro });
+  // A failure to check must not silently become permission. Better to turn one
+  // customer away than to blow past a cap the founder cannot physically fulfil.
+  if (error) throw internal('Could not check beta capacity', error.message);
+  return typeof data === 'string' ? data : 'default';
+}
+
+/**
+ * Why we cannot take this order. Each says what is actually true, because "try
+ * again later" without a reason reads as a bug.
+ */
+const CAP_MESSAGES: Record<string, string> = {
+  cap_total: 'Our beta is full — we\u2019re making the last books now. Leave your email and we\u2019ll open the next round to you first.',
+  cap_metro: 'We\u2019ve taken all the beta orders we can fulfil in your city. Leave your email and we\u2019ll come back to you first.',
+  cap_day: 'We only take a few orders a day so every book gets checked properly. Please try again tomorrow.',
+  cap_week: 'We\u2019re at this week\u2019s limit — we make each book by hand. Please try again in a few days.',
+  qc_backlog: 'We\u2019re catching up on the books already in progress. Please try again tomorrow.',
+  default: 'We can\u2019t take another order just now. Please try again shortly.',
+};
 
 /** The one order this book is allowed to have open, if it already exists. */
 async function loadOpenOrder(

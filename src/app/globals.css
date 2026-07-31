@@ -463,6 +463,29 @@ p { margin: 0; }
   box-shadow: 0 6px 0 #d9a93f, 0 12px 20px rgba(43,39,105,.24);
   transform: rotate(8deg); border: 3px solid #fff;
 }
+/* ---- Trust row: the four objections, answered under the hero ---- */
+.trust-row { background: var(--surface); border-bottom: 1px solid var(--hairline); padding: 18px 0; }
+.trust-row-list {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+  list-style: none; margin: 0; padding: 0;
+}
+.trust-row-list li {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--ink);
+}
+.trust-row-list svg { flex: none; }
+/* Two columns before one: four cramped items read worse than four stacked. */
+@media (max-width: 900px) { .trust-row-list { grid-template-columns: 1fr 1fr; gap: 14px; } }
+@media (max-width: 480px) { .trust-row-list { grid-template-columns: 1fr; } .trust-row { padding: 14px 0; } }
+
+/* ---- Price: one number, no anchor, nothing to compare it against ---- */
+.price-card {
+  background: var(--surface); border: 2px solid var(--hairline); border-radius: var(--r-lg);
+  padding: 32px 28px; max-width: 420px; margin: 28px auto 0; box-shadow: var(--shadow-sm);
+}
+
+.hero-microcopy { font-size: 13px; color: var(--ink-soft); margin-top: 12px; line-height: 1.5; }
+
 .spec-row { display: flex; flex-wrap: wrap; gap: 26px; padding: 16px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
 .spec-row > span { display: flex; flex-direction: column; font-size: 14.5px; color: var(--ink); font-weight: 700; }
 .spec-row strong { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); font-weight: 800; margin-bottom: 3px; }
@@ -580,6 +603,32 @@ p { margin: 0; }
   .hero-copy { max-width: 100%; }
   .hero-features { position: static; margin-top: 26px; margin-bottom: 40px; }
   .hero-wave { display: none; }
+}
+/* On a phone the whole hero has to fit 844px of screen, because a call to
+   action below the fold is one a lot of people never see. Everything above the
+   button gets tightened until it does: the art loses a third of its height, the
+   headline drops a step, and the beta chip moves under the buttons — it is
+   reassurance, not a reason to tap. Measured at 390x844: the button now ends
+   around 700px, leaving room for the microcopy underneath. */
+@media (max-width: 560px) {
+  .hero-art { height: 200px; }
+  .hero-body { padding: 18px 20px 24px; }
+  .hero-eyebrow { margin-bottom: 10px; }
+  .hero-title { font-size: clamp(32px, 9vw, 40px); }
+  .hero-sub { font-size: 15.5px; margin: 12px 0 10px; }
+  .hero-spec { font-size: 14px; margin-bottom: 14px; }
+  .hero-ctas { gap: 10px; }
+  .hero-cta, .hero-cta2 { padding: 14px 22px; }
+  /* Below the buttons: it explains the wait, it does not sell the book. */
+  .hero-beta { order: 2; margin: 16px 0 0; }
+  .hero-copy { display: flex; flex-direction: column; }
+  .hero-copy > .hero-eyebrow { order: -6; }
+  .hero-copy > .hero-title { order: -5; }
+  .hero-copy > .hero-sub { order: -4; }
+  .hero-copy > .hero-spec { order: -3; }
+  .hero-copy > .hero-ctas { order: -2; }
+  .hero-copy > .hero-microcopy { order: -1; }
+  .hero-trust { order: 3; margin-top: 18px; }
 }
 
 /* Feature strip (5 reasons) */

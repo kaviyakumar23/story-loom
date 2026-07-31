@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   enabled: 'true',
   physical: true,
   rzpCalls: 0,
+  serviceable: true,
+  slot: 'ok',
 }));
 vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ NEXT_PUBLIC_PAYMENTS_ENABLED: h.enabled, RAZORPAY_KEY_ID: 'key_123' }) }));
 vi.mock('@/server/config/pricing', () => ({ priceFor: () => ({ enabled: true, physical: h.physical, amount: 99900, currency: 'INR' }) }));
@@ -15,6 +17,14 @@ vi.mock('@/server/lib/razorpay', () => ({
   createOrder: async () => { h.rzpCalls += 1; return { id: 'rzp_1', amount: 99900, currency: 'INR' }; },
 }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
+// The visitor's price arm and the delivery/capacity checks have their own tests
+// (price-arm, beta-geo, caps); here they are held constant so the assertions are
+// about idempotency.
+vi.mock('@/server/lib/price-arm', () => ({ armForVisitor: async () => 'A', readVisitorId: () => null }));
+vi.mock('@/server/config/beta-geo', () => ({
+  metroForPincode: () => (h.serviceable ? 'mumbai' : null),
+  SERVICEABLE_SUMMARY: 'Bengaluru, Mumbai, Delhi NCR',
+}));
 
 import { POST } from './route';
 
@@ -31,6 +41,7 @@ function orderDb(over: { bookStatus?: string } = {}) {
       orders: (op) => (op === 'insert' ? { data: { id: 'o1', razorpay_order_id: null, amount: 99900, currency: 'INR' } } : { data: null }),
       shipping_addresses: { data: null },
     },
+    rpc: { claim_beta_order_slot: () => ({ data: h.slot }) },
   });
 }
 
@@ -42,11 +53,12 @@ function racedDb(existing: Record<string, unknown>) {
       orders: (op) => (op === 'insert' ? { error: DUPLICATE } : { data: existing }),
       shipping_addresses: { data: null },
     },
+    rpc: { claim_beta_order_slot: () => ({ data: h.slot }) },
   });
 }
 
 describe('POST /api/v1/payments/order (integration)', () => {
-  beforeEach(() => { h.enabled = 'true'; h.physical = true; h.rzpCalls = 0; h.db = orderDb(); });
+  beforeEach(() => { h.enabled = 'true'; h.physical = true; h.rzpCalls = 0; h.serviceable = true; h.slot = 'ok'; h.db = orderDb(); });
 
   it('is 403 when payments are disabled (server-side kill switch)', async () => {
     h.enabled = 'false';
@@ -106,6 +118,40 @@ describe('POST /api/v1/payments/order (integration)', () => {
     const res = await post({ bookId: BOOK, tier: 'print', shippingAddress: ADDRESS });
     expect(res.status).toBe(409);
     expect(findOp(h.db!, 'orders', 'insert')).toBeUndefined();
+  });
+
+  // Discovering at the payment screen that we do not deliver to someone is a
+  // refund and a bad first impression, not a growth experiment.
+  it('refuses an address outside the delivery area before Razorpay is touched', async () => {
+    h.serviceable = false;
+    h.db = orderDb();
+    const res = await post({ bookId: BOOK, tier: 'print', shippingAddress: ADDRESS });
+    expect(res.status).toBe(400);
+    expect(h.rzpCalls).toBe(0);
+    expect(findOp(h.db!, 'orders', 'insert')).toBeUndefined();
+  });
+
+  it('turns an order away when the beta is full, saying why', async () => {
+    h.slot = 'cap_total';
+    h.db = orderDb();
+    const res = await post({ bookId: BOOK, tier: 'print', shippingAddress: ADDRESS });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.message).toMatch(/full/i);
+    expect(h.rzpCalls).toBe(0);
+  });
+
+  it('pauses when the founder’s QC queue is backed up', async () => {
+    h.slot = 'qc_backlog';
+    h.db = orderDb();
+    const res = await post({ bookId: BOOK, tier: 'print', shippingAddress: ADDRESS });
+    expect(res.status).toBe(409);
+    expect(findOp(h.db!, 'orders', 'insert')).toBeUndefined();
+  });
+
+  it('stamps the price arm and metro onto the order', async () => {
+    const res = await post({ bookId: BOOK, tier: 'print', shippingAddress: ADDRESS });
+    expect(res.status).toBe(200);
+    expect(findOp(h.db!, 'orders', 'insert')?.values).toMatchObject({ price_arm: 'A', metro: 'mumbai' });
   });
 
   it('refuses to sell the same book twice', async () => {

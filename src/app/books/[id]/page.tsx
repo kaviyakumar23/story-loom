@@ -573,7 +573,7 @@ function ShippingForm({ address, setAddress }: { address: ShippingInput; setAddr
       </div>
       <input className="input" placeholder="PIN code (6 digits)" value={address.postalCode} onChange={set('postalCode')} inputMode="numeric" maxLength={6} style={mb} aria-label="PIN code" />
       <input className="input" placeholder="Delivery notes (optional)" value={address.notes} onChange={set('notes')} aria-label="Delivery notes" />
-      <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 8 }}>Printed &amp; shipped within ~7 days · ships in India · includes the instant digital PDF.</p>
+      <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 8 }}>Checked by hand, then printed &amp; dispatched within 7 working days · delivered within 14.</p>
     </div>
   );
 }

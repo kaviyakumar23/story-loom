@@ -293,9 +293,17 @@ export const AGE_BANDS: AgeBand[] = ['3-4', '5-6', '7-8', '9-10'];
 // `enabled` mirrors the server price table (src/server/config/pricing.ts) —
 // keep the two in sync. Disabled tiers are hidden from checkout; the server
 // refuses orders for them regardless.
-export const TIER_META: Record<Tier, { label: string; note: string; price: string; badge?: string; enabled: boolean; physical?: boolean }> = {
-  print: { label: 'Printed hardcover book', note: 'Shipped to you + instant digital PDF', price: '₹999', badge: 'Most loved', enabled: true, physical: true },
-  pdf: { label: 'Digital PDF only', note: 'Instant download, print at home', price: '₹299', enabled: true },
+/**
+ * Client-side tier labels. `enabled` and the physical flag must match
+ * src/server/config/pricing.ts — pricing-sync.test.ts fails if they drift.
+ *
+ * `price` is deliberately absent for the printed book: it is under test, so the
+ * amount comes from the visitor's assigned arm at request time rather than from
+ * a constant that would be wrong for half of them.
+ */
+export const TIER_META: Record<Tier, { label: string; note: string; price?: string; badge?: string; enabled: boolean; physical?: boolean }> = {
+  print: { label: 'Printed hardcover book', note: '8×8 in casebound · 20 pages · shipped to you', enabled: true, physical: true },
+  pdf: { label: 'Digital PDF only', note: 'Instant download, print at home', price: '₹299', enabled: false },
   pdf_audio_guide: { label: 'PDF + Audio & Guide', note: 'Narrated + parent guide', price: '₹499', enabled: false },
   seven_day_pack: { label: '7-Day Story Pack', note: 'A week of bedtime stories', price: '₹999', enabled: false },
 };

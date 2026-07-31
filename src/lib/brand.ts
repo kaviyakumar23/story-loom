@@ -16,44 +16,53 @@ export const BRAND = {
 
   hero: {
     // The h1 leads with the concrete product; the tagline is the eyebrow.
-    headline: 'A printed storybook where your child is the hero.',
+    headline: 'A hardcover storybook created especially for your child.',
     sub:
-      'A personalised printed hardcover starring your child — illustrated from their nickname, ' +
-      'how they look and what they love. Free preview first; ₹999 includes the digital PDF. ' +
-      (PHOTO_LIKENESS_ENABLED ? 'Photo optional — used once, then deleted.' : 'No photos required.'),
-    primaryCta: 'Create a free preview',
-    secondaryCta: 'Read a sample story',
+      'A personalised printed hardcover starring your child — written and illustrated from their ' +
+      'personality, what they love, and the adventure you choose. ' +
+      (PHOTO_LIKENESS_ENABLED ? 'Photo optional — used once, then deleted.' : 'No photo of your child needed.'),
+    primaryCta: 'Create my free preview',
+    secondaryCta: 'See the sample book',
+    // What it costs the visitor to try. The PRICE is deliberately absent — it is
+    // under test, so it is fetched per visitor rather than baked in here where
+    // it would be wrong for half of them.
+    ctaMicrocopy: 'About 3 minutes · no child photo · no payment until you see the preview',
     trustLine: PHOTO_LIKENESS_ENABLED
       ? 'Free preview · Photo optional · Pay only when you love it'
-      : 'Free preview · No photos · Pay only when you love it',
-    // Concrete spec line for the hero — what it is, who it's for, what it costs.
-    specLine: 'A personalised printed hardcover · ages 3–10 · ₹999 incl. the digital PDF · free preview first',
+      : 'Free preview · No child photos · Pay only when you love it',
     // Default name shown on the interactive hero cover before a parent types.
     sampleName: 'Aarav',
     sampleTitleSuffix: 'and the Star That Listens',
   },
 
-  /** The main product: a printed hardcover (founder-fulfilled) that includes the
-   * digital PDF. ₹999 is the confirmed launch price (server truth: pricing.ts).
-   * Page count truth: 8/10/12 interior pages by reading level, plus the cover —
-   * never claim more (pipeline/helpers.ts pageCountFor). */
+  /**
+   * The product, as facts that must stay true.
+   *
+   * Every claim here is checked against something: the page count against
+   * print-spec.ts, the format against what the printer is quoted, the delivery
+   * window against the fulfilment SLA. There is no `price` — the beta is testing
+   * two, so the amount is fetched per visitor from /api/v1/beta/pricing.
+   *
+   * The digital PDF is NOT included. It was, and saying so is now false: a
+   * printed order ships a book and nothing else while the beta runs.
+   */
   product: {
     name: 'Personalised Printed Storybook',
-    price: 999,
-    priceLabel: '₹999',
     currency: 'INR',
-    pages: 'Up to 12 illustrated pages',
-    ageRange: 'Ages 3–10',
-    format: 'Printed hardcover',
-    delivery: 'Printed & dispatched in ~7 days',
-    revision: 'One free preview tweak',
+    pages: '20 pages · 12 illustrated',
+    ageRange: 'Ages 3–7',
+    format: 'Printed hardcover, 8×8 in casebound',
+    spec: '8×8 in casebound hardcover · 20 pages · ages 3–7',
+    delivery: 'Dispatched within 7 working days',
+    deliveryWindow: 'Delivered within 14 working days',
+    revision: 'One change, reviewed by us',
     unlockCta: 'Order the printed book',
     includes: [
       'A printed hardcover, shipped to your door',
-      'The digital PDF, ready within the hour — usually much sooner',
       'Personalised cover with your child as the hero',
-      'Up to 12 illustrated pages, matched to their reading level',
-      'One free tweak — change the details and we regenerate',
+      '12 illustrated pages, written for their reading level',
+      'A dedication page in your own words',
+      'Checked by a person before it prints',
     ],
   },
 

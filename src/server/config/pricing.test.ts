@@ -5,8 +5,11 @@ import { priceFor } from './pricing';
 // The price table is the single money source of truth (§8) — pin it so a
 // fat-fingered edit can't silently change what customers are charged.
 describe('pricing', () => {
-  it('charges ₹299 for the pdf tier', () => {
-    expect(priceFor('pdf')).toMatchObject({ amount: 29900, currency: 'INR', enabled: true });
+  // Disabled for the beta — a cheaper digital option beside the hardcover would
+  // answer a question nobody is asking (do people prefer paying less) and take
+  // the 75-order sample with it. The price stays pinned for when it returns.
+  it('keeps the ₹299 pdf tier priced but not for sale', () => {
+    expect(priceFor('pdf')).toMatchObject({ amount: 29900, currency: 'INR', enabled: false });
   });
 
   it('prices every tier in whole paise, INR', () => {

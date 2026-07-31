@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
 /** Indigo final-CTA banner with an illustrated child (reference layout). */
-export function FinalCta() {
+export function FinalCta({ price }: { price: string }) {
   return (
     <section className="dband">
       <div className="container">
@@ -11,8 +11,8 @@ export function FinalCta() {
           <div className="finalcta-copy">
             <h2 className="display">Ready to start their story?</h2>
             <p>
-              A {BRAND.product.priceLabel} printed hardcover starring your child — see the free
-              preview first, pay only if you love it.
+              A {price} printed hardcover starring your child — see the free preview first, pay
+              only if you love it.
             </p>
             <Link href="/create" className="btn finalcta-btn">
               {BRAND.hero.primaryCta}
