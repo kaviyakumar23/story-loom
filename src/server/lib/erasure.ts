@@ -50,18 +50,38 @@ export async function findErasureBlock(parentId: string): Promise<ErasureBlock |
 
   const { data: fulfillments } = await db
     .from('fulfillments')
-    .select('status')
+    .select('book_id, status')
     .in('book_id', bookIds)
     .not('status', 'in', '("delivered","cancelled")');
-  const open = (fulfillments ?? []) as { status: string }[];
-  if (!open.length) return null;
+  const open = (fulfillments ?? []) as { book_id: string; status: string }[];
+  if (open.length) {
+    return {
+      reason: `A printed order is still in progress (${open.map((f) => f.status).join(', ')}).`,
+      // Long enough to cover print plus delivery; the retention cron re-checks
+      // the real state anyway, so this is only about not re-checking hourly.
+      retryAfter: new Date(Date.now() + 21 * 86_400_000),
+    };
+  }
 
-  return {
-    reason: `A printed order is still in progress (${open.map((f) => f.status).join(', ')}).`,
-    // Long enough to cover print plus delivery; the retention cron re-checks the
-    // real state anyway, so this is only about not re-checking hourly.
-    retryAfter: new Date(Date.now() + 21 * 86_400_000),
-  };
+  // A paid order does not get its fulfilment row until the END of generation, so
+  // "no fulfilment row" was indistinguishable from "already delivered" — and the
+  // window it left open, between paying and the book being built, is exactly
+  // when a parent is most likely to have second thoughts and hit delete. That
+  // erasure would have cascaded the order away mid-build.
+  const { data: books } = await db
+    .from('books')
+    .select('id, status')
+    .in('id', bookIds)
+    .in('status', ['paid', 'generating']);
+  const building = (books ?? []) as { id: string; status: string }[];
+  if (building.length) {
+    return {
+      reason: 'A paid order is still being made.',
+      retryAfter: new Date(Date.now() + 21 * 86_400_000),
+    };
+  }
+
+  return null;
 }
 
 export async function eraseParentData(parentId: string): Promise<void> {

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { digitalCompanionEnabled } from '../config/beta-flags';
 import { loadEnv } from '../config/env';
 import { priceFor } from '../config/pricing';
 import { audit } from '../lib/audit';
@@ -7,7 +8,8 @@ import { captureError } from '../lib/observability';
 import { sendBookReady, sendPrintReady } from '../lib/email';
 import { assemblePdf, type AssemblePage } from '../lib/pdf';
 import { buildCasewrap } from '../lib/casewrap';
-import { buildPrintInterior } from '../lib/print-pdf';
+import { ensurePrintResolution } from '../lib/image-resolution';
+import { buildPrintInterior, type PrintPage } from '../lib/print-pdf';
 import { preflight } from '../lib/print-preflight';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
@@ -182,7 +184,10 @@ export async function assemble(ctx: BookContext): Promise<void> {
 
   if (isPhysical(ctx)) {
     await assemblePrintMaster(ctx, { title, coverImage, pages, series });
-    return;
+    // A physical order normally ships a book and nothing else. If the digital
+    // companion is ever switched back on, it has to be built here — returning
+    // early meant the flag could be flipped and still deliver nothing.
+    if (!digitalCompanionEnabled()) return;
   }
 
   const pdf = await assemblePdf({
@@ -212,10 +217,24 @@ async function assemblePrintMaster(
   ctx: BookContext,
   input: { title: string; coverImage: Buffer; pages: AssemblePage[]; series?: { number: number; heroName: string } },
 ): Promise<void> {
+  // The cover and the first three pages were rendered during the FREE preview,
+  // at preview size — they predate any payment, so they are ~1024px and would
+  // drag the whole print master under the resolution floor, failing preflight on
+  // every single paid order.
+  //
+  // They are raised here rather than re-rendered, because re-rendering would
+  // print different pictures from the ones the parent looked at and approved.
+  // The artwork they saw is the artwork they get.
+  const coverImage = (await ensurePrintResolution(input.coverImage)).bytes;
+  const pages: PrintPage[] = [];
+  for (const p of input.pages) {
+    pages.push({ text: p.text, image: (await ensurePrintResolution(p.image)).bytes });
+  }
+
   const { pdf, lowestPpi, pageCount } = await buildPrintInterior({
     title: input.title,
-    coverImage: input.coverImage,
-    pages: input.pages.map((p) => ({ text: p.text, image: p.image })),
+    coverImage,
+    pages,
     dedication: ctx.dedication,
     series: input.series ?? null,
     bookId: ctx.bookId,
@@ -238,7 +257,7 @@ async function assemblePrintMaster(
 
   // The case is a separate sheet from the block, and its width depends on how
   // thick this particular book is — so it is built per book, not once.
-  const wrapPdf = await buildCasewrap({ title: input.title });
+  const wrapPdf = await buildCasewrap({ title: input.title, coverImage });
   const wrapKey = `books/${ctx.bookId}/print/casewrap.pdf`;
   await uploadAsset(wrapKey, wrapPdf, 'application/pdf');
   await upsertAsset(ctx.bookId, 'casewrap', wrapKey, 'application/pdf', createHash('sha256').update(wrapPdf).digest('hex'));

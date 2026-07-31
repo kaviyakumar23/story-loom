@@ -427,6 +427,18 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
   const [page, setPage] = useState(0);
   const [saveEmail, setSaveEmail] = useState('');
   const [saving, setSaving] = useState(false);
+  // The printed book's price is under test, so TIER_META carries no constant for
+  // it — rendering one would show half of visitors a number we will not charge.
+  // Asked for here, from the same assignment the order route reads.
+  const [price, setPrice] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/v1/beta/pricing')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { display?: string } | null) => { if (!cancelled && d?.display) setPrice(d.display); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
   const current = slides[Math.min(page, slides.length - 1)];
   const changePage = (next: number) => {
     const bounded = Math.max(0, Math.min(slides.length - 1, next));
@@ -481,7 +493,9 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
                       </span>
                       <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{m.note}</span>
                     </span>
-                    <span className="display" style={{ fontSize: 19, color: 'var(--brand)' }}>{m.price}</span>
+                    <span className="display" style={{ fontSize: 19, color: 'var(--brand)' }}>
+                      {m.price ?? price ?? ''}
+                    </span>
                   </button>
                 );
               })}

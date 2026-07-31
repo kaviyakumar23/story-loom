@@ -9,10 +9,8 @@ import { FULL_BLEED_FLOOR_PX, FULL_BLEED_TARGET_PX } from './print-spec';
  * provider used to report hard-coded zero dimensions, so an under-sized page
  * would have been discovered by a parent holding the book.
  */
-const png = async (w: number, h = w): Promise<Buffer<ArrayBuffer>> =>
-  Buffer.from(
-    await sharp({ create: { width: w, height: h, channels: 3, background: { r: 90, g: 84, b: 198 } } }).png().toBuffer(),
-  ) as Buffer<ArrayBuffer>;
+const png = async (w: number, h = w): Promise<Buffer> =>
+  sharp({ create: { width: w, height: h, channels: 3, background: { r: 90, g: 84, b: 198 } } }).png().toBuffer();
 
 describe('print resolution floor', () => {
   it('reads real dimensions from the bytes', async () => {
@@ -24,7 +22,17 @@ describe('print resolution floor', () => {
     const out = await ensurePrintResolution(bytes);
     expect(out.upscaled).toBe(false);
     expect(out.width).toBe(FULL_BLEED_TARGET_PX);
-    expect(out.bytes).toBe(bytes);
+    expect(out.bytes.equals(bytes)).toBe(true); // same pixels, not resampled
+  }, 30_000);
+
+  // The cover and the first three pages are rendered during the FREE preview, at
+  // preview size. Reused verbatim they would drag every print master under the
+  // floor — so the fulfilment path raises them, and prints the artwork the
+  // parent actually approved rather than re-rolling it.
+  it('raises a preview-sized render so a reused page can still be printed', async () => {
+    const out = await ensurePrintResolution(await png(1024));
+    expect(out.upscaled).toBe(true);
+    expect(out.width).toBeGreaterThanOrEqual(FULL_BLEED_FLOOR_PX);
   }, 30_000);
 
   // A 1024px render is what the models return unasked, and it is about half of
@@ -43,6 +51,6 @@ describe('print resolution floor', () => {
   }, 30_000);
 
   it('refuses bytes it cannot measure rather than guessing', async () => {
-    await expect(ensurePrintResolution(Buffer.from('not an image') as Buffer<ArrayBuffer>)).rejects.toThrow();
+    await expect(ensurePrintResolution(Buffer.from('not an image'))).rejects.toThrow();
   });
 });

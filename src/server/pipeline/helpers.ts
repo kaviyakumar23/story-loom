@@ -403,6 +403,7 @@ export async function renderAndStorePage(
     let bytes = Buffer.from(value.base64, 'base64');
     let mime = value.mime;
     let width = value.width;
+    let height = value.height;
     let upscaled = false;
     if (quality === 'print') {
       const ensured = await ensurePrintResolution(bytes);
@@ -419,6 +420,7 @@ export async function renderAndStorePage(
         });
       }
       width = ensured.width;
+      height = ensured.height;
     }
 
     const ext = mime === 'image/jpeg' ? 'jpg' : 'png';
@@ -436,7 +438,7 @@ export async function renderAndStorePage(
         storage_key: key,
         mime,
         width: width || null,
-        height: (quality === 'print' ? width : value.height) || null,
+        height: height || null,
       })
       .select('id')
       .single();

@@ -47,9 +47,9 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ ok: true, deduped: true });
     }
 
-    if (event.event === 'payment.failed') return handlePaymentFailed(event);
-    if (event.event === 'refund.processed') return handleRefundProcessed(event, eventId);
-    if (event.event !== 'payment.captured') return Response.json({ ok: true });
+    if (event.event === 'payment.failed') return finish(eventId, await handlePaymentFailed(event));
+    if (event.event === 'refund.processed') return finish(eventId, await handleRefundProcessed(event, eventId));
+    if (event.event !== 'payment.captured') return finish(eventId, Response.json({ ok: true }));
 
     const payment = event.payload?.payment?.entity;
     if (!payment?.id || !payment.order_id) throw badRequest('Malformed webhook payload');
@@ -127,12 +127,17 @@ export async function POST(req: Request): Promise<Response> {
     // the series number and send a receipt. Whoever moves the row wins; the
     // other sees zero rows and skips straight to the fulfilment self-heal.
     const paidAt = new Date().toISOString();
-    const { data: activated } = await db
+    const { data: activated, error: activateErr } = await db
       .from('orders')
       .update({ status: 'paid', paid_at: paidAt })
       .eq('id', order.id)
       .eq('status', 'created')
       .select('id');
+    // Zero rows means another delivery won the race, which is fine. An ERROR
+    // means we do not know — and silently treating that as "someone else did it"
+    // would leave a paying customer with no receipt, no purchased_tier and no
+    // print order, while returning 200 so Razorpay never tries again.
+    if (activateErr) throw internal('Could not activate the paid order', activateErr.message);
 
     if (activated?.length) {
       // Stamp the series position (1 + the hero's already-purchased books) — for
@@ -171,7 +176,7 @@ export async function POST(req: Request): Promise<Response> {
     // Always (idempotently) ensure fulfilment is running for a paid order whose
     // book isn't finished — this self-heals a lost emit without a separate outbox.
     await ensureFulfillment(db, order.book_id);
-    return Response.json({ ok: true });
+    return finish(eventId, Response.json({ ok: true }));
   } catch (err) {
     return jsonError(err);
   }
@@ -260,6 +265,8 @@ export async function handleRefundProcessed(event: RazorpayWebhook, eventId?: st
 
   if (!result.applied) {
     if (result.reason === 'already_refunded') return Response.json({ ok: true, deduped: true });
+    // A partial refund has been recorded and escalated; the book carries on.
+    if (result.reason === 'partial_refund') return Response.json({ ok: true, partial: true });
     // Out of order: the refund arrived before the capture it refers to. Dropping
     // it here meant a later capture would mark the order paid and start printing
     // a refunded book. Hold it for the reconcile cron to replay.
@@ -280,9 +287,11 @@ async function alreadySeen(eventId: string, event: RazorpayWebhook): Promise<boo
     event_type: event.event,
     razorpay_payment_id: event.payload?.payment?.entity?.id ?? event.payload?.refund?.entity?.payment_id ?? null,
     razorpay_order_id: event.payload?.payment?.entity?.order_id ?? null,
-    status: 'processed',
+    // 'received', NOT 'processed'. Recording completion up front turned
+    // Razorpay's redelivery — the mechanism that exists to recover a failed
+    // handler — into a silent no-op for the exact events that needed it.
+    status: 'received',
     raw: event,
-    processed_at: new Date().toISOString(),
   });
   if (!error) return false;
   if (error.code === '23505' || /duplicate key/i.test(error.message ?? '')) return true;
@@ -290,6 +299,26 @@ async function alreadySeen(eventId: string, event: RazorpayWebhook): Promise<boo
   // let the payment-id uniqueness remain the backstop it has always been.
   console.error('[webhook] could not journal event', eventId, error.message);
   return false;
+}
+
+/**
+ * Close the journal entry once handling has actually succeeded. A throw skips
+ * this, leaving the row at 'received' so a redelivery is reprocessed rather
+ * than deduped away.
+ */
+async function finish(eventId: string | null, response: Response): Promise<Response> {
+  if (eventId) {
+    try {
+      await serviceClient()
+        .from('webhook_events')
+        .update({ status: 'processed', processed_at: new Date().toISOString() })
+        .eq('razorpay_event_id', eventId)
+        .eq('status', 'received');
+    } catch {
+      /* the response has already been decided; a journal update must not undo it */
+    }
+  }
+  return response;
 }
 
 /** Park an event that arrived before the thing it refers to, for later replay. */

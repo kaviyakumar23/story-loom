@@ -26,7 +26,9 @@ export type RefundResult =
   | { applied: true; outcome: RefundOutcome }
   /** The payment is not one we know about — usually a refund that overtook its capture. */
   | { applied: false; reason: 'unknown_payment' }
-  | { applied: false; reason: 'already_refunded' };
+  | { applied: false; reason: 'already_refunded' }
+  /** Less than the order total: recorded and escalated, but the book continues. */
+  | { applied: false; reason: 'partial_refund' };
 
 export async function applyRefundForPayment(input: {
   razorpayPaymentId: string;
@@ -43,6 +45,34 @@ export async function applyRefundForPayment(input: {
   const row = payment as { id: string; order_id: string; status: string } | null;
   if (!row) return { applied: false, reason: 'unknown_payment' };
   if (row.status === 'refunded') return { applied: false, reason: 'already_refunded' };
+
+  // A partial refund is a goodwill gesture on an order we are still fulfilling —
+  // a discount for a late delivery, say. Treating it like a full one would
+  // cancel the print job and mark the book failed, which is the opposite of what
+  // was intended. Only a refund of the whole amount stops the book; anything
+  // less is recorded and escalated for a person to decide.
+  const { data: orderRow } = await db.from('orders').select('amount').eq('id', row.order_id).maybeSingle();
+  const orderAmount = (orderRow as { amount: number } | null)?.amount ?? null;
+  if (input.amount != null && orderAmount != null && input.amount < orderAmount) {
+    await audit({
+      actor: 'system',
+      action: 'order.partial_refund',
+      entity: 'orders',
+      entityId: row.order_id,
+      metadata: { refundId: input.refundId, refunded: input.amount, orderAmount },
+    });
+    try {
+      await sendAdminAlert('Partial refund — the order was NOT cancelled', {
+        orderId: row.order_id,
+        refunded: input.amount,
+        orderAmount,
+        razorpayPaymentId: input.razorpayPaymentId,
+      });
+    } catch {
+      /* best-effort */
+    }
+    return { applied: false, reason: 'partial_refund' };
+  }
 
   const { data: result, error } = await db.rpc('apply_refund', { p_order: row.order_id });
   if (error) throw internal('Could not apply the refund', error.message);

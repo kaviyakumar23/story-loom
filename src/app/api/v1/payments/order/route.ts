@@ -106,8 +106,14 @@ export async function POST(req: Request): Promise<Response> {
           `We're only delivering to ${SERVICEABLE_SUMMARY} while we're in beta — we can't ship to ${pincode} yet.`,
         );
       }
-      const slot = await claimSlot(db, metro);
-      if (slot !== 'ok') throw conflict(CAP_MESSAGES[slot] ?? CAP_MESSAGES.default);
+      // Only a NEW order consumes a slot. Someone who opened the Razorpay window,
+      // closed it, and came back already holds one — turning them away for a cap
+      // their own unfinished order is counted against is absurd.
+      const existing = await loadOpenOrder(db, bookId, parent.id);
+      if (!existing) {
+        const slot = await claimSlot(db, metro);
+        if (slot !== 'ok') throw conflict(CAP_MESSAGES[slot] ?? CAP_MESSAGES.default);
+      }
     }
 
     const isGift = parsed.data.isGift === true;
@@ -179,14 +185,26 @@ export async function POST(req: Request): Promise<Response> {
         receipt: order.id,
         notes: { orderId: order.id, bookId, tier },
       });
-      razorpayOrderId = rzp.id;
-      // Checked, unlike before: an unrecorded id makes the order unmatchable by
-      // the webhook, which looks orders up by exactly this column.
-      const { error: linkErr } = await db
+      // Only claim the link if nobody else has. Two requests can both observe a
+      // null id (the winner creates its Razorpay order before writing the link),
+      // and an unconditional update would leave one live Razorpay order
+      // unreferenced — invisible to the webhook, which looks orders up by
+      // exactly this column, so a capture against it would be unmatchable.
+      const { data: linked, error: linkErr } = await db
         .from('orders')
         .update({ razorpay_order_id: rzp.id })
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .is('razorpay_order_id', null)
+        .select('razorpay_order_id');
       if (linkErr) throw internal('Could not link the payment order', linkErr.message);
+      if (linked?.length) {
+        razorpayOrderId = rzp.id;
+      } else {
+        // Someone else linked first — use theirs and abandon ours unused. An
+        // unpaid Razorpay order costs nothing; two payable ones cost a customer.
+        const winner = await loadOpenOrder(db, bookId, parent.id);
+        razorpayOrderId = winner?.razorpay_order_id ?? rzp.id;
+      }
     }
 
     return Response.json({

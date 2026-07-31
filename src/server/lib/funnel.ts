@@ -97,7 +97,10 @@ export interface RecordOptions {
  */
 export async function recordFunnel(event: FunnelEvent, opts: RecordOptions = {}): Promise<void> {
   try {
-    await serviceClient().from('funnel_events').insert({
+    // supabase-js RESOLVES on a database error rather than throwing, so a
+    // try/catch alone would have made every failure invisible — the whole funnel
+    // could have been recording nothing and still looked healthy.
+    const { error } = await serviceClient().from('funnel_events').insert({
       session_id: opts.sessionId ?? null,
       arm: opts.arm ?? null,
       event,
@@ -106,6 +109,7 @@ export async function recordFunnel(event: FunnelEvent, opts: RecordOptions = {})
       order_id: opts.orderId ?? null,
       book_id: opts.bookId ?? null,
     });
+    if (error) console.error('[funnel] could not record', event, error.message);
   } catch (err) {
     console.error('[funnel] could not record', event, err instanceof Error ? err.message : err);
   }

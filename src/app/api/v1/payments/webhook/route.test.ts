@@ -115,6 +115,24 @@ describe('POST /api/v1/payments/webhook (integration)', () => {
     expect(h.sends.map((s) => s.name)).toContain('book/fulfillment.requested');
   });
 
+  // Distinguishing "someone else won the race" (0 rows) from "the update failed"
+  // (an error) is the difference between a harmless no-op and a customer who is
+  // charged, gets no receipt, and whose book never reaches the print queue —
+  // while we return 200 so Razorpay never retries.
+  it('fails loudly when the activation update errors, rather than assuming a race', async () => {
+    h.db = makeSupabase({
+      tables: {
+        ...journal(),
+        orders: (op) => (op === 'select' ? { data: ORDER } : { error: { message: 'statement timeout' } }),
+        payments: { error: null },
+        books: { data: { status: 'generating' } },
+      },
+    });
+    const res = await POST(captured(99900, 'INR', 'evt_err'));
+    expect(res.status).toBe(500);
+    expect(findOp(h.db, 'books', 'update')).toBeUndefined();
+  });
+
   it('does NOT activate on an amount mismatch — records it and alerts a human', async () => {
     h.db = makeSupabase({ tables: { ...journal(), orders: (op) => (op === 'select' ? { data: ORDER } : { data: null }), payments: { error: null }, books: { data: null } } });
     const res = await POST(captured(50000, 'INR')); // wrong amount
@@ -154,6 +172,29 @@ describe('POST /api/v1/payments/webhook (integration)', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ unmatchedOrder: true });
     expect(h.alerts.length).toBe(1);
+  });
+
+  // Recording completion before handling turned Razorpay's redelivery — the
+  // mechanism that exists to recover a failed handler — into a silent no-op.
+  it('journals an event as received, and only marks it processed once handled', async () => {
+    let bookRead = 0;
+    h.db = makeSupabase({
+      userEmail: 'parent@example.com',
+      tables: {
+        ...journal(),
+        orders: (op) => (op === 'select' ? { data: ORDER } : { data: [{ id: 'o1' }] }),
+        payments: { error: null },
+        books: (op, ctx) => {
+          if (op === 'update') return { data: null };
+          if (ctx.head) return { count: 0 };
+          bookRead += 1;
+          return bookRead === 1 ? { data: { hero_id: 'h1' } } : { data: { status: 'generating' } };
+        },
+      },
+    });
+    await POST(captured(99900, 'INR', 'evt_j'));
+    expect(findOp(h.db, 'webhook_events', 'insert')?.values).toMatchObject({ status: 'received' });
+    expect(findOp(h.db, 'webhook_events', 'update')?.values).toMatchObject({ status: 'processed' });
   });
 
   it('applies a refund through the shared path', async () => {

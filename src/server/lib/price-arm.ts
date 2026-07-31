@@ -65,8 +65,19 @@ export async function resolveArm(visitorId: string | null): Promise<ArmAssignmen
 
   const id = visitorId ?? randomUUID();
   const { data: seq, error: seqErr } = await db.rpc('next_price_arm_block');
-  // A sequence failure must not stop someone buying a book; a default arm is a
-  // slightly lopsided experiment, a hard error is a lost customer.
+  // A sequence failure must not stop someone buying a book — a default arm is a
+  // lopsided experiment, a hard error is a lost customer. But it must be LOUD:
+  // silently assigning everyone to arm A looks exactly like a working experiment
+  // while collecting nothing, and the usual cause is migration 0022 not having
+  // been applied.
+  if (seqErr) {
+    console.error(
+      '[price-arm] next_price_arm_block unavailable — every visitor is falling back to arm',
+      DEFAULT_PRICE_ARM,
+      '(is migration 0022 applied?):',
+      seqErr.message,
+    );
+  }
   const blockSeq = typeof seq === 'number' ? seq : 0;
   const arm: PriceArm = seqErr ? DEFAULT_PRICE_ARM : armForSeq(blockSeq);
 

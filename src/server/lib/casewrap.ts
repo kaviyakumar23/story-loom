@@ -26,6 +26,12 @@ const FONT_DIR = path.join(process.cwd(), 'src/server/assets/fonts');
 
 export interface CasewrapInput {
   title: string;
+  /**
+   * The cover illustration. Without it the printed case is a plain coloured
+   * rectangle with type on it — which is not the book anyone was shown, since
+   * the artwork the parent approved is the cover.
+   */
+  coverImage?: Buffer | null;
   /** Back-cover blurb. Kept short — the back of a picture book is mostly art. */
   blurb?: string | null;
   interiorPages?: number;
@@ -45,9 +51,35 @@ export async function buildCasewrap(input: CasewrapInput): Promise<Buffer> {
   const { turnIn } = spec.params;
   const frontX = spec.spineX + spec.spineWidth + spec.params.hingeGap;
 
+  // The cover art fills the front panel and runs into the turn-in, so the fold
+  // wraps printed image around the board edge rather than bare colour.
+  if (input.coverImage) {
+    const img = input.coverImage[0] === 0x89 && input.coverImage[1] === 0x50
+      ? await doc.embedPng(input.coverImage)
+      : await doc.embedJpg(input.coverImage);
+    const boxX = frontX - turnIn / 2;
+    const boxW = spec.boardWidth + turnIn;
+    const boxH = spec.sheetHeight;
+    const scale = Math.max(boxW / img.width, boxH / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    page.drawImage(img, { x: boxX + (boxW - w) / 2, y: (boxH - h) / 2, width: w, height: h });
+  }
+
   // Front cover: title, positioned inside the board so the fold cannot eat it.
+  // A plate behind it keeps it readable over whatever the illustration does.
   const title = pdfSafe(input.title);
   const lines = wrap(title, display, 30, spec.boardWidth - turnIn * 2);
+  if (input.coverImage) {
+    page.drawRectangle({
+      x: frontX + turnIn / 2,
+      y: spec.sheetHeight / 2 - lines.length * 20 - 24,
+      width: spec.boardWidth - turnIn,
+      height: lines.length * 40 + 56,
+      color: rgb(0.14, 0.13, 0.25),
+      opacity: 0.72,
+    });
+  }
   lines.forEach((line, i) => {
     const w = display.widthOfTextAtSize(line, 30);
     page.drawText(line, {

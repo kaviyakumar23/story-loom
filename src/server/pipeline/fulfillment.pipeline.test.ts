@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   bookReady: 0,
   preflightOk: true,
   printMasters: 0,
+  digital: false,
   booksSelect: 0,
   ordersSelect: 0,
 }));
@@ -30,6 +31,13 @@ vi.mock('../lib/print-pdf', () => ({
   buildPrintInterior: async () => { h.printMasters += 1; return { pdf: Buffer.from('%PDF-print'), lowestPpi: 300, pageCount: 21 }; },
 }));
 vi.mock('../lib/casewrap', () => ({ buildCasewrap: async () => Buffer.from('%PDF-case') }));
+// The cover and first three pages come from the free preview at preview size;
+// the real helper raises them so the master can clear the floor. Covered in
+// image-resolution.test.ts — inert here.
+vi.mock('../lib/image-resolution', () => ({
+  ensurePrintResolution: async (bytes: Buffer) => ({ bytes, width: 2475, height: 2475, upscaled: false, originalWidth: 2475 }),
+}));
+vi.mock('../config/beta-flags', () => ({ digitalCompanionEnabled: () => h.digital }));
 vi.mock('../lib/print-preflight', () => ({
   preflight: async () => ({
     mode: 'interior', ok: h.preflightOk, pages: 21, images: [], fonts: [], lowestPpi: 300,
@@ -83,7 +91,7 @@ describe('fulfillmentPipeline (orchestration)', () => {
   beforeEach(() => {
     h.includesAudio = false; h.physical = true; h.renders = 0; h.audioSynths = 0;
     h.uploaded = []; h.printReady = 0; h.bookReady = 0; h.booksSelect = 0; h.ordersSelect = 0;
-    h.preflightOk = true; h.printMasters = 0;
+    h.preflightOk = true; h.printMasters = 0; h.digital = false;
   });
 
   it('renders remaining pages, builds a print master, and delivers a physical order', async () => {
@@ -111,6 +119,16 @@ describe('fulfillmentPipeline (orchestration)', () => {
     h.db = baseDb('paid');
     await expect(run()).rejects.toThrow(/preflight/i);
     expect(h.uploaded).not.toContain('books/book-1/print/interior.pdf');
+  });
+
+  // The flag existed but the physical path returned before reaching the reader
+  // PDF, so it could be switched on and still deliver nothing.
+  it('also builds the reader PDF for a physical order when the companion is on', async () => {
+    h.digital = true;
+    h.db = baseDb('paid');
+    await run();
+    expect(h.printMasters).toBe(1);
+    expect(h.uploaded).toContain('books/book-1/book.pdf');
   });
 
   it('builds the reader PDF instead when the order is not physical', async () => {

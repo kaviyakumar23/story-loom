@@ -19,7 +19,7 @@ export interface ImageDimensions {
 }
 
 /** Real pixel dimensions, read from the bytes rather than assumed. */
-export async function measureImage(bytes: Buffer<ArrayBuffer>): Promise<ImageDimensions> {
+export async function measureImage(bytes: Buffer): Promise<ImageDimensions> {
   const meta = await sharp(bytes).metadata();
   return { width: meta.width ?? 0, height: meta.height ?? 0 };
 }
@@ -44,7 +44,7 @@ export interface EnsuredImage {
  * than silent.
  */
 export async function ensurePrintResolution(
-  bytes: Buffer<ArrayBuffer>,
+  bytes: Buffer,
   targetPx: number = FULL_BLEED_TARGET_PX,
   floorPx: number = FULL_BLEED_FLOOR_PX,
 ): Promise<EnsuredImage> {
@@ -53,7 +53,7 @@ export async function ensurePrintResolution(
     throw new Error('Could not read the illustration dimensions — refusing to place it in a print master.');
   }
   if (width >= floorPx && height >= floorPx) {
-    return { bytes, width, height, upscaled: false, originalWidth: width };
+    return { bytes: Buffer.from(bytes) as Buffer<ArrayBuffer>, width, height, upscaled: false, originalWidth: width };
   }
 
   const scale = targetPx / Math.min(width, height);
