@@ -1,12 +1,17 @@
 import type { ReactNode } from 'react';
 import { Inscription } from './Inscription';
 
+/**
+ * Four steps, because that is how many decisions the parent actually makes:
+ * describe, look, buy, receive. The old five split "we write it" and "you
+ * review it" into separate beats, which made our work sound like a step the
+ * parent has to wait through rather than part of seeing the preview.
+ */
 const STEPS: { t: string; d: string; c: string; icon: ReactNode }[] = [
-  { t: 'Tell us about them', d: 'A nickname, how they look, what they love, and a gentle lesson.', c: 'var(--brand)', icon: <><path d="M4 20l3-1L18 8a2 2 0 0 0-3-3L4 16l-1 4Z" /><path d="M14 6l3 3" /></> },
-  { t: 'Meet their character', d: 'See your child illustrated as the hero — free, before you pay.', c: 'var(--coral)', icon: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.6-3.3 3.2-5.2 6.5-5.2S17.9 15.7 18.5 19" /></> },
-  { t: 'We create the story', d: 'Guided AI writes and illustrates a story made just for them.', c: 'var(--gold)', icon: <><path d="M5 12h5M12 5v5" /><path d="M15 15l5 5M17 13l4-4-2-2-4 4Z" /></> },
-  { t: 'Review & revise', d: 'Read the preview and ask for a change if it isn’t quite right.', c: 'var(--sky)', icon: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></> },
-  { t: 'We print & ship your hardcover', d: 'Dispatched in about 7 days — with the digital PDF to read tonight.', c: 'var(--brand)', icon: <><path d="M5 4h11a2 2 0 0 1 2 2v14l-6-2.5L6 20V6a2 2 0 0 1 2-2Z" /><path d="M9 8h6" /></> },
+  { t: 'Describe your child', d: 'A nickname, how they look, what they love, and the lesson you want the story to carry. About three minutes.', c: 'var(--brand)', icon: <><path d="M4 20l3-1L18 8a2 2 0 0 0-3-3L4 16l-1 4Z" /><path d="M14 6l3 3" /></> },
+  { t: 'See the preview, free', d: 'The cover and first three illustrated pages of their own story — before you decide anything.', c: 'var(--coral)', icon: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></> },
+  { t: 'Approve it and order', d: 'Happy with it? Order the hardcover. Something not right? Tell us and we’ll change it first.', c: 'var(--gold)', icon: <><path d="M4 12l5 5L20 6" /></> },
+  { t: 'We check, print and post it', d: 'A person reads every page before it prints. Dispatched within 7 working days.', c: 'var(--sky)', icon: <><path d="M5 4h11a2 2 0 0 1 2 2v14l-6-2.5L6 20V6a2 2 0 0 1 2-2Z" /><path d="M9 8h6" /></> },
 ];
 
 export function HowItWorks() {

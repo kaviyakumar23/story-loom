@@ -9,10 +9,17 @@ import { pageCountFor, persistStory, PREVIEW_PAGE_COUNT, type BookContext } from
 import type { Story } from '../providers/types';
 
 describe('pageCountFor', () => {
-  it('maps reading level to page count', () => {
-    expect(pageCountFor('emerging')).toBe(8);
-    expect(pageCountFor('early')).toBe(10);
+  // The printed book is one physical spec, so every order has to be the same
+  // length — a page count that varied with reading level would mean a different
+  // spine width, casewrap template and printer quote per order.
+  it('is a fixed 12 pages at every reading level', () => {
+    expect(pageCountFor('emerging')).toBe(12);
+    expect(pageCountFor('early')).toBe(12);
     expect(pageCountFor('fluent')).toBe(12);
+  });
+
+  it('leaves exactly 9 pages locked behind the 3-page preview', () => {
+    expect(pageCountFor('early') - PREVIEW_PAGE_COUNT).toBe(9);
   });
 });
 

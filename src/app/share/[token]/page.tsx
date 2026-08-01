@@ -5,6 +5,7 @@ import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
 import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
+import { publicSharingEnabled } from '@/server/config/beta-flags';
 import { hashShareToken } from '@/server/lib/share-token';
 import { toBook, type BookRow } from '@/server/lib/mappers';
 import { serviceClient } from '@/server/lib/supabase';
@@ -23,6 +24,9 @@ const BOOK_COLUMNS =
 
 export default async function SharedPreviewPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  // Sharing is off for the beta. Existing links stop resolving too — a link
+  // already in a family WhatsApp group is exactly what the switch is for.
+  if (!publicSharingEnabled()) notFound();
   if (!/^[A-Za-z0-9_-]{20,120}$/.test(token)) notFound();
 
   const db = serviceClient();

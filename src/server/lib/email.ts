@@ -107,19 +107,27 @@ export async function sendBookReady(to: string, dashboardUrl: string): Promise<v
   );
 }
 
-/** Physical order: the digital copy is ready now; the printed book is being made. */
+/**
+ * Physical order: the book is written and now waiting on a person.
+ *
+ * No longer promises a digital copy to read "right now" — the hardcover is the
+ * whole product, and the honest thing to describe is the wait and what is
+ * happening during it.
+ */
 export async function sendPrintReady(to: string, dashboardUrl: string): Promise<void> {
   await send(
     to,
-    'Your book is ready — printed copy on its way 📖',
+    'Your storybook is written — now we check it 📖',
     layout({
-      eyebrow: 'All set',
-      heading: 'Your storybook is ready',
-      body: `<p style="margin:0 0 14px">Your digital copy is ready to read right now.</p>
-             <p style="margin:0">Your <strong style="color:${COLORS.ink}">printed hardcover</strong> is being made
-               with care, and will be printed and shipped within about 7 days. We'll email you a tracking
-               link the moment it's on the way.</p>`,
-      cta: { label: 'Read your digital copy', url: dashboardUrl },
+      eyebrow: 'In the workshop',
+      heading: 'Your storybook is written',
+      body: `<p style="margin:0 0 14px">Every page of
+               <strong style="color:${COLORS.ink}">your child's book</strong> is finished. Before it
+               prints, one of us reads it end to end — the spelling of their name, the pictures, the
+               order of the pages.</p>
+             <p style="margin:0">Once it passes, it goes to the printer and is dispatched within 7
+               working days. We'll email you tracking the moment it's on its way.</p>`,
+      cta: { label: 'Follow your order', url: dashboardUrl },
     }),
   );
 }
@@ -221,6 +229,95 @@ export async function sendShipped(
   );
 }
 
+/**
+ * The book arrived.
+ *
+ * Sent because the courier's "delivered" scan is not the same as a parent
+ * knowing, and because this is the moment to ask how it went while the book is
+ * in their hands rather than a week later.
+ */
+export async function sendDelivered(to: string, opts: { dashboardUrl: string }): Promise<void> {
+  await send(
+    to,
+    'Your storybook has arrived 📦',
+    layout({
+      eyebrow: 'Delivered',
+      heading: 'It’s there!',
+      body: `<p style="margin:0 0 14px">Your printed storybook has been delivered. We hope the first
+             reading is a good one.</p>
+             <p style="margin:0 0 14px">If anything about it isn’t right — damage in the post, a
+             printing fault, a detail we got wrong — just reply to this email and we’ll reprint it.</p>
+             <p style="margin:0">And if you have two minutes to tell us what your child made of it,
+             we read every reply ourselves.</p>`,
+      cta: { label: 'View your order', url: opts.dashboardUrl },
+    }),
+  );
+}
+
+/**
+ * A refund has been issued.
+ *
+ * There was no refund email at all, from either the admin route or the webhook,
+ * which meant the only way a customer learned their money was coming back was
+ * by checking their bank. Saying so — and saying how long it takes — is the
+ * difference between a refund and a support ticket.
+ */
+export async function sendRefundConfirmation(
+  to: string,
+  opts: { orderId: string; amount: number; currency: string; reason?: string | null },
+): Promise<void> {
+  const reason = opts.reason
+    ? `<p style="margin:0 0 14px;font-size:14px;color:${COLORS.inkSoft};">${escapeHtml(opts.reason)}</p>`
+    : '';
+  await send(
+    to,
+    'Your MoonBell refund is on its way',
+    layout({
+      eyebrow: 'Refunded',
+      heading: 'We’ve refunded your order',
+      body: `<p style="margin:0 0 14px">We’ve refunded
+             <strong>${formatAmount(opts.amount, opts.currency)}</strong> for order
+             <strong>${escapeHtml(opts.orderId.slice(0, 8))}</strong>.</p>
+             ${reason}
+             <p style="margin:0 0 14px">Refunds go back to the card or account you paid from. Your
+             bank usually takes 5–7 working days to show it — that part is out of our hands.</p>
+             <p style="margin:0">If it hasn’t appeared after that, reply to this email and we’ll
+             chase it with you.</p>`,
+    }),
+  );
+}
+
+/**
+ * An order was cancelled before it went to print.
+ *
+ * Distinct from a refund email because the two are not always the same event —
+ * a book can be cancelled during QC before any money moves back, and silence at
+ * that point reads as a book that is simply never coming.
+ */
+export async function sendCancellation(
+  to: string,
+  opts: { orderId: string; refunded: boolean; amount?: number; currency?: string },
+): Promise<void> {
+  const money = opts.refunded && opts.amount
+    ? `<p style="margin:0 0 14px">We've refunded
+       <strong>${formatAmount(opts.amount, opts.currency ?? 'INR')}</strong> in full. Your bank
+       usually takes 5–7 working days to show it.</p>`
+    : '<p style="margin:0 0 14px">You have not been charged.</p>';
+  await send(
+    to,
+    'Your MoonBell order has been cancelled',
+    layout({
+      eyebrow: 'Cancelled',
+      heading: 'We’ve cancelled your order',
+      body: `<p style="margin:0 0 14px">Order <strong>${escapeHtml(opts.orderId.slice(0, 8))}</strong>
+             has been cancelled and will not be printed.</p>
+             ${money}
+             <p style="margin:0">If this is a surprise, reply to this email — we would rather sort it
+             out than leave you wondering.</p>`,
+    }),
+  );
+}
+
 interface LayoutOpts {
   eyebrow: string;
   heading: string;
@@ -306,6 +403,7 @@ function formatAmount(amount: number, currency: string): string {
 function prettyTier(tier: string): string {
   return (
     {
+      print: 'Printed hardcover',
       pdf: 'Digital PDF',
       pdf_audio_guide: 'PDF + Audio & Guide',
       seven_day_pack: '7-Day Story Pack',

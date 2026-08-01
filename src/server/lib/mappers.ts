@@ -1,3 +1,5 @@
+import { digitalCompanionEnabled } from '../config/beta-flags';
+import { PRICE_TABLE } from '../config/pricing';
 import { signAsset } from './storage';
 import { serviceClient } from './supabase';
 import type {
@@ -84,19 +86,27 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
   };
 
   if (row.status === 'preview_ready' || row.status === 'paid' || row.status === 'complete') {
-    // The full story text exists from preview_ready on (all pages are generated
-    // in one call); surfacing it lets the preview show the whole book, not just
-    // the rendered pages. `preview` keeps its original meaning (rendered pages).
-    const allPages = await loadAllPages(row.id);
-    book.fullStory = { pages: allPages };
+    // The preview is the cover plus the first few illustrated pages — and that is
+    // ALL an unpaid reader may receive. The full text of every page exists from
+    // preview_ready on (one story call writes them all), so withholding it has to
+    // happen here: the story IS the product, and serialising it before payment
+    // gives the book away. Locked pages are locked server-side, not just hidden
+    // by the UI.
     book.preview = { pages: await loadPreviewPages(row.id) };
-    book.readingGuide = await loadReadingGuide(row.id);
+    book.coverUrl = row.cover_asset_id ? await signAssetById(row.cover_asset_id) : null;
+    book.pageCount = await loadPageCount(row.id);
   }
 
   if (includeDelivery && (row.status === 'paid' || row.status === 'complete')) {
+    // Paid: the whole book unlocks for its owner.
+    book.fullStory = { pages: await loadAllPages(row.id) };
+    book.readingGuide = await loadReadingGuide(row.id);
     const assets = await loadDeliveryAssets(row.id);
-    book.pdfUrl = assets.pdf ? await signAsset(assets.pdf) : null;
-    book.audioUrl = assets.audio ? await signAsset(assets.audio) : null;
+    // A physical order ships a hardcover and nothing else while the digital
+    // companion is off — so the print master is never signed for the parent.
+    const digital = digitalCompanionEnabled() || !isPhysicalTier(row.purchased_tier);
+    book.pdfUrl = digital && assets.pdf ? await signAsset(assets.pdf) : null;
+    book.audioUrl = digital && assets.audio ? await signAsset(assets.audio) : null;
     book.fulfillment = await loadFulfillment(row.id);
     // Treat a very old editing flag as cleared, so a dropped re-assembly job
     // can't strand the reader on an "updating…" spinner forever.
@@ -105,7 +115,8 @@ export async function toBook(row: BookRow, { includeDelivery = false } = {}): Pr
     // The edit window is open once the book is complete and, for a physical
     // order, until the founder starts printing it.
     book.canEdit =
-      row.status === 'complete' && (book.fulfillment == null || book.fulfillment.status === 'print_ready');
+      row.status === 'complete' &&
+      (book.fulfillment == null || ['qc_pending', 'qc_hold', 'print_ready'].includes(book.fulfillment.status));
   }
 
   return book;
@@ -153,6 +164,15 @@ async function loadRevisionCount(bookId: string): Promise<number> {
 
 async function loadPreviewPages(bookId: string): Promise<PreviewPage[]> {
   return loadPages(bookId, true);
+}
+
+/** How many story pages the finished book has — a count, never the pages. */
+async function loadPageCount(bookId: string): Promise<number> {
+  const { count } = await serviceClient()
+    .from('book_pages')
+    .select('page_index', { count: 'exact', head: true })
+    .eq('book_id', bookId);
+  return count ?? 0;
 }
 
 /** Every page of the book (text always; image once rendered). */
@@ -204,4 +224,15 @@ async function assetKey(assetId: string): Promise<string | null> {
     .eq('id', assetId)
     .single();
   return (data as { storage_key: string } | null)?.storage_key ?? null;
+}
+
+/** Short-lived URL for a stored asset, by id. Null if the object went missing. */
+async function signAssetById(assetId: string): Promise<string | null> {
+  const key = await assetKey(assetId);
+  return key ? signAsset(key) : null;
+}
+
+/** Physical tiers ship an object; the rest are delivered as files. */
+function isPhysicalTier(tier: Tier | null): boolean {
+  return tier != null && PRICE_TABLE[tier]?.physical === true;
 }

@@ -113,7 +113,32 @@ const schema = z.object({
   // "no photos" → "photo optional" policy rewrite. Also requires the Vertex
   // backend (photos never egress to the AI-Studio key path). NEXT_PUBLIC_ so the
   // create UI can show/hide the uploader from the same switch.
+  //
+  // NEXT_PUBLIC_ vars are inlined at BUILD time, so the client copy of this flag
+  // cannot be trusted as a server kill switch — a warm lambda would keep serving
+  // the baked-in value. PHOTO_LIKENESS_SERVER_ENABLED is the runtime authority:
+  // every server path that could touch or egress photo bytes checks it, and it
+  // must be 'true' as well before a photo is accepted anywhere.
   NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED: z.string().default('false'),
+  PHOTO_LIKENESS_SERVER_ENABLED: z.string().default('false'),
+
+  // Lifecycle/marketing sends (preview win-back, occasion nudges). Off during the
+  // narrow paid beta — the beta recruits by invite, not by broadcast.
+  MARKETING_EMAILS_ENABLED: z.string().default('false'),
+
+  // Whether a physical order also hands the parent a digital copy. Off for the
+  // beta: the hardcover is the whole product and the assembled PDF is only the
+  // print master.
+  DIGITAL_COMPANION_ENABLED: z.string().default('false'),
+
+  // Shareable preview links (/share/:token). Off for the beta — a forwarded
+  // link carries a child's story to an unbounded audience.
+  PUBLIC_SHARING_ENABLED: z.string().default('false'),
+
+  // Post-purchase self-serve page edits and paid image re-renders. Off for the
+  // beta: one founder-reviewed correction replaces them, so nothing reaches the
+  // printer unseen.
+  SELF_SERVE_EDITING_ENABLED: z.string().default('false'),
 
   INNGEST_EVENT_KEY: z.string().default(''),
   INNGEST_SIGNING_KEY: z.string().default(''),

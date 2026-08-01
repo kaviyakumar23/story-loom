@@ -43,13 +43,38 @@ export default function Refunds() {
         <li style={li}>If a story fails to complete due to an error on our side, you are not charged for what did not complete.</li>
       </ul>
 
-      <h2 className="display" style={h2}>3. Printed books (coming later)</h2>
+      <h2 className="display" style={h2}>3. Printed books</h2>
       <p style={p}>
-        Printed books are not offered yet. When we introduce them, this policy will be updated. We expect the
-        terms to work like this: you may cancel before printing begins; once a book has gone to print it cannot
-        be cancelled; and we will reprint or refund a printed book that arrives damaged, misprinted, or
-        delivered to the wrong address. See our{' '}
-        <Link href="/legal/shipping" style={link}>Shipping Policy</Link>.
+        A printed book is made for one child and cannot be resold, so the cancellation window is tied
+        to the moment it goes to the printer rather than to a fixed number of days.
+      </p>
+      <ul style={ul}>
+        <li style={li}>
+          <strong>Before we release it to print:</strong> cancel for any reason and receive a full
+          refund. You can ask by email at any point after ordering; we check the book by hand first,
+          so there is normally a day or more before it is released.
+        </li>
+        <li style={li}>
+          <strong>After it has gone to print:</strong> the book cannot be cancelled, because it
+          physically exists and carries your child&apos;s name. If you tell us during printing we will
+          do what we can, but we cannot promise to stop it.
+        </li>
+        <li style={li}>
+          <strong>If something is wrong with it:</strong> we reprint and reship at no cost to you.
+          That covers damage in transit, printing faults, missing or misordered pages, and your
+          child&apos;s details being wrong on our side. Tell us within 7 days of delivery and send a
+          photo if you can.
+        </li>
+        <li style={li}>
+          <strong>If it never arrives:</strong> if the courier loses it or it is returned to us
+          undelivered, we reship it or refund you in full — your choice.
+        </li>
+      </ul>
+      <p style={p}>
+        Minor differences between the preview and the printed book — colour on paper versus a screen,
+        small illustration imperfections you already saw and approved — are not by themselves grounds
+        for a refund. See our{' '}
+        <Link href="/legal/shipping" style={link}>Shipping Policy</Link> for delivery timelines.
       </p>
 
       <h2 className="display" style={h2}>4. How to request a refund or cancellation</h2>

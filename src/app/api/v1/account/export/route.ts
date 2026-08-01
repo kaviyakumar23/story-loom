@@ -34,7 +34,7 @@ export async function GET(req: Request): Promise<Response> {
 
     // The story text, the child's likeness, and the generated files are the bulk
     // of what we hold about the child — an access response without them is hollow.
-    const [readingGuides, shareLinks, revisionRequests, pages, sheets, assets] = await Promise.all([
+    const [readingGuides, shareLinks, revisionRequests, pages, paidRows, sheets, assets] = await Promise.all([
       bookIds.length ? db.from('book_reading_guides').select('*').in('book_id', bookIds) : empty(),
       bookIds.length
         ? db
@@ -44,6 +44,7 @@ export async function GET(req: Request): Promise<Response> {
         : empty(),
       bookIds.length ? db.from('book_revision_requests').select('*').eq('parent_id', parent.id) : empty(),
       bookIds.length ? db.from('book_pages').select('*').in('book_id', bookIds) : empty(),
+      bookIds.length ? db.from('books').select('id, purchased_tier').in('id', bookIds) : empty(),
       heroIds.length ? db.from('character_sheets').select('*').in('hero_id', heroIds) : empty(),
       bookIds.length || heroIds.length
         ? db
@@ -72,12 +73,35 @@ export async function GET(req: Request): Promise<Response> {
       storage_key: string;
       created_at: string;
     }[];
-    const assetsOut = await Promise.all(
-      assetRows.map(async ({ storage_key, ...rest }) => ({
-        ...rest,
-        downloadUrl: await signAsset(storage_key),
-      })),
+    // A data export is a right of access, not a way around the paywall. Every
+    // page of every book is written before payment, and the print master is the
+    // paid artifact — so an export of an UNPAID book must return what the parent
+    // gave us and what we hold about them, not the product they have not bought.
+    const paidBookIds = new Set(
+      ((paidRows.data ?? []) as { id: string; purchased_tier: string | null }[])
+        .filter((b) => b.purchased_tier)
+        .map((b) => b.id),
     );
+    const pagesOut = ((pages.data ?? []) as Record<string, unknown>[]).map((row) => {
+      if (paidBookIds.has(row.book_id as string) || row.is_preview === true) return row;
+      // The page still appears — you are told it exists and that it is about
+      // your child — but its text is the thing that was bought.
+      return { ...row, text: '[not yet purchased]', illustration_prompt: null };
+    });
+
+    const assetsOut = await Promise.all(
+      assetRows
+        // The print master is a manufacturing file for a book someone has paid
+        // for; it is not personal data and it is not exportable before purchase.
+        .filter((a) => paidBookIds.has(a.book_id ?? '') || !['print_master', 'casewrap', 'preflight'].includes(a.type))
+        .map(async ({ storage_key, ...rest }) => ({
+          ...rest,
+          downloadUrl: paidBookIds.has(rest.book_id ?? '') || rest.type === 'image'
+            ? await signAsset(storage_key)
+            : null,
+        })),
+    );
+
 
     await audit({ actor: 'parent', action: 'account.exported', entity: 'profiles', entityId: parent.id });
 
@@ -88,7 +112,7 @@ export async function GET(req: Request): Promise<Response> {
       heroes: heroes.data ?? [],
       characterSheets: sheets.data ?? [],
       books: books.data ?? [],
-      bookPages: pages.data ?? [],
+      bookPages: pagesOut,
       assets: assetsOut,
       orders: orders.data ?? [],
       bookEvents: bookEvents.data ?? [],

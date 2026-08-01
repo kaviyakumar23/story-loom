@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { photoLikenessEnabled } from '@/server/config/beta-flags';
 import { loadEnv } from '@/server/config/env';
 import { requireParent } from '@/server/auth';
 import { assertEmailGate, assertGlobalPreviewBudget, bumpAndAssertIpCap, hasPaidOrder } from '@/server/lib/abuse';
@@ -65,19 +66,24 @@ const createSchema = z.object({
       glasses: z.boolean().optional(),
       features: z.array(z.string().max(40)).max(20).optional(),
     }),
-    interests: z.array(z.string().max(40)).max(10),
+    // Three at most. A story that has to serve ten interests serves none of
+    // them well, and the beta is testing whether a focused story lands.
+    interests: z.array(z.string().max(40)).max(3),
     // Month only (1–12), never a full DOB — enables birthday nudges (§9 minimisation).
     birthMonth: z.number().int().min(1).max(12).nullable().optional(),
   }),
   goal: z.enum(GOALS),
   occasionPack: z.enum(OCCASION_PACKS).nullable().optional(),
-  // Optional parent-authored theme. Not printed directly (the model's output is),
-  // so it need not be PDF-safe — just bounded and stripped of control chars.
-  // Injection is handled at the prompt layer (delimited <theme>, brackets stripped).
-  customTheme: z
+  // A free-form prompt is out of scope for the beta: it makes every order a
+  // different creative brief, which is the opposite of what a capped cohort is
+  // meant to measure. The column stays for books written before this.
+  dedication: z
     .string()
-    .max(200)
-    .transform((t) => t.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim())
+    .trim()
+    .max(120)
+    .refine(isPdfSafe, {
+      message: 'The dedication can only use Latin letters and common punctuation for now — that’s what we can print.',
+    })
     .optional(),
   language: z.enum(LANGUAGES),
   readingLevel: z.enum(READING_LEVELS),
@@ -101,6 +107,11 @@ export async function POST(req: Request): Promise<Response> {
     const parsed = createSchema.safeParse(await readJson(req));
     if (!parsed.success) throw badRequest('Invalid book payload', parsed.error.issues);
     const input = parsed.data;
+    // A disabled photo feature must reject the reference, not silently ignore it:
+    // a client that believes it attached a photo has to be told it did not.
+    if (input.photoUploadId && !photoLikenessEnabled()) {
+      throw badRequest('Photo likeness is not enabled — build the character from the appearance options instead.');
+    }
     const db = serviceClient();
 
     // Idempotency (§5, §6): client key, else content + 10s bucket (double-submit guard).
@@ -158,7 +169,7 @@ export async function POST(req: Request): Promise<Response> {
     // unavailable, fall through and let the fail-closed output gates (gateText,
     // image moderation) be the backstop, so a transient outage can't take down
     // the whole create funnel.
-    const freeText = [input.customTheme, ...input.child.interests].filter(
+    const freeText = [input.dedication, ...input.child.interests].filter(
       (t): t is string => typeof t === 'string' && t.trim().length > 0,
     );
     if (freeText.length) {
@@ -237,7 +248,8 @@ export async function POST(req: Request): Promise<Response> {
         consent_id: input.consentId,
         goal: input.goal,
         occasion_pack: input.occasionPack ?? null,
-        custom_theme: input.customTheme || null,
+        custom_theme: null,
+        dedication: input.dedication || null,
         language: input.language,
         reading_level: input.readingLevel,
         status: 'generating',

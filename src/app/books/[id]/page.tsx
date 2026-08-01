@@ -7,7 +7,9 @@ import { Header } from '@/components/chrome';
 import { ReadingGuidePanel } from '@/components/reading-guide';
 import { Icon, Sparkle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useAuth, useRequireAuth } from '@/lib/auth';
+import { PUBLIC_SHARING_ENABLED, SELF_SERVE_EDITING_ENABLED } from '@/lib/beta-flags';
 import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
 import { openCheckout } from '@/lib/razorpay';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +30,7 @@ import {
   type CreateOrderResponse,
   type FeedbackIssueType,
   type FulfillmentStatus,
+  type PreviewPage,
   type RevokeBookShareResponse,
   type Tier,
 } from '@/lib/types';
@@ -175,8 +178,10 @@ export default function BookPage() {
     const physical = Boolean(TIER_META[tier].physical);
     if (physical && !isShippingComplete(address)) {
       setError('Please complete the shipping address (a valid 6-digit PIN is required).');
+      track('checkout_open', { ok: false, reason: 'incomplete_address' });
       return;
     }
+    track('checkout_open', { ok: true });
     setPaying(true);
     setError(null);
     try {
@@ -196,12 +201,16 @@ export default function BookPage() {
         method: 'POST',
         body: { bookId, tier, shippingAddress, isGift, giftMessage: isGift ? giftMessage.trim() || undefined : undefined },
       });
+      track('payment_initiated');
       await openCheckout(order, {
         email: session?.user?.email ?? undefined,
         onPaid: () => setAwaitingPayment(true),
-        onDismiss: () => setPaying(false),
+        onDismiss: () => { track('payment_dismissed'); setPaying(false); },
       });
     } catch (e) {
+      // The refusals worth counting are ours — not serviceable, beta full,
+      // already ordered — so the code travels with the event.
+      track('payment_failed', { reason: e instanceof ApiError ? e.code.slice(0, 40) : 'unknown' });
       setError(e instanceof ApiError ? e.message : 'Could not start checkout.');
       setPaying(false);
     }
@@ -256,8 +265,11 @@ export default function BookPage() {
             // neither branch once it did, leaving a paying parent a blank page.
             preview_ready: () => previewPanel(),
             paid: () => previewPanel(),
+            // A printed order is "done" when it reaches the print queue — there
+            // is no file to hand over, so waiting for a PDF would strand every
+            // paying parent on a spinner. A digital order still needs its asset.
             complete: () =>
-              book.pdfUrl ? (
+              book.fulfillment || book.pdfUrl ? (
                 <Delivered book={book} onEvent={trackEvent} onEdited={refreshAndPoll} />
               ) : (
                 <DeliveredPending onRetry={retryNow} />
@@ -328,6 +340,60 @@ function DeliveredPending({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/** One frame of the preview flip-book: the cover, a story page, or the lock. */
+type Slide =
+  | { kind: 'cover'; imageUrl: string }
+  | { kind: 'page'; page: PreviewPage }
+  | { kind: 'locked'; count: number };
+
+function SlideView({ slide, title }: { slide: Slide | undefined; title: string | null }) {
+  if (!slide) return null;
+
+  if (slide.kind === 'cover') {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={slide.imageUrl} alt={title ? `Cover of ${title}` : 'Book cover'} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+    );
+  }
+
+  // The rest of the story is a paid product, so the lock says how much is waiting
+  // rather than teasing with blurred-out text we deliberately never sent.
+  if (slide.kind === 'locked') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'var(--brand-tint)', padding: 28, textAlign: 'center' }}>
+        <div>
+          <Sparkle size={20} />
+          <p className="display" style={{ fontSize: 24, margin: '10px 0 6px' }}>
+            {slide.count} more illustrated pages
+          </p>
+          <p style={{ fontSize: 14.5, color: 'var(--ink-soft)', maxWidth: 300, margin: '0 auto' }}>
+            The rest of the story is printed in their hardcover.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const { page } = slide;
+  return (
+    <>
+      {page.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={page.imageUrl} alt={`Page ${page.pageIndex + 1}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '70%', objectFit: 'cover' }} />
+      ) : (
+        <div className="ph" style={{ position: 'absolute', inset: 0, height: '70%', borderRadius: 0, display: 'grid', placeItems: 'center' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)', background: 'var(--surface)', padding: '5px 12px', borderRadius: 999, opacity: 0.92 }}>
+            <Sparkle size={12} /> Illustrated when you order
+          </span>
+        </div>
+      )}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '18px 22px', background: 'var(--surface)', minHeight: '30%' }}>
+        <p style={{ fontSize: 17, lineHeight: 1.5 }}>{page.text}</p>
+      </div>
+    </>
+  );
+}
+
 function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, giftMessage, setGiftMessage, onBuy, onSave, onEvent, onRevisionStarted, paying, awaiting, paymentsEnabled, isAnon }: {
   book: Book;
   tier: Tier;
@@ -347,18 +413,38 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
   paymentsEnabled: boolean;
   isAnon: boolean;
 }) {
-  // Show the WHOLE story in preview — every page's text exists at preview_ready;
-  // illustrated pages carry an image, the rest show a "painted after you order"
-  // placeholder. Falls back to the rendered-only preview if fullStory is absent.
-  const pages = book.fullStory?.pages ?? book.preview?.pages ?? [];
+  // The preview is the cover plus the first few illustrated pages, and the server
+  // sends only those — the rest of the story stays locked until the book is
+  // bought. `fullStory` is present for an owner AFTER payment, in which case the
+  // whole book is readable here.
+  const storyPages = book.fullStory?.pages ?? book.preview?.pages ?? [];
+  const locked = Math.max(0, (book.pageCount ?? 0) - storyPages.length);
+  const slides: Slide[] = [
+    ...(book.coverUrl ? [{ kind: 'cover' as const, imageUrl: book.coverUrl }] : []),
+    ...storyPages.map((p) => ({ kind: 'page' as const, page: p })),
+    ...(locked > 0 ? [{ kind: 'locked' as const, count: locked }] : []),
+  ];
   const [page, setPage] = useState(0);
   const [saveEmail, setSaveEmail] = useState('');
   const [saving, setSaving] = useState(false);
-  const current = pages[Math.min(page, pages.length - 1)];
+  // The printed book's price is under test, so TIER_META carries no constant for
+  // it — rendering one would show half of visitors a number we will not charge.
+  // Asked for here, from the same assignment the order route reads.
+  const [price, setPrice] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/v1/beta/pricing')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { display?: string } | null) => { if (!cancelled && d?.display) setPrice(d.display); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+  const current = slides[Math.min(page, slides.length - 1)];
   const changePage = (next: number) => {
-    const bounded = Math.max(0, Math.min(pages.length - 1, next));
+    const bounded = Math.max(0, Math.min(slides.length - 1, next));
     setPage(bounded);
-    void onEvent('preview_page_changed', { pageIndex: pages[bounded]?.pageIndex ?? bounded });
+    const slide = slides[bounded];
+    void onEvent('preview_page_changed', { pageIndex: slide?.kind === 'page' ? slide.page.pageIndex : bounded });
   };
 
   return (
@@ -375,25 +461,13 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
         {/* viewer */}
         <div>
           <div className="card" style={{ overflow: 'hidden', aspectRatio: '1', position: 'relative', border: '8px solid var(--surface)' }}>
-            {current?.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={current.imageUrl} alt={`Page ${current.pageIndex + 1}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '70%', objectFit: 'cover' }} />
-            ) : (
-              <div className="ph" style={{ position: 'absolute', inset: 0, height: '70%', borderRadius: 0, display: 'grid', placeItems: 'center' }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)', background: 'var(--surface)', padding: '5px 12px', borderRadius: 999, opacity: 0.92 }}>
-                  <Sparkle size={12} /> Illustrated when you order
-                </span>
-              </div>
-            )}
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '18px 22px', background: 'var(--surface)', minHeight: '30%' }}>
-              <p style={{ fontSize: 17, lineHeight: 1.5 }}>{current?.text}</p>
-            </div>
+            <SlideView slide={current} title={book.title} />
           </div>
-          {pages.length > 1 && (
+          {slides.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 16 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page - 1)} disabled={page === 0}><Icon name="arrowL" size={16} stroke="var(--brand)" /></button>
-              <span style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{Math.min(page, pages.length - 1) + 1} / {pages.length}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page + 1)} disabled={page >= pages.length - 1}><Icon name="arrow" size={16} stroke="var(--brand)" /></button>
+              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page - 1)} disabled={page === 0} aria-label="Previous page"><Icon name="arrowL" size={16} stroke="var(--brand)" /></button>
+              <span style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{Math.min(page, slides.length - 1) + 1} / {slides.length}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => changePage(page + 1)} disabled={page >= slides.length - 1} aria-label="Next page"><Icon name="arrow" size={16} stroke="var(--brand)" /></button>
             </div>
           )}
         </div>
@@ -419,7 +493,9 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
                       </span>
                       <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{m.note}</span>
                     </span>
-                    <span className="display" style={{ fontSize: 19, color: 'var(--brand)' }}>{m.price}</span>
+                    <span className="display" style={{ fontSize: 19, color: 'var(--brand)' }}>
+                      {m.price ?? price ?? ''}
+                    </span>
                   </button>
                 );
               })}
@@ -492,7 +568,7 @@ function Preview({ book, tier, setTier, address, setAddress, isGift, setIsGift, 
             </p>
             <PreviewTrustList />
             <ReadingGuidePanel guide={book.readingGuide} />
-            <PreviewShare bookId={book.id} onEvent={onEvent} />
+            {PUBLIC_SHARING_ENABLED && <PreviewShare bookId={book.id} onEvent={onEvent} />}
             <PreviewTweak book={book} onEvent={onEvent} onRevisionStarted={onRevisionStarted} />
             {!paymentsEnabled && <AlphaFeedback bookId={book.id} />}
           </div>
@@ -518,7 +594,7 @@ function ShippingForm({ address, setAddress }: { address: ShippingInput; setAddr
       </div>
       <input className="input" placeholder="PIN code (6 digits)" value={address.postalCode} onChange={set('postalCode')} inputMode="numeric" maxLength={6} style={mb} aria-label="PIN code" />
       <input className="input" placeholder="Delivery notes (optional)" value={address.notes} onChange={set('notes')} aria-label="Delivery notes" />
-      <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 8 }}>Printed &amp; shipped within ~7 days · ships in India · includes the instant digital PDF.</p>
+      <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 8 }}>Checked by hand, then printed &amp; dispatched within 7 working days · delivered within 14.</p>
     </div>
   );
 }
@@ -629,6 +705,7 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
 }) {
   const [instruction, setInstruction] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function requestRevision() {
@@ -645,18 +722,29 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
         body: { instruction: trimmed } satisfies CreateBookRevisionRequest,
       });
       await onEvent('preview_tweak_requested', { length: trimmed.length });
+      setSent(true);
+      // Nothing regenerates until a human approves it, so there is no new state
+      // to poll for — refresh once so the used-up change is reflected.
       await onRevisionStarted();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not request a preview tweak.');
+      setError(e instanceof ApiError ? e.message : 'Could not request a change.');
+    } finally {
       setSaving(false);
     }
   }
 
   return (
     <section style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid var(--hairline)' }}>
-      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>One free tweak</h3>
-      {book.canRequestRevision ? (
+      <h3 className="display" style={{ fontSize: 21, marginBottom: 8 }}>Ask for one change</h3>
+      {sent ? (
+        <p className="trust">
+          <Icon name="check" size={15} stroke="var(--success)" /> Got it — we read every request by hand and will email you within a day.
+        </p>
+      ) : book.canRequestRevision ? (
         <>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
+            Tell us what to change and we’ll look at it ourselves before rebuilding the preview. One change per book.
+          </p>
           <textarea
             className="input"
             value={instruction}
@@ -667,12 +755,12 @@ function PreviewTweak({ book, onEvent, onRevisionStarted }: {
             style={{ resize: 'vertical', minHeight: 92 }}
           />
           <button className="btn btn-brand btn-block" style={{ marginTop: 12 }} onClick={requestRevision} disabled={saving || instruction.trim().length < 8}>
-            {saving ? <span className="spinner" /> : <><Sparkle size={17} color="#fff" /> Regenerate preview</>}
+            {saving ? <span className="spinner" /> : <><Sparkle size={17} color="#fff" /> Send my change</>}
           </button>
         </>
       ) : (
         <p className="trust">
-          <Icon name="check" size={15} stroke="var(--success)" /> Free tweak used for this preview.
+          <Icon name="check" size={15} stroke="var(--success)" /> You’ve used the one change for this book.
         </p>
       )}
       {error && <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 10 }}>{error}</p>}
@@ -779,14 +867,21 @@ function AlphaFeedback({ bookId }: { bookId: string }) {
 }
 
 function Delivered({ book, onEvent, onEdited }: { book: Book; onEvent: (event: BookEventName, metadata?: Record<string, unknown>) => Promise<void>; onEdited: () => Promise<void> }) {
+  const printed = book.fulfillment != null;
   return (
     <div style={{ maxWidth: 560, margin: '20px auto' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: 84, height: 84, borderRadius: '50%', background: 'var(--soft-2)', margin: '0 auto 22px', display: 'grid', placeItems: 'center', animation: 'floaty 3s ease-in-out infinite' }}>
           <Icon name="check" size={42} stroke="var(--success)" sw={2.4} />
         </div>
-        <h1 className="display" style={{ fontSize: 38, marginBottom: 10 }}>{book.title ?? 'Your book'} is ready!</h1>
-        <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 22px' }}>Your digital copy is below — we’ve also emailed you the link.</p>
+        <h1 className="display" style={{ fontSize: 38, marginBottom: 10 }}>
+          {printed ? <>{book.title ?? 'Your book'} is off to the printer!</> : <>{book.title ?? 'Your book'} is ready!</>}
+        </h1>
+        <p className="d-lead" style={{ color: 'var(--ink-soft)', maxWidth: 440, margin: '0 auto 22px' }}>
+          {printed
+            ? 'We check every page by hand before it prints. You’ll get an email with tracking the moment it ships.'
+            : 'Your digital copy is below — we’ve also emailed you the link.'}
+        </p>
         {book.fulfillment && <PrintStatus f={book.fulfillment} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360, margin: '0 auto' }}>
           {book.pdfUrl && (
@@ -804,10 +899,12 @@ function Delivered({ book, onEvent, onEdited }: { book: Book; onEvent: (event: B
           </Link>
           <Link className="btn btn-ghost btn-block" href="/books">My books</Link>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
+        {!printed && (
+          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 16 }}>Download links refresh each time you open this page.</p>
+        )}
       </div>
 
-      <EditBook book={book} onEdited={onEdited} />
+      {SELF_SERVE_EDITING_ENABLED && <EditBook book={book} onEdited={onEdited} />}
     </div>
   );
 }
@@ -959,6 +1056,10 @@ function EditBook({ book, onEdited }: { book: Book; onEdited: () => Promise<void
 
 function PrintStatus({ f }: { f: FulfillmentStatus }) {
   const MAP: Record<FulfillmentStatus['status'], { icon: string; text: string }> = {
+    // Every book is read by a person before it prints; the parent should know
+    // that is what the wait is, rather than assuming nothing is happening.
+    qc_pending: { icon: '👀', text: 'We’re checking every page of your book by hand before it goes to print.' },
+    qc_hold: { icon: '👀', text: 'We’re taking a closer look at one of the pages — we’ll be in touch if anything needs your input.' },
     print_ready: { icon: '🖨️', text: 'Your printed hardcover is queued for printing — it ships within about 7 days.' },
     printing: { icon: '🖨️', text: 'Your printed hardcover is being printed now — it ships within about 7 days.' },
     shipped: { icon: '🚚', text: 'Your printed book has shipped!' },

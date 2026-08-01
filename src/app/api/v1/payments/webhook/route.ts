@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { audit } from '@/server/lib/audit';
 import { sendAdminAlert, sendOrderReceived } from '@/server/lib/email';
 import { badRequest, internal, notFound } from '@/server/lib/errors';
+import { recordFunnel } from '@/server/lib/funnel';
 import { verifyWebhookSignature } from '@/server/lib/razorpay';
+import { applyRefundForPayment } from '@/server/lib/refunds';
 import { jsonError } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
 import { EVENTS, inngest } from '@/server/pipeline/client';
@@ -34,9 +36,20 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const event = JSON.parse(raw) as RazorpayWebhook;
-    if (event.event === 'payment.failed') return handlePaymentFailed(event);
-    if (event.event === 'refund.processed') return handleRefundProcessed(event);
-    if (event.event !== 'payment.captured') return Response.json({ ok: true });
+
+    // Journal the delivery before acting on it. Deduplication used to rest
+    // entirely on the payment id, which only catches repeats of the same
+    // payment — a redelivered event of any other type was reprocessed, and
+    // nothing recorded that an event had ever arrived. Razorpay's own event id
+    // is the right key, and it was never read.
+    const eventId = req.headers.get('x-razorpay-event-id');
+    if (eventId && (await alreadySeen(eventId, event))) {
+      return Response.json({ ok: true, deduped: true });
+    }
+
+    if (event.event === 'payment.failed') return finish(eventId, await handlePaymentFailed(event));
+    if (event.event === 'refund.processed') return finish(eventId, await handleRefundProcessed(event, eventId));
+    if (event.event !== 'payment.captured') return finish(eventId, Response.json({ ok: true }));
 
     const payment = event.payload?.payment?.entity;
     if (!payment?.id || !payment.order_id) throw badRequest('Malformed webhook payload');
@@ -44,10 +57,27 @@ export async function POST(req: Request): Promise<Response> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, parent_id, book_id, tier, amount, currency, status')
+      .select('id, parent_id, book_id, tier, amount, currency, status, price_arm')
       .eq('razorpay_order_id', payment.order_id)
       .maybeSingle();
-    if (!order) throw notFound('Order not found for webhook');
+    if (!order) {
+      // Real money we cannot tie to an order. This used to return 404, which
+      // made Razorpay retry into the void: no alert, no audit row, and not even
+      // a Sentry capture, so a captured payment could go unnoticed indefinitely.
+      // Record it, tell a human, and stop the retries.
+      await recordUnmatched(eventId, event, payment.id, payment.order_id);
+      try {
+        await sendAdminAlert('Captured payment with no matching order — manual review needed', {
+          razorpayPaymentId: payment.id,
+          razorpayOrderId: payment.order_id,
+          amount: payment.amount ?? null,
+          currency: payment.currency ?? null,
+        });
+      } catch {
+        /* best-effort */
+      }
+      return Response.json({ ok: true, unmatchedOrder: true });
+    }
 
     // Verify the money matches the order we priced (§8) — amount AND currency.
     const amountOk =
@@ -60,6 +90,7 @@ export async function POST(req: Request): Promise<Response> {
     const { error: payErr } = await db.from('payments').insert({
       order_id: order.id,
       razorpay_payment_id: payment.id,
+      razorpay_event_id: eventId,
       signature_valid: true,
       status: amountOk ? (payment.status ?? 'captured') : 'amount_mismatch',
       raw_webhook: event,
@@ -90,11 +121,25 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ ok: true, amountMismatch: true });
     }
 
-    // Activate once (webhook is the source of truth). Guard on status so a second
-    // distinct payment for an already-paid order can't re-mark or double-email it.
-    if (order.status !== 'paid') {
-      const paidAt = new Date().toISOString();
-      await db.from('orders').update({ status: 'paid' }).eq('id', order.id);
+    // Activate once (webhook is the source of truth). This is a CONDITIONAL
+    // update rather than a read-then-write: two deliveries arriving together
+    // both saw status 'created' under the old check and both went on to stamp
+    // the series number and send a receipt. Whoever moves the row wins; the
+    // other sees zero rows and skips straight to the fulfilment self-heal.
+    const paidAt = new Date().toISOString();
+    const { data: activated, error: activateErr } = await db
+      .from('orders')
+      .update({ status: 'paid', paid_at: paidAt })
+      .eq('id', order.id)
+      .eq('status', 'created')
+      .select('id');
+    // Zero rows means another delivery won the race, which is fine. An ERROR
+    // means we do not know — and silently treating that as "someone else did it"
+    // would leave a paying customer with no receipt, no purchased_tier and no
+    // print order, while returning 200 so Razorpay never tries again.
+    if (activateErr) throw internal('Could not activate the paid order', activateErr.message);
+
+    if (activated?.length) {
       // Stamp the series position (1 + the hero's already-purchased books) — for
       // the bookshelf and the printed spine. Computed before this book is marked
       // paid, so the count is of PRIOR purchases only.
@@ -104,6 +149,15 @@ export async function POST(req: Request): Promise<Response> {
         .update({ purchased_tier: order.tier as Tier, status: 'paid', paid_at: paidAt, render_credits: POST_PAY_REGEN_CREDITS, series_number: seriesNumber })
         .eq('id', order.book_id);
       await audit({ actor: 'system', action: 'payment.captured', entity: 'orders', entityId: order.id, metadata: { razorpayPaymentId: payment.id, bookId: order.book_id } });
+      // The end of the funnel, written server-side: a purchase counted from the
+      // client would count intentions, and the webhook is the only thing that
+      // knows money actually moved.
+      await recordFunnel('purchase', {
+        orderId: order.id,
+        bookId: order.book_id,
+        arm: (order as { price_arm?: 'A' | 'B' }).price_arm ?? null,
+        props: { amount: order.amount },
+      });
 
       const { data: user } = await db.auth.admin.getUserById(order.parent_id);
       if (user.user?.email) {
@@ -122,7 +176,7 @@ export async function POST(req: Request): Promise<Response> {
     // Always (idempotently) ensure fulfilment is running for a paid order whose
     // book isn't finished — this self-heals a lost emit without a separate outbox.
     await ensureFulfillment(db, order.book_id);
-    return Response.json({ ok: true });
+    return finish(eventId, Response.json({ ok: true }));
   } catch (err) {
     return jsonError(err);
   }
@@ -196,28 +250,117 @@ async function handlePaymentFailed(event: RazorpayWebhook): Promise<Response> {
 
 /**
  * A refund completed (issued via our admin route or the Razorpay dashboard).
- * Sync order + payment status so the dashboard is never the only place that
- * knows. Mirrors the admin refund route: access to an already-delivered book
- * is not revoked.
+ * The work itself lives in server/lib/refunds so the reconcile cron can replay
+ * a deferred refund through exactly the same path.
  */
-async function handleRefundProcessed(event: RazorpayWebhook): Promise<Response> {
+export async function handleRefundProcessed(event: RazorpayWebhook, eventId?: string | null): Promise<Response> {
   const refund = event.payload?.refund?.entity;
   if (!refund?.id || !refund.payment_id) throw badRequest('Malformed webhook payload');
-  const db = serviceClient();
 
-  const { data: payment } = await db
-    .from('payments')
-    .select('id, order_id, status')
-    .eq('razorpay_payment_id', refund.payment_id)
-    .maybeSingle();
-  if (!payment) return Response.json({ ok: true, unknownPayment: true });
-  if ((payment as { status: string }).status === 'refunded') {
-    return Response.json({ ok: true, deduped: true });
+  const result = await applyRefundForPayment({
+    razorpayPaymentId: refund.payment_id,
+    refundId: refund.id,
+    amount: refund.amount ?? null,
+  });
+
+  if (!result.applied) {
+    if (result.reason === 'already_refunded') return Response.json({ ok: true, deduped: true });
+    // A partial refund has been recorded and escalated; the book carries on.
+    if (result.reason === 'partial_refund') return Response.json({ ok: true, partial: true });
+    // Out of order: the refund arrived before the capture it refers to. Dropping
+    // it here meant a later capture would mark the order paid and start printing
+    // a refunded book. Hold it for the reconcile cron to replay.
+    await deferEvent(eventId, event, refund.payment_id);
+    return Response.json({ ok: true, deferred: true });
   }
 
-  const orderId = (payment as { order_id: string }).order_id;
-  await db.from('payments').update({ status: 'refunded' }).eq('id', (payment as { id: string }).id);
-  await db.from('orders').update({ status: 'refunded' }).eq('id', orderId);
-  await audit({ actor: 'system', action: 'order.refund_processed', entity: 'orders', entityId: orderId, metadata: { refundId: refund.id, razorpayPaymentId: refund.payment_id, amount: refund.amount ?? null } });
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, alreadyReleased: result.outcome.alreadyReleased });
+}
+
+/**
+ * Record the delivery. Returns true when this exact event has been seen before,
+ * in which case the caller must not act on it again.
+ */
+async function alreadySeen(eventId: string, event: RazorpayWebhook): Promise<boolean> {
+  const { error } = await serviceClient().from('webhook_events').insert({
+    razorpay_event_id: eventId,
+    event_type: event.event,
+    razorpay_payment_id: event.payload?.payment?.entity?.id ?? event.payload?.refund?.entity?.payment_id ?? null,
+    razorpay_order_id: event.payload?.payment?.entity?.order_id ?? null,
+    // 'received', NOT 'processed'. Recording completion up front turned
+    // Razorpay's redelivery — the mechanism that exists to recover a failed
+    // handler — into a silent no-op for the exact events that needed it.
+    status: 'received',
+    raw: event,
+  });
+  if (!error) return false;
+  if (error.code === '23505' || /duplicate key/i.test(error.message ?? '')) return true;
+  // A journal failure must not drop a real payment on the floor — process it and
+  // let the payment-id uniqueness remain the backstop it has always been.
+  console.error('[webhook] could not journal event', eventId, error.message);
+  return false;
+}
+
+/**
+ * Close the journal entry once handling has actually succeeded. A throw skips
+ * this, leaving the row at 'received' so a redelivery is reprocessed rather
+ * than deduped away.
+ */
+async function finish(eventId: string | null, response: Response): Promise<Response> {
+  if (eventId) {
+    try {
+      await serviceClient()
+        .from('webhook_events')
+        .update({ status: 'processed', processed_at: new Date().toISOString() })
+        .eq('razorpay_event_id', eventId)
+        .eq('status', 'received');
+    } catch {
+      /* the response has already been decided; a journal update must not undo it */
+    }
+  }
+  return response;
+}
+
+/** Park an event that arrived before the thing it refers to, for later replay. */
+async function deferEvent(eventId: string | null | undefined, event: RazorpayWebhook, paymentId: string): Promise<void> {
+  const db = serviceClient();
+  const row = {
+    event_type: event.event,
+    razorpay_payment_id: paymentId,
+    status: 'deferred',
+    raw: event,
+    processed_at: null,
+  };
+  if (eventId) {
+    // The journal row already exists from alreadySeen(); move it to deferred.
+    await db.from('webhook_events').update(row).eq('razorpay_event_id', eventId);
+  } else {
+    await db.from('webhook_events').insert({ ...row, razorpay_event_id: null });
+  }
+}
+
+/** Money we cannot attribute. Kept, alerted on, and never silently retried. */
+async function recordUnmatched(
+  eventId: string | null | undefined,
+  event: RazorpayWebhook,
+  paymentId: string,
+  orderId: string,
+): Promise<void> {
+  const db = serviceClient();
+  const row = {
+    event_type: event.event,
+    razorpay_payment_id: paymentId,
+    razorpay_order_id: orderId,
+    status: 'unmatched',
+    raw: event,
+  };
+  if (eventId) await db.from('webhook_events').update(row).eq('razorpay_event_id', eventId);
+  else await db.from('webhook_events').insert({ ...row, razorpay_event_id: null });
+  await audit({
+    actor: 'system',
+    action: 'payment.unmatched',
+    entity: 'orders',
+    entityId: orderId,
+    metadata: { razorpayPaymentId: paymentId },
+  });
 }

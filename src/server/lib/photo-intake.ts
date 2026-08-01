@@ -1,3 +1,4 @@
+import { photoLikenessEnabled } from '../config/beta-flags';
 import { resolveGeminiBackend } from '../providers/gemini-transport';
 import { serviceClient } from './supabase';
 
@@ -19,15 +20,30 @@ export function photoKey(parentId: string, uploadId: string): string {
 }
 
 export async function putPhoto(key: string, bytes: Buffer, mime: string): Promise<void> {
+  assertPhotoFeatureEnabled('store');
   const { error } = await serviceClient().storage.from(BUCKET).upload(key, bytes, { contentType: mime, upsert: true });
   if (error) throw new Error(`Photo intake upload failed: ${error.message}`);
 }
 
 /** Download raw photo bytes. Only the single pipeline egress path should call this. */
 export async function getPhoto(key: string): Promise<Buffer | null> {
+  assertPhotoFeatureEnabled('read');
   const { data, error } = await serviceClient().storage.from(BUCKET).download(key);
   if (error || !data) return null;
   return Buffer.from(await data.arrayBuffer());
+}
+
+/**
+ * The feature-level off switch, enforced at the bytes themselves rather than at
+ * the routes alone. With the feature disabled nothing may write to or read from
+ * the intake bucket, so a forgotten caller fails loudly instead of quietly
+ * moving a child's photo around. Deletion paths are deliberately exempt — the
+ * purge crons and erasure must keep working after the feature is switched off.
+ */
+function assertPhotoFeatureEnabled(action: 'store' | 'read'): void {
+  if (!photoLikenessEnabled()) {
+    throw new Error(`Refusing to ${action} a child photo: the photo-likeness feature is disabled.`);
+  }
 }
 
 /** Delete photo objects. Throws on failure so a stranded photo is retried, not lost. */
@@ -64,6 +80,12 @@ export async function listAllPhotoKeys(): Promise<{ key: string; createdAt: stri
  * throws, so the feature fails CLOSED instead of leaking.
  */
 export function assertPhotoEgressAllowed(destination: 'character_sheet' | 'moderation'): void {
+  // Feature off ⇒ no destination is allowed, not even moderation. This is the
+  // zero-egress guarantee: with the flag down there is no code path, however
+  // reached, that can put photo bytes on the wire.
+  if (!photoLikenessEnabled()) {
+    throw new Error('Refusing to egress a child photo: the photo-likeness feature is disabled.');
+  }
   if (destination === 'moderation') return;
   if (destination === 'character_sheet') {
     if (resolveGeminiBackend() !== 'vertex') {

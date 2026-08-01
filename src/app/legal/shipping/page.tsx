@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SERVICEABLE_SUMMARY } from '@/server/config/beta-geo';
 import { BUSINESS } from '@/lib/business';
 
 export const metadata: Metadata = { title: 'Shipping & Delivery — MoonBell' };
@@ -30,13 +31,37 @@ export default function Shipping() {
       </ul>
       <p style={p}>There are no shipping charges for digital products.</p>
 
-      <h2 className="display" style={h2}>Printed books (coming later)</h2>
+      <h2 className="display" style={h2}>Printed books</h2>
       <p style={p}>
-        Printed, physical books are not offered yet. We hope to add them in the future. Before we take any
-        printed order, this page will be updated with shipping coverage, printing and delivery timelines,
-        charges, and tracking details, and cancellations, damage, and misprints will be handled under our{' '}
-        <Link href="/legal/refunds" style={link}>Refund &amp; Cancellation Policy</Link>.
+        Every printed book is made to order for one child, so it is not picked off a shelf — it is
+        checked by a person, printed, and then posted.
       </p>
+      <ul style={ul}>
+        <li style={li}>
+          <strong>Where we deliver.</strong> While we are in beta we deliver to {SERVICEABLE_SUMMARY}.
+          We check your PIN code before you pay, so you will never be charged for an address we
+          cannot reach.
+        </li>
+        <li style={li}>
+          <strong>How long it takes.</strong> Dispatched within 7 working days of your order, and
+          delivered within 14 working days. If anything is going to take longer, we email you rather
+          than leave you guessing.
+        </li>
+        <li style={li}>
+          <strong>What it costs.</strong> Shipping is included in the price. There are no charges
+          added at checkout.
+        </li>
+        <li style={li}>
+          <strong>Tracking.</strong> We email you the courier and tracking number when the book
+          ships.
+        </li>
+        <li style={li}>
+          <strong>If delivery fails.</strong> If the courier cannot deliver and the book comes back
+          to us, we contact you the same day to arrange another attempt. Damage, misprints and losses
+          are handled under our{' '}
+          <Link href="/legal/refunds" style={link}>Refund &amp; Cancellation Policy</Link>.
+        </li>
+      </ul>
 
       <h2 className="display" style={h2}>Questions</h2>
       <p style={p}>

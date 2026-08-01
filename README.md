@@ -5,14 +5,22 @@ children's storybooks, India-first. This repo is the whole product: web app,
 `/api/v1/*` route handlers, Supabase data layer, and the Inngest generation
 pipeline in one deployable app (Vercel).
 
-**The product:** a personalised printed hardcover (₹999, founder-fulfilled —
-printed and shipped in ~7 days across India) with an instant digital PDF
-companion. Parents see a free preview first and pay only if they love it.
+**The product:** one personalised printed hardcover — 8×8in casebound, 20
+interior pages of which 12 are illustrated, checked by a person before it
+prints, dispatched within 7 working days. Parents see a free preview of the
+cover and first three pages, and pay only if they want it printed. The book is
+the whole product: no digital copy during the beta.
 
-**Current stage:** invite-gated beta (`BETA_ACCESS_CODE`). Payments are fully
-built but OFF (`NEXT_PUBLIC_PAYMENTS_ENABLED=false`) pending Razorpay
-activation; the print/fulfilment flow is live behind it. The optional child
-photo is **ON** in production (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED=true`).
+**Current stage: narrow paid beta** (plan of 2026-07-31). Invite-only
+(`BETA_ACCESS_CODE`), capped at 75 orders across Bengaluru / Mumbai /
+Delhi-NCR, testing ₹1,299 against ₹1,499. Payments are built and hardened but
+still OFF (`NEXT_PUBLIC_PAYMENTS_ENABLED=false`) until the release gates close —
+see **`docs/beta-runbook.md`** for what is done and what is not. Child photos
+are OFF and refused at the API.
+
+Anything outside that one product is switched off in
+`src/server/config/beta-flags.ts`. Check there before building on a feature that
+looks present.
 
 ## How the funnel works
 
@@ -20,12 +28,11 @@ photo is **ON** in production (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED=true`).
    invite code, and gets an anonymous Supabase session (no signup friction).
    Email sign-in (`/signin`) is the account-upgrade/return path.
 2. **Intake + consent** — nickname (never a legal name), age band (never a DOB),
-   reading level, optional gender (sets the story's pronouns; blank means
-   they/them), up to 3 curated personality traits, appearance (skin tone plus
-   hair as three orthogonal facets — length, texture, how it's worn), interests,
-   occasion pack or custom theme. Explicit parental consent is recorded and
-   enforced at book creation. An optional child photo is available (see
-   Non-negotiables).
+   reading level, optional pronouns (blank means they/them), up to 3 personality
+   traits, appearance (skin tone plus hair as three orthogonal facets — length,
+   texture, how it's worn), up to 3 interests, a dedication for the front matter,
+   and the parent's email. Consent is versioned against a published list and
+   enforced at book creation. No photos, and no free-form theme.
 3. **Preview** (`previewPipeline`) — ONE structured text call (OpenAI
    `gpt-5.6-sol` via the Responses API) writes the whole story (8/10/12 pages by
    reading level) → text moderation gate → character
@@ -103,14 +110,14 @@ Payments additionally need the three `RAZORPAY_*` vars; admin endpoints need
 `ADMIN_API_SECRET`. Errors go to Sentry (`SENTRY_DSN`; add `SENTRY_AUTH_TOKEN` +
 `SENTRY_ORG` + `SENTRY_PROJECT` for readable production stack traces).
 
-Migrations (through `0017`) live in `src/server/db/migrations/` and are mirrored
+Migrations (through `0023`) live in `src/server/db/migrations/` and are mirrored
 in `supabase/migrations/`. Production tracks the Supabase CLI history — apply
 with `node scripts/db-apply.mjs <version_name>`, not `npm run migrate`.
 
 ## Validation
 
 ```bash
-npm test          # typecheck + 207 vitest tests (unit + integration + engine + crons + pipelines)
+npm test          # typecheck + 319 vitest tests (unit + integration + engine + crons + pipelines)
 npm run build     # production build
 npm run rls-check # 62-assertion RLS audit against the live DB (after any table change)
 npm run test:e2e  # Playwright: landing smoke runs anywhere; full flow needs a test env (e2e/README.md)
@@ -128,12 +135,21 @@ private-storage upload/sign/delete; `ok: true` means the engine is ready.
 
 ## Non-negotiables
 
-- Child photos are optional and, as of 2026-07-31, ENABLED in production
-  (`NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED`); they are ephemeral — moderated before
-  use, single Vertex-only egress, deleted within minutes (24h hard cap) — never
-  printed or stored. All public copy about photos is flag-aware and flips with
-  the same switch. Requires a private `photo-intake` Supabase bucket (no
-  migration creates it; `putPhoto` throws if it is missing).
+- Child photos are OFF for the beta, and off means refused rather than hidden:
+  `PHOTO_LIKENESS_SERVER_ENABLED` is read at request time (the `NEXT_PUBLIC_`
+  twin is inlined at build and only hides the uploader), the upload route rejects
+  before reading a body, `POST /books` rejects a `photoUploadId`, and the storage
+  and egress helpers throw. Evidence: `photo-off.negative.test.ts`. The feature
+  and its ephemeral single-egress design remain in the tree for after the beta;
+  it needs a private `photo-intake` bucket that no migration creates.
+- The preview is locked server-side: an unpaid reader gets the cover, three
+  pages and a count — never the rest of the story, which exists in the database
+  from `preview_ready`. Evidence: `preview-lock.api.test.ts`.
+- A person reads every book before it prints. Releasing to print names the
+  sha256 of the exact file and checks payment in the same transaction, and the
+  record cannot be edited afterwards.
+- One payable order per book, enforced in the schema; every webhook journalled
+  by Razorpay's event id; refunds stop the book rather than relabelling it.
 - Never send a child's real name to AI vendors; tokenization (`{{HERO}}`) +
   `assertNoSensitive` before egress.
 - Consent before processing child details; marketing emails additionally require

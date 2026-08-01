@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Illustration masters (heavy PNGs) — site uses the webp versions
 public/landing/*.png
+
+# Generated printer RFQ pack (rebuild with `npm run print:rfq`).
+/public/print-test/

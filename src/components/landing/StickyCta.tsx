@@ -10,7 +10,7 @@ import { BRAND } from '@/lib/brand';
  * desktop (the header CTA is always visible there) and until scroll, so it never
  * blocks the initial product explanation.
  */
-export function StickyCta() {
+export function StickyCta({ price }: { price: string }) {
   const [show, setShow] = useState(false);
   useEffect(() => {
     const onScroll = () => setShow(window.scrollY > 640);
@@ -22,7 +22,7 @@ export function StickyCta() {
   return (
     <div className={`sticky-cta${show ? ' on' : ''}`}>
       <div className="sticky-cta-inner">
-        <span className="sticky-cta-txt">Free preview · pay {BRAND.product.priceLabel} only if you love it</span>
+        <span className="sticky-cta-txt">Free preview · pay {price} only if you love it</span>
         <Link href="/create" className="btn btn-brand btn-sm sticky-cta-btn">{BRAND.hero.primaryCta}</Link>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { marketingEmailsEnabled } from '../config/beta-flags';
 import { loadEnv } from '../config/env';
 import { dueOccasions } from '../config/occasions';
 import { audit } from '../lib/audit';
@@ -28,6 +29,9 @@ interface Target {
 export const occasionNudges = inngest.createFunction(
   { id: 'occasion-nudges', name: 'Occasion & birthday reminders', triggers: [{ cron: '8 13 * * *' }] },
   async ({ step }) => {
+    // Off during the narrow paid beta (the plan excludes birthday reminders and
+    // reorder nudges — the cohort is capped, so demand generation is noise).
+    if (!marketingEmailsEnabled()) return { skipped: 'marketing_disabled' as const };
     const env = loadEnv();
 
     const plan = await step.run('plan', async () => {

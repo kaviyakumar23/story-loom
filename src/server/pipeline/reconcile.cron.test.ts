@@ -10,22 +10,44 @@ vi.mock('@/server/pipeline/client', () => ({
 }));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
 vi.mock('@/server/lib/metrics', () => ({ evaluateAlerts: async () => {} }));
+vi.mock('../lib/refunds', () => ({ applyRefundForPayment: async () => ({ applied: true, outcome: { alreadyReleased: false, fulfillmentCancelled: true } }) }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 
 import { reconcilePaidBooks } from './reconcile';
+
+/** A stuck book whose order is (or is not) still worth fulfilling. */
+function db(opts: { books?: { id: string }[]; paidOrders?: { book_id: string }[] } = {}) {
+  return makeSupabase({
+    tables: {
+      books: (op) => (op === 'select' ? { data: opts.books ?? [] } : { data: null }),
+      orders: { data: opts.paidOrders ?? [] },
+      webhook_events: { data: [] },
+    },
+  });
+}
 
 describe('reconcilePaidBooks cron', () => {
   beforeEach(() => { h.sends = []; });
 
   it('re-enqueues fulfilment for a paid-but-stuck book (and leases it)', async () => {
-    h.db = makeSupabase({ tables: { books: (op) => (op === 'select' ? { data: [{ id: 'stuck-1' }] } : { data: null }) } });
+    h.db = db({ books: [{ id: 'stuck-1' }], paidOrders: [{ book_id: 'stuck-1' }] });
     const out = (await handlerOf(reconcilePaidBooks)({ step: makeStep() })) as { reEnqueued: number };
     expect(out.reEnqueued).toBe(1);
     expect(h.sends).toEqual([{ name: 'book/fulfillment.requested', data: expect.objectContaining({ bookId: 'stuck-1' }) }]);
   });
 
+  // A refund leaves the book at 'paid' until the refund lands, and this cron
+  // would otherwise keep restarting generation — spending image budget on an
+  // order that has been undone.
+  it('does not re-enqueue a book whose order is no longer paid', async () => {
+    h.db = db({ books: [{ id: 'refunded-1' }], paidOrders: [] });
+    const out = (await handlerOf(reconcilePaidBooks)({ step: makeStep() })) as { reEnqueued: number };
+    expect(out.reEnqueued).toBe(0);
+    expect(h.sends).toHaveLength(0);
+  });
+
   it('does nothing when no books are stuck', async () => {
-    h.db = makeSupabase({ tables: { books: { data: [] } } });
+    h.db = db();
     const out = (await handlerOf(reconcilePaidBooks)({ step: makeStep() })) as { reEnqueued: number };
     expect(out.reEnqueued).toBe(0);
     expect(h.sends).toHaveLength(0);

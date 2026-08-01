@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handlerOf, makeStep } from '../test/inngest-harness';
 import { findOp, makeSupabase, type MockDb } from '../test/supabase-mock';
 
-const h = vi.hoisted(() => ({ db: null as MockDb | null, consent: true, sends: 0 }));
+const h = vi.hoisted(() => ({ db: null as MockDb | null, consent: true, sends: 0, marketing: 'true' }));
 
 vi.mock('@/server/pipeline/client', () => ({ inngest: { createFunction: (_c: unknown, handler: unknown) => ({ handler }) }, EVENTS: {} }));
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ PREVIEW_RETENTION_DAYS: 30, APP_BASE_URL: 'https://m' }) }));
+// Marketing sends are switched off for the narrow paid beta; enable them here so
+// these tests still cover the cron's own logic (see the disabled-path test below).
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({ PREVIEW_RETENTION_DAYS: 30, APP_BASE_URL: 'https://m', MARKETING_EMAILS_ENABLED: h.marketing }),
+}));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
 vi.mock('@/server/lib/marketing', () => ({ canSendMarketing: async () => h.consent, unsubscribeUrl: () => 'https://m/unsub' }));
 vi.mock('@/server/lib/email', () => ({ sendPreviewWinback: async () => { h.sends += 1; } }));
@@ -21,7 +25,16 @@ function db(email: string | null) {
 }
 
 describe('previewWinback cron', () => {
-  beforeEach(() => { h.consent = true; h.sends = 0; });
+  beforeEach(() => { h.consent = true; h.sends = 0; h.marketing = 'true'; });
+
+  it('sends nothing at all while marketing is disabled for the beta', async () => {
+    h.marketing = 'false';
+    h.db = db('parent@example.com');
+    const out = (await handlerOf(previewWinback)({ step: makeStep() })) as { skipped?: string };
+    expect(out.skipped).toBe('marketing_disabled');
+    expect(h.sends).toBe(0);
+    expect(h.db.ops).toHaveLength(0);
+  });
 
   it('emails a consented parent and marks the one-shot flag', async () => {
     h.db = db('parent@example.com');

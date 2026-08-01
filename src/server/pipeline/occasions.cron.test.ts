@@ -7,10 +7,15 @@ const h = vi.hoisted(() => ({
   consent: true,
   claimError: null as { code: string } | null,
   nudges: [] as { to: string; opts: { heroName: string; occasion: string; url: string } }[],
+  marketing: 'true',
 }));
 
 vi.mock('@/server/pipeline/client', () => ({ inngest: { createFunction: (_cfg: unknown, handler: unknown) => ({ handler }) }, EVENTS: {} }));
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ APP_BASE_URL: 'https://m' }) }));
+// Nudges are switched off for the narrow paid beta; enable them here so these
+// tests still cover the cron's dedupe + consent logic.
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({ APP_BASE_URL: 'https://m', MARKETING_EMAILS_ENABLED: h.marketing }),
+}));
 vi.mock('@/server/config/occasions', () => ({
   dueOccasions: () => [{ key: 'diwali-2026', label: 'Diwali', year: 2026, month: 11, day: 8, pack: null, leadDays: 21 }],
 }));

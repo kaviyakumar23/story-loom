@@ -5,8 +5,12 @@ const h = vi.hoisted(() => ({
   db: null as MockDb | null,
   casResult: [{ id: 'b1' }] as { id: string }[], // what the compare-and-swap debit returns
   sends: [] as { name: string; data: { mode?: string } }[],
+  editing: 'true',
 }));
 
+// Self-serve editing is switched off for the narrow paid beta; enable it here so
+// these tests still cover the render-credit debit and its race handling.
+vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ SELF_SERVE_EDITING_ENABLED: h.editing }) }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));

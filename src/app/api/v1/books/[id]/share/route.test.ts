@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findOp, makeSupabase, type MockDb } from '@/server/test/supabase-mock';
 
-const h = vi.hoisted(() => ({ db: null as MockDb | null }));
-vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ APP_BASE_URL: 'https://moonbell.in' }) }));
+const h = vi.hoisted(() => ({ db: null as MockDb | null, sharing: 'true' }));
+// Sharing is switched off for the narrow paid beta; enable it here so these
+// tests still cover the link's hashing, expiry and ownership rules.
+vi.mock('@/server/config/env', () => ({
+  loadEnv: () => ({ APP_BASE_URL: 'https://moonbell.in', PUBLIC_SHARING_ENABLED: h.sharing }),
+}));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
@@ -14,7 +18,15 @@ const ctx = { params: Promise.resolve({ id: ID }) };
 const ownedBook = (status = 'preview_ready') => ({ books: { data: { id: ID, parent_id: 'p1', status, deleted_at: null } } });
 
 describe('books/:id/share (integration)', () => {
-  beforeEach(() => { h.db = null; });
+  beforeEach(() => { h.db = null; h.sharing = 'true'; });
+
+  it('refuses to mint a link while sharing is off for the beta', async () => {
+    h.sharing = 'false';
+    h.db = makeSupabase({ tables: { ...ownedBook(), book_share_links: { error: null } } });
+    const res = await POST(new Request(`https://m/api/v1/books/${ID}/share`, { method: 'POST' }), ctx);
+    expect(res.status).toBe(403);
+    expect(findOp(h.db, 'book_share_links', 'insert')).toBeUndefined();
+  });
 
   it('creates a hashed, expiring share link and returns a share URL', async () => {
     h.db = makeSupabase({ tables: { ...ownedBook(), book_share_links: { error: null } } });

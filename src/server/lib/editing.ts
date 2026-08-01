@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { selfServeEditingEnabled } from '../config/beta-flags';
 import { badRequest, conflict, forbidden, notFound } from './errors';
 import { serviceClient } from './supabase';
 
@@ -19,6 +20,11 @@ export async function loadEditableTarget(
   indexRaw: string,
   parentId: string,
 ): Promise<EditableTarget> {
+  // Both edit endpoints funnel through here, so the beta's "one founder-reviewed
+  // correction instead of self-serve changes" rule is enforced in one place.
+  if (!selfServeEditingEnabled()) {
+    throw forbidden('Changes go through our team during the beta — reply to your order email and we’ll sort it.');
+  }
   if (!z.string().uuid().safeParse(bookId).success) throw badRequest('Invalid book id');
   const pageIndex = Number.parseInt(indexRaw, 10);
   if (!Number.isInteger(pageIndex) || pageIndex < 0) throw badRequest('Invalid page index');
@@ -44,7 +50,9 @@ export async function loadEditableTarget(
     .eq('kind', 'print')
     .maybeSingle();
   const fStatus = (f as { status: string } | null)?.status;
-  if (fStatus && fStatus !== 'print_ready') {
+  // Anything before the file is released is still changeable; once it is at the
+  // printer it is not.
+  if (fStatus && !['qc_pending', 'qc_hold', 'print_ready'].includes(fStatus)) {
     throw conflict('We’ve already started printing this book, so it can’t be changed now.');
   }
 

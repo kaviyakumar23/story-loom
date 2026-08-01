@@ -50,6 +50,40 @@ export async function createOrder(opts: {
   };
 }
 
+export interface FetchedPayment {
+  id: string;
+  orderId: string | null;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: number;
+}
+
+/**
+ * Payments Razorpay believes it captured, over a window.
+ *
+ * Everything else in this system learns about money from webhooks, which is
+ * fine until one is never delivered: our order then sits at 'created' for ever
+ * while Razorpay shows it paid, and nothing scans for that. This is the read
+ * side of the daily reconciliation that closes it.
+ */
+export async function fetchPayments(opts: { fromSeconds: number; toSeconds: number; count?: number }): Promise<FetchedPayment[]> {
+  const res = await razorpay().payments.all({
+    from: opts.fromSeconds,
+    to: opts.toSeconds,
+    count: opts.count ?? 100,
+  });
+  const items = (res.items ?? []) as { id: string; order_id?: string | null; status: string; amount: number | string; currency: string; created_at: number }[];
+  return items.map((p) => ({
+    id: p.id,
+    orderId: p.order_id ?? null,
+    status: p.status,
+    amount: Number(p.amount),
+    currency: p.currency,
+    createdAt: p.created_at,
+  }));
+}
+
 export interface RefundResult {
   id: string;
   amount: number;

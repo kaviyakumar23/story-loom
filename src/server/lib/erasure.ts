@@ -20,6 +20,70 @@ import { serviceClient } from './supabase';
  * because those rows hold the only copy of each storage key. Every step throws
  * on failure so a half-erasure is retried rather than reported as success.
  */
+/**
+ * Whether erasure has to wait, and why.
+ *
+ * A printed order in flight is the one case where deleting immediately does
+ * real damage — and it did: the cascade took the fulfilment row and the
+ * shipping address with it and the storage sweep deleted the print master,
+ * silently cancelling a paid order with nothing left to show it existed. The
+ * parent's request is honoured, just after the book they paid for arrives.
+ */
+export interface ErasureBlock {
+  reason: string;
+  /** A conservative estimate of when it will be safe, for the deferred row. */
+  retryAfter: Date;
+}
+
+export async function findErasureBlock(parentId: string): Promise<ErasureBlock | null> {
+  const db = serviceClient();
+  const { data } = await db
+    .from('orders')
+    .select('id, status, book_id')
+    .eq('parent_id', parentId)
+    .eq('status', 'paid');
+  const paid = (data ?? []) as { id: string; status: string; book_id: string | null }[];
+  if (!paid.length) return null;
+
+  const bookIds = paid.map((o) => o.book_id).filter((id): id is string => Boolean(id));
+  if (!bookIds.length) return null;
+
+  const { data: fulfillments } = await db
+    .from('fulfillments')
+    .select('book_id, status')
+    .in('book_id', bookIds)
+    .not('status', 'in', '("delivered","cancelled")');
+  const open = (fulfillments ?? []) as { book_id: string; status: string }[];
+  if (open.length) {
+    return {
+      reason: `A printed order is still in progress (${open.map((f) => f.status).join(', ')}).`,
+      // Long enough to cover print plus delivery; the retention cron re-checks
+      // the real state anyway, so this is only about not re-checking hourly.
+      retryAfter: new Date(Date.now() + 21 * 86_400_000),
+    };
+  }
+
+  // A paid order does not get its fulfilment row until the END of generation, so
+  // "no fulfilment row" was indistinguishable from "already delivered" — and the
+  // window it left open, between paying and the book being built, is exactly
+  // when a parent is most likely to have second thoughts and hit delete. That
+  // erasure would have cascaded the order away mid-build.
+  const { data: books } = await db
+    .from('books')
+    .select('id, status')
+    .in('id', bookIds)
+    .in('status', ['paid', 'generating']);
+  const building = (books ?? []) as { id: string; status: string }[];
+  if (building.length) {
+    return {
+      reason: 'A paid order is still being made.',
+      retryAfter: new Date(Date.now() + 21 * 86_400_000),
+    };
+  }
+
+  return null;
+}
+
 export async function eraseParentData(parentId: string): Promise<void> {
   const db = serviceClient();
 

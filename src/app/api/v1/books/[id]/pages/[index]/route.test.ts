@@ -5,8 +5,13 @@ const h = vi.hoisted(() => ({
   db: null as MockDb | null,
   moderationAllowed: true,
   sends: [] as { name: string; data: { mode?: string } }[],
+  editing: 'true',
 }));
 
+// Self-serve editing is switched off for the narrow paid beta (corrections go
+// through founder review); enable it here so these tests still cover the edit
+// window, moderation and re-assembly rules.
+vi.mock('@/server/config/env', () => ({ loadEnv: () => ({ SELF_SERVE_EDITING_ENABLED: h.editing }) }));
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
@@ -42,7 +47,16 @@ describe('PATCH /books/:id/pages/:index — text edit (integration)', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'k';
     process.env.SUPABASE_ANON_KEY = 'k';
   });
-  beforeEach(() => { h.moderationAllowed = true; h.sends = []; });
+  beforeEach(() => { h.moderationAllowed = true; h.sends = []; h.editing = 'true'; });
+
+  it('refuses a self-serve edit while corrections go through founder review', async () => {
+    h.editing = 'false';
+    h.db = editableDb();
+    const res = await PATCH(req('A gentler new line for this page.'), ctx);
+    expect(res.status).toBe(403);
+    expect(findOp(h.db, 'book_pages', 'update')).toBeUndefined();
+    expect(h.sends).toHaveLength(0);
+  });
 
   it('saves an edit, marks the book re-assembling, and emits a text edit', async () => {
     h.db = editableDb();

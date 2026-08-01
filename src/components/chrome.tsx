@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 import { useAuth } from '@/lib/auth';
-import { NewsletterForm } from './landing/NewsletterForm';
 import { Logo } from './logo';
 import { Icon } from './ui';
 
@@ -21,20 +20,23 @@ export function Header({ minimal }: { minimal?: boolean }) {
             <Icon name="lock" size={15} stroke="var(--brand)" /> Secure · never used to train AI
           </div>
         ) : (
+          /* A first-time visitor has one useful action. "My books" and an
+             account icon are navigation for people who already bought
+             something; offering them to someone who has not is noise beside the
+             only button that matters. They return once there is a session. */
           <nav className="web-nav">
-            <Link href="/#how" className="hide-mobile">How it works</Link>
             <Link href="/#sample" className="hide-mobile">Sample</Link>
-            <Link href="/#pricing" className="hide-mobile">The book</Link>
             <Link href="/#faq" className="hide-mobile">FAQ</Link>
-            <Link href="/#trust" className="hide-mobile">About us</Link>
-            <span className="nav-icons">
-              <Link href={session ? '/account' : '/signin'} aria-label={session ? 'Account' : 'Sign in'} className="nav-ic">
-                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.4" /><path d="M5.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6" /></svg>
-              </Link>
-              <Link href="/books" aria-label="My books" className="nav-ic">
-                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 8h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.4H8.8a1.5 1.5 0 0 1-1.5-1.4L6.5 8Z" /><path d="M9.2 8V6.6a2.8 2.8 0 0 1 5.6 0V8" /></svg>
-              </Link>
-            </span>
+            {session && (
+              <span className="nav-icons">
+                <Link href="/account" aria-label="Account" className="nav-ic">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.4" /><path d="M5.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6" /></svg>
+                </Link>
+                <Link href="/books" aria-label="My books" className="nav-ic">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 8h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.4H8.8a1.5 1.5 0 0 1-1.5-1.4L6.5 8Z" /><path d="M9.2 8V6.6a2.8 2.8 0 0 1 5.6 0V8" /></svg>
+                </Link>
+              </span>
+            )}
             <Link href="/create" className="btn btn-brand btn-sm nav-cta">
               <span className="nav-cta-full">{BRAND.hero.primaryCta}</span>
               <span className="nav-cta-short">Free preview</span>
@@ -88,13 +90,10 @@ export function Footer() {
             </div>
           </div>
         ))}
-        <div className="foot-news">
-          <h4 className="foot-h">Stay in the loop</h4>
-          <p style={{ fontSize: 13.5, color: '#C9C7EA', lineHeight: 1.55, marginBottom: 12 }}>
-            Get stories, offers and inspiration straight to your inbox.
-          </p>
-          <NewsletterForm variant="dark" />
-        </div>
+        {/* No newsletter sign-up during the beta. We are not sending broadcasts
+            — the only list we keep is the waitlist behind the invite wall, for
+            people who tried to order and could not. Collecting addresses we have
+            no intention of writing to is just a liability. */}
       </div>
       <div className="container" style={{ borderTop: '1px solid rgba(255,255,255,.12)', padding: '18px 40px', fontSize: 12.5, color: '#9C99C9', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <span>© 2026 {BRAND.name}. Made with care.</span>

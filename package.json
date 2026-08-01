@@ -10,9 +10,12 @@
     "migrate": "node --experimental-strip-types --input-type=module -e \"import('./src/server/db/migrate.ts')\"",
     "test": "npm run typecheck && vitest run",
     "test:e2e": "playwright test",
-    "rls-check": "node scripts/rls-check.mjs"
+    "rls-check": "node scripts/rls-check.mjs",
+    "print:rfq": "node scripts/build-print-test.mjs",
+    "print:preflight": "node scripts/print-preflight.mjs"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@sentry/nextjs": "^10.68.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",

@@ -26,15 +26,19 @@ function db(status: string) {
   });
 }
 
-describe('POST /books/:id/revisions — one free tweak (integration)', () => {
+describe('POST /books/:id/revisions — one founder-reviewed correction (integration)', () => {
   beforeEach(() => { h.count = 0; h.sends = []; });
 
-  it('accepts the first tweak, resets to generating, and re-runs preview', async () => {
+  // The request is filed, not executed. Regeneration used to start the instant a
+  // parent asked, which let an open-ended "make it better" reshape a book with
+  // nobody reading either the request or the result.
+  it('files the request for review WITHOUT regenerating anything', async () => {
     h.db = db('preview_ready');
     const res = await post();
     expect(res.status).toBe(202);
-    expect(findOp(h.db!, 'books', 'update')?.values).toMatchObject({ status: 'generating' });
-    expect(h.sends.map((s) => s.name)).toEqual(['book/preview.requested']);
+    expect(findOp(h.db!, 'book_revision_requests', 'insert')?.values).toMatchObject({ status: 'pending_review' });
+    expect(findOp(h.db!, 'books', 'update')).toBeUndefined();
+    expect(h.sends).toHaveLength(0);
   });
 
   it('409s the second tweak (already used its one free revision)', async () => {

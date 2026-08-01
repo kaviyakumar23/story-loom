@@ -1,20 +1,31 @@
 import { NonRetriableError } from 'inngest';
+import { photoLikenessEnabled } from '../config/beta-flags';
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
+import { ensurePrintResolution } from '../lib/image-resolution';
 import { recordEvent } from '../lib/cost';
 import { detokenizeLocal, humanizeHeroToken, HERO_TOKEN, scrubAll } from '../lib/tokenize';
 import { assertPhotoEgressAllowed, getPhoto, removePhotos } from '../lib/photo-intake';
 import { downloadAsset, uploadAsset } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { getProviders, resolveModelStamp } from '../providers/index';
-import type { CharacterReferencePack, Story } from '../providers/types';
+import type { CharacterReferencePack, ImageQuality, Story } from '../providers/types';
 import type { AgeBand, Goal, OccasionPackId, ReadingLevel } from '../types/api';
 
 /** Cover + first N interior pages make the free preview (§6 phase A). */
 export const PREVIEW_PAGE_COUNT = 3;
 
-export function pageCountFor(level: ReadingLevel): number {
-  return level === 'emerging' ? 8 : level === 'early' ? 10 : 12;
+/**
+ * Illustrated story pages per book. Fixed at 12 for every reading level: the
+ * printed book is one physical spec (8×8in casebound, 20 interior pages), so a
+ * page count that moved with the reading level would mean a different spine,
+ * template and quote per order. Reading level still shapes the writing —
+ * vocabulary and sentence length — it just no longer shortens the book.
+ */
+export const STORY_PAGE_COUNT = 12;
+
+export function pageCountFor(_level: ReadingLevel): number {
+  return STORY_PAGE_COUNT;
 }
 
 export interface BookContext {
@@ -28,6 +39,8 @@ export interface BookContext {
   goal: Goal;
   occasionPack: OccasionPackId | null;
   customTheme: string | null;
+  /** Parent's dedication line, printed in the book's front matter. */
+  dedication: string | null;
   readingLevel: ReadingLevel;
   purchasedTier: string | null;
   revisionInstruction: string | null;
@@ -40,7 +53,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
   const db = serviceClient();
   const { data: book } = await db
     .from('books')
-    .select('id, parent_id, hero_id, goal, occasion_pack, custom_theme, reading_level, purchased_tier, text_model, image_model')
+    .select('id, parent_id, hero_id, goal, occasion_pack, custom_theme, dedication, reading_level, purchased_tier, text_model, image_model')
     .eq('id', bookId)
     .maybeSingle();
   if (!book) throw new NonRetriableError(`Book ${bookId} not found`);
@@ -58,6 +71,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     goal: Goal;
     occasion_pack: OccasionPackId | null;
     custom_theme: string | null;
+    dedication: string | null;
     reading_level: ReadingLevel;
     purchased_tier: string | null;
     text_model: string | null;
@@ -82,6 +96,7 @@ export async function loadContext(bookId: string): Promise<BookContext> {
     goal: b.goal,
     occasionPack: b.occasion_pack ?? null,
     customTheme: b.custom_theme ?? null,
+    dedication: b.dedication ?? null,
     readingLevel: b.reading_level,
     purchasedTier: b.purchased_tier,
     revisionInstruction: await loadLatestRevisionInstruction(bookId),
@@ -292,7 +307,7 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
  * and render wins.
  */
 async function loadHeroPhoto(heroId: string): Promise<{ id: string; storageKey: string; consentId: string | null } | null> {
-  if (loadEnv().NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED !== 'true') return null;
+  if (!photoLikenessEnabled()) return null;
   const db = serviceClient();
   const { data } = await db
     .from('photo_uploads')
@@ -333,14 +348,22 @@ interface StoredReferencePack {
   negativeConstraints: string[];
 }
 
-/** Render one page image, anchored to the character sheet, and persist it. */
+/**
+ * Render one page image, anchored to the character sheet, and persist it.
+ *
+ * `quality` decides how big an image we ask for. Free previews are only ever
+ * seen on a screen, and rendering them at print size would multiply the cost of
+ * the previews most visitors never buy; pages destined for paper are asked for
+ * at print size and then held to the resolution floor before storage.
+ */
 export async function renderAndStorePage(
   ctx: BookContext,
   pageIndex: number,
   prompt: string,
   reference: CharacterReferencePack,
   isCover = false,
-): Promise<{ model: string; attempts: number }> {
+  quality: ImageQuality = 'preview',
+): Promise<{ model: string; attempts: number; width: number; upscaled: boolean }> {
   const provider = getProviders({ imageModel: ctx.imageModel }).image;
   const maxAttempts = loadEnv().MAX_IMAGE_ATTEMPTS;
   // Prompts come from the story model, which names the child {{HERO}} — read as
@@ -352,7 +375,7 @@ export async function renderAndStorePage(
   // Render → moderate (gate #3). On a moderation block, regenerate with tighter
   // constraints up to the cap, then route to human review (§6 cost cap, §10).
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const { value, usage } = await provider.renderPage(scenePrompt, reference);
+    const { value, usage } = await provider.renderPage(scenePrompt, reference, quality);
     const verdict = await getProviders().moderator.moderateImage({
       base64: value.base64,
       mime: value.mime,
@@ -374,16 +397,49 @@ export async function renderAndStorePage(
       continue;
     }
 
-    const ext = value.mime === 'image/jpeg' ? 'jpg' : 'png';
+    // Hold print renders to the resolution floor. The model can return whatever
+    // size it likes, so asking for a big image is not the same as having one —
+    // an under-sized page is raised here rather than discovered on paper.
+    let bytes = Buffer.from(value.base64, 'base64');
+    let mime = value.mime;
+    let width = value.width;
+    let height = value.height;
+    let upscaled = false;
+    if (quality === 'print') {
+      const ensured = await ensurePrintResolution(bytes);
+      if (ensured.upscaled) {
+        bytes = ensured.bytes;
+        mime = 'image/png';
+        upscaled = true;
+        await audit({
+          actor: 'system',
+          action: 'image.upscaled',
+          entity: 'books',
+          entityId: ctx.bookId,
+          metadata: { pageIndex, from: ensured.originalWidth, to: ensured.width, model: usage.model },
+        });
+      }
+      width = ensured.width;
+      height = ensured.height;
+    }
+
+    const ext = mime === 'image/jpeg' ? 'jpg' : 'png';
     const key = isCover
       ? `books/${ctx.bookId}/cover.${ext}`
       : `books/${ctx.bookId}/pages/${pageIndex}.${ext}`;
-    await uploadAsset(key, Buffer.from(value.base64, 'base64'), value.mime);
+    await uploadAsset(key, bytes, mime);
 
     const db = serviceClient();
     const { data: asset, error } = await db
       .from('assets')
-      .insert({ book_id: ctx.bookId, type: 'image', storage_key: key, mime: value.mime })
+      .insert({
+        book_id: ctx.bookId,
+        type: 'image',
+        storage_key: key,
+        mime,
+        width: width || null,
+        height: height || null,
+      })
       .select('id')
       .single();
     if (error || !asset) throw new Error(`persist image asset failed: ${error?.message}`);
@@ -397,7 +453,7 @@ export async function renderAndStorePage(
         .eq('book_id', ctx.bookId)
         .eq('page_index', pageIndex);
     }
-    return { model: usage.model, attempts: attempt };
+    return { model: usage.model, attempts: attempt, width, upscaled };
   }
 
   // Exhausted the cap and still blocked → human review (§10).

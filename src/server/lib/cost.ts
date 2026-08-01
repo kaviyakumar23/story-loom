@@ -11,7 +11,10 @@ type Stage = 'intake' | 'story' | 'safety' | 'images' | 'assemble' | 'fulfillmen
 
 // Indicative unit prices (USD). Keep aligned with the validated ranges in §15;
 // re-confirm at build time. Text priced per 1M tokens; images per image.
+// A model missing from this table silently costs $0, which quietly understates
+// cost-per-book and disarms its alert — add an entry with every model change.
 const TEXT_PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
+  'gpt-5.6-sol': { in: 1.25, out: 10 },
   'gpt-4o': { in: 2.5, out: 10 },
   'gpt-4o-mini': { in: 0.15, out: 0.6 },
   'gemini-2.5-flash': { in: 0.3, out: 2.5 },

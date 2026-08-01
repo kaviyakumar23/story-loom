@@ -1,5 +1,7 @@
 import { loadEnv } from '../config/env';
 import { audit } from '../lib/audit';
+import { eraseParentData, findErasureBlock } from '../lib/erasure';
+import { captureError } from '../lib/observability';
 import { removeAssets } from '../lib/storage';
 import { serviceClient } from '../lib/supabase';
 import { inngest } from './client';
@@ -37,12 +39,21 @@ export const retentionPurge = inngest.createFunction(
     // Hashed per-IP preview counters expire after 30 days (DPDP minimisation —
     // the abuse cap only ever needs today's row). Runs every day, so it sits
     // BEFORE the no-expired-previews early return.
+    // A parent who asked to be deleted while a printed order was still in flight
+    // is waiting on us, not the other way round. Their request is honoured as
+    // soon as the book is out of our hands.
+    const erased = await step.run('run-deferred-erasures', async () => runDeferredErasures());
+
+    // Logs are kept for at least 180 days (CERT-In direction 5), so nothing here
+    // is purged earlier — see docs/retention-matrix.md.
+    const logsPurged = await step.run('purge-old-logs', async () => purgeOldLogs());
+
     await step.run('purge-ip-usage', async () => {
       const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
       await serviceClient().from('preview_ip_usage').delete().lt('day', cutoff);
     });
 
-    if (!expired.length) return { purged: 0, heroesPurged: 0 };
+    if (!expired.length) return { purged: 0, heroesPurged: 0, erased, logsPurged };
     const bookIds = expired.map((b) => b.id);
 
     await step.run('purge-books', async () => {
@@ -94,9 +105,76 @@ export const retentionPurge = inngest.createFunction(
       }),
     );
 
-    return { purged: bookIds.length, heroesPurged };
+    return { purged: bookIds.length, heroesPurged, erased, logsPurged };
   },
 );
+
+/**
+ * Age out the operational logs, never before the statutory floor.
+ *
+ * 180 days is a MINIMUM, not a target: CERT-In direction 5 requires that logs
+ * are retained for 180 days, so this deletes at 400 to leave clear headroom for
+ * an investigation that starts late. Aggregates are unaffected.
+ */
+const LOG_RETENTION_DAYS = 400;
+
+async function purgeOldLogs(): Promise<number> {
+  const db = serviceClient();
+  const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 86_400_000).toISOString();
+  let purged = 0;
+  for (const table of ['funnel_events', 'webhook_events', 'audit_log'] as const) {
+    const { error, count } = await db
+      .from(table)
+      .delete({ count: 'exact' })
+      .lt('created_at', cutoff);
+    if (error) {
+      captureError(error, { stage: 'retention-logs' });
+      continue;
+    }
+    purged += count ?? 0;
+  }
+  return purged;
+}
+
+/**
+ * Complete the erasures that had to wait for a printed order to finish.
+ *
+ * Re-checks the live state rather than trusting `deferred_until` — the estimate
+ * is only there to stop us re-checking hourly, and an order can be delivered
+ * early or cancelled outright.
+ */
+async function runDeferredErasures(): Promise<number> {
+  const db = serviceClient();
+  const { data } = await db
+    .from('deletion_requests')
+    .select('id, parent_id')
+    .eq('status', 'deferred')
+    .order('created_at', { ascending: true })
+    .limit(50);
+
+  const rows = (data ?? []) as { id: string; parent_id: string }[];
+  let done = 0;
+  for (const row of rows) {
+    const block = await findErasureBlock(row.parent_id);
+    if (block) continue; // still in flight — leave it parked
+    try {
+      await eraseParentData(row.parent_id);
+      await db.from('deletion_requests').update({ status: 'completed' }).eq('id', row.id);
+      await audit({
+        actor: 'system',
+        action: 'account.erased_deferred',
+        entity: 'deletion_requests',
+        entityId: row.id,
+      });
+      done += 1;
+    } catch (err) {
+      // Leave it deferred and try again tomorrow: a half-finished erasure that
+      // reports success is worse than one that visibly has not happened yet.
+      captureError(err, { stage: 'deferred-erasure' });
+    }
+  }
+  return done;
+}
 
 /** Reference images live keyed inside the sheet's jsonb pack, not in `assets`. */
 function extractReferenceKeys(rows: unknown[]): string[] {

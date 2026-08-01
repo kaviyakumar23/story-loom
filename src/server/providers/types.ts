@@ -94,6 +94,14 @@ export interface ImageResult<T> {
   usage: { model: string; images: number };
 }
 
+/**
+ * How large an image to ask for. A preview is only ever seen on a screen; a
+ * print page is placed full-bleed across 8.25in and needs ~2500px to reach
+ * 300 PPI. Generating previews at print size would multiply the cost of the
+ * free previews most visitors never buy.
+ */
+export type ImageQuality = 'preview' | 'print';
+
 export interface ImageProvider {
   readonly name: string;
   /** Generate the reusable character bible from avatar attributes (§7). */
@@ -104,6 +112,7 @@ export interface ImageProvider {
   renderPage(
     prompt: string,
     reference: CharacterReferencePack,
+    quality?: ImageQuality,
   ): Promise<ImageResult<RenderedImage>>;
 }
 
