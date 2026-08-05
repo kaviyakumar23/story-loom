@@ -7,9 +7,13 @@ const h = vi.hoisted(() => ({
   flag: 'false',
   imgAllowed: true,
   sheetReq: null as { likenessPhoto?: unknown } | null,
+  sheetThrows: false,
+  egressThrows: false,
   photoBytes: null as Buffer | null,
+  photoReads: 0,
   removed: [] as string[][],
   uploaded: [] as string[],
+  audits: [] as { action: string; metadata?: Record<string, unknown> }[],
 }));
 
 const THREE_VIEWS = {
@@ -36,11 +40,19 @@ vi.mock('@/server/config/env', () => ({
   }),
 }));
 vi.mock('../lib/supabase', () => ({ serviceClient: () => h.db }));
-vi.mock('../lib/audit', () => ({ audit: async () => {} }));
+vi.mock('../lib/audit', () => ({
+  audit: async (entry: { action: string; metadata?: Record<string, unknown> }) => { h.audits.push({ action: entry.action, metadata: entry.metadata }); },
+}));
 vi.mock('../providers/index', () => ({
   resolveModelStamp: () => ({ modelTier: 'cost', textModel: 't', imageModel: 'i', promptVersion: 'v' }),
   getProviders: () => ({
-    image: { generateCharacterSheet: async (req: { likenessPhoto?: unknown }) => { h.sheetReq = req; return THREE_VIEWS; } },
+    image: {
+      generateCharacterSheet: async (req: { likenessPhoto?: unknown }) => {
+        h.sheetReq = req;
+        if (h.sheetThrows) throw new Error('vertex 500');
+        return THREE_VIEWS;
+      },
+    },
     moderator: { moderateImage: async () => ({ allowed: h.imgAllowed, reasons: h.imgAllowed ? [] : ['unsafe'] }) },
   }),
 }));
@@ -49,9 +61,9 @@ vi.mock('../lib/storage', () => ({
   uploadAsset: async (key: string) => { h.uploaded.push(key); },
 }));
 vi.mock('../lib/photo-intake', () => ({
-  getPhoto: async () => h.photoBytes,
+  getPhoto: async () => { h.photoReads += 1; return h.photoBytes; },
   removePhotos: async (keys: string[]) => { h.removed.push(keys); },
-  assertPhotoEgressAllowed: () => {},
+  assertPhotoEgressAllowed: () => { if (h.egressThrows) throw new Error('backend is not Vertex'); },
 }));
 
 import { resolveCharacterSheet, type BookContext } from './helpers';
@@ -65,7 +77,8 @@ const ctx: BookContext = {
 
 describe('resolveCharacterSheet (engine)', () => {
   beforeEach(() => {
-    h.flag = 'false'; h.imgAllowed = true; h.sheetReq = null; h.photoBytes = null; h.removed = []; h.uploaded = [];
+    h.flag = 'false'; h.imgAllowed = true; h.sheetReq = null; h.sheetThrows = false; h.egressThrows = false;
+    h.photoBytes = null; h.photoReads = 0; h.removed = []; h.uploaded = []; h.audits = [];
   });
 
   it('reuses the cached reference pack without regenerating', async () => {
@@ -114,5 +127,81 @@ describe('resolveCharacterSheet (engine)', () => {
     expect(h.removed).toContainEqual(['p1/pu1.jpg']); // ...and then deleted
     expect(findOp(h.db, 'photo_uploads', 'update')?.values).toMatchObject({ status: 'consumed' });
     expect(findOp(h.db, 'character_sheets', 'insert')?.values).toMatchObject({ source: 'photo', consent_id: 'c1' });
+    expect(h.audits).toContainEqual({ action: 'photo.consumed', metadata: { used: true, reason: 'sheet_generated' } });
+  });
+
+  it('deletes the photo even when generation THROWS (the finally), audited as unused', async () => {
+    h.flag = 'true';
+    h.sheetThrows = true;
+    h.photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+    h.db = makeSupabase({
+      tables: {
+        character_sheets: { data: null },
+        photo_uploads: (op) => (op === 'select' ? { data: { id: 'pu1', storage_key: 'p1/pu1.jpg', consent_id: 'c1' } } : { data: null }),
+        consent_records: { data: { scope: 'photo_likeness', withdrawn_at: null } },
+      },
+    });
+    await expect(resolveCharacterSheet(ctx)).rejects.toThrow('vertex 500');
+    // The photo never outlives the call — deleted on the failure path too, and
+    // the audit trail says it was NOT used, so the silent-downgrade retry
+    // (attribute-only sheet) is visible to the founder.
+    expect(h.removed).toContainEqual(['p1/pu1.jpg']);
+    expect(findOp(h.db, 'photo_uploads', 'update')?.values).toMatchObject({ status: 'consumed' });
+    expect(h.audits).toContainEqual({ action: 'photo.consumed', metadata: { used: false, reason: 'sheet_failed' } });
+    expect(findOp(h.db, 'character_sheets', 'insert')).toBeUndefined();
+  });
+
+  it('consumes a pending photo on a cache hit instead of leaving it to the 24h cron', async () => {
+    // Flag OFF on purpose: cleanup-by-deletion must work regardless of flags.
+    h.db = makeSupabase({
+      tables: {
+        character_sheets: { data: { reference_pack: { images: [{ view: 'turnaround', storageKey: 'heroes/hero-1/sheet/turnaround.png', mime: 'image/png' }], palette: ['warm'], clothingTokens: ['tee'], negativeConstraints: ['no text'] } } },
+        photo_uploads: (op) => (op === 'select' ? { data: [{ id: 'pu9', storage_key: 'p1/pu9.jpg' }] } : { data: null }),
+      },
+    });
+    const pack = await resolveCharacterSheet(ctx);
+    expect(pack.images).toHaveLength(1); // the cached sheet is what's returned
+    expect(h.sheetReq).toBeNull(); // no regeneration
+    expect(h.removed).toContainEqual(['p1/pu9.jpg']); // the stranded photo is gone NOW
+    expect(h.audits).toContainEqual({ action: 'photo.consumed', metadata: { used: false, reason: 'sheet_cached' } });
+  });
+
+  it('falls back to attributes when the backend is not Vertex — photo never egressed, still deleted', async () => {
+    h.flag = 'true';
+    h.egressThrows = true;
+    h.photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+    h.db = makeSupabase({
+      tables: {
+        character_sheets: (op) => (op === 'select' ? { data: null } : { data: null }),
+        photo_uploads: (op) => (op === 'select' ? { data: { id: 'pu1', storage_key: 'p1/pu1.jpg', consent_id: 'c1' } } : { data: null }),
+        consent_records: { data: { scope: 'photo_likeness', withdrawn_at: null } },
+      },
+    });
+    await resolveCharacterSheet(ctx);
+    expect(h.photoReads).toBe(0); // guard throws BEFORE the bytes are read
+    expect(h.sheetReq?.likenessPhoto).toBeUndefined(); // generator ran attribute-only
+    expect(h.removed).toContainEqual(['p1/pu1.jpg']);
+    expect(h.audits).toContainEqual({ action: 'photo.consumed', metadata: { used: false, reason: 'not_egressed' } });
+    expect(findOp(h.db, 'character_sheets', 'insert')?.values).toMatchObject({ source: 'attributes' });
+  });
+
+  it('ignores the photo entirely when its consent was withdrawn after upload', async () => {
+    h.flag = 'true';
+    h.photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+    h.db = makeSupabase({
+      tables: {
+        character_sheets: (op) => (op === 'select' ? { data: null } : { data: null }),
+        photo_uploads: (op) => (op === 'select' ? { data: { id: 'pu1', storage_key: 'p1/pu1.jpg', consent_id: 'c1' } } : { data: null }),
+        consent_records: { data: { scope: 'photo_likeness', withdrawn_at: '2026-08-01T00:00:00Z' } },
+      },
+    });
+    await resolveCharacterSheet(ctx);
+    // Withdrawal between upload and render wins: no read, no egress, attributes only.
+    expect(h.photoReads).toBe(0);
+    expect(h.sheetReq?.likenessPhoto).toBeUndefined();
+    expect(findOp(h.db, 'character_sheets', 'insert')?.values).toMatchObject({ source: 'attributes' });
+    // The photo is NOT consumed here (loadHeroPhoto returned null) — the 24h
+    // purge cron owns it, which is the documented backstop.
+    expect(h.removed).toHaveLength(0);
   });
 });

@@ -6,7 +6,7 @@ import { requireParent } from '@/server/auth';
 import { assertEmailGate, assertGlobalPreviewBudget, bumpAndAssertIpCap, hasPaidOrder } from '@/server/lib/abuse';
 import { audit } from '@/server/lib/audit';
 import { assertBetaAccess } from '@/server/lib/beta-access';
-import { badRequest, internal } from '@/server/lib/errors';
+import { ApiError, badRequest, internal } from '@/server/lib/errors';
 import { toListItem, type BookRow } from '@/server/lib/mappers';
 import { assertRateLimit } from '@/server/lib/rate-limit';
 import { jsonError, readJson } from '@/server/lib/route';
@@ -150,17 +150,41 @@ export async function POST(req: Request): Promise<Response> {
       throw badRequest('Daily preview limit reached. Please try again tomorrow.');
     }
 
-    // Consent must exist, belong to this parent, and still stand (§9). A
-    // withdrawn consent authorizes nothing further (DPDP §6).
+    // Consent must exist, belong to this parent, be scoped to book creation, and
+    // still stand (§9). A withdrawn consent authorizes nothing further (DPDP §6).
+    // The scope filter matters: a photo_likeness consent authorizes exactly one
+    // thing (the photo) and must not double as the book-creation consent.
     const { data: consent } = await db
       .from('consent_records')
       .select('id, withdrawn_at')
       .eq('id', input.consentId)
       .eq('parent_id', parent.id)
+      .eq('scope', 'book_creation')
       .maybeSingle();
     if (!consent) throw badRequest('consentId is missing, invalid, or not yours');
     if ((consent as { withdrawn_at: string | null }).withdrawn_at) {
       throw badRequest('This consent has been withdrawn. Please give consent again to make a new book.');
+    }
+
+    // A photo reference must be real before we do anything else with it: the
+    // parent believes this book will star a photo-based character, so a stale,
+    // consumed, rejected or foreign id has to fail loudly here — never quietly
+    // fall back to attributes (same principle as the flag-off reject above).
+    if (input.photoUploadId) {
+      const { data: pu } = await db
+        .from('photo_uploads')
+        .select('id, status, consumed_at')
+        .eq('id', input.photoUploadId)
+        .eq('parent_id', parent.id)
+        .maybeSingle();
+      const photo = pu as { id: string; status: string; consumed_at: string | null } | null;
+      if (!photo || photo.status !== 'approved' || photo.consumed_at) {
+        throw new ApiError(
+          409,
+          'photo_unusable',
+          'That photo upload can’t be used any more — it may have expired or already been used. You can continue without it, or re-upload the photo.',
+        );
+      }
     }
 
     // Pre-moderate free-text inputs (theme + interests) so bad content is a
@@ -227,16 +251,47 @@ export async function POST(req: Request): Promise<Response> {
     // Roll back only a hero WE created — never a reused one (it has other books).
     const cleanupHero = async () => { if (createdHero) await db.from('heroes').delete().eq('id', heroId); };
 
+    // A reused hero may already have an illustrated character (cached sheet), in
+    // which case a new photo would be silently ignored by the cache — refuse it
+    // with a way forward instead. Checked only after hero ownership is verified,
+    // so a stranger's hero id can't be probed for whether a character exists.
+    if (input.photoUploadId && !createdHero) {
+      const { data: sheet } = await db
+        .from('character_sheets')
+        .select('id')
+        .eq('hero_id', heroId)
+        .limit(1)
+        .maybeSingle();
+      if (sheet) {
+        throw new ApiError(
+          409,
+          'likeness_exists',
+          'This child’s illustrated character already exists, so the new photo wouldn’t be used. Remove the illustrated character from your Account page first, or continue without the photo.',
+        );
+      }
+    }
+
     // Link a consented photo upload to this hero, so the pipeline seeds a stylized
     // likeness from it (once) and then deletes it. Owner + approved + unconsumed only.
+    // The row was pre-validated above, but it can be consumed or expired between
+    // that check and this write — so the guarded update must prove it matched.
     if (input.photoUploadId) {
-      await db
+      const { data: linked, error: linkErr } = await db
         .from('photo_uploads')
         .update({ hero_id: heroId })
         .eq('id', input.photoUploadId)
         .eq('parent_id', parent.id)
         .eq('status', 'approved')
-        .is('consumed_at', null);
+        .is('consumed_at', null)
+        .select('id');
+      if (linkErr || !linked?.length) {
+        await cleanupHero();
+        throw new ApiError(
+          409,
+          'photo_unusable',
+          'That photo upload can’t be used any more — it may have expired or already been used. You can continue without it, or re-upload the photo.',
+        );
+      }
     }
 
     const stamp = resolveModelStamp();

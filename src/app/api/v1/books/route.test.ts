@@ -199,4 +199,102 @@ describe('POST /api/v1/books (integration)', () => {
     expect(res.status).toBe(400);
     expect(h.db.ops).toHaveLength(0);
   });
+
+  // The base consent must be scoped to book creation: a photo_likeness consent
+  // authorizes exactly one thing (the photo) and must not double as the blanket
+  // consent for processing the child's details.
+  it('refuses a consent that is not book_creation-scoped', async () => {
+    h.db = makeSupabase({
+      tables: {
+        books: (_op, ctx) => (ctx.head ? { count: 0 } : { data: null }),
+        // Return the row only when the route does NOT filter on scope — so this
+        // test fails if the .eq('scope','book_creation') filter is ever dropped.
+        consent_records: (_op, ctx) =>
+          ctx.filters.some((f) => f.m === 'eq' && f.args[0] === 'scope' && f.args[1] === 'book_creation')
+            ? { data: null } // the row is photo_likeness-scoped ⇒ no match
+            : { data: { id: CONSENT, withdrawn_at: null } },
+      },
+    });
+    const res = await post(body());
+    expect(res.status).toBe(400);
+    expect(h.sends).toHaveLength(0);
+  });
+});
+
+const PHOTO_ID = '33333333-3333-4333-8333-333333333333';
+
+/** funnelDb + an approved photo upload; the link update reports `matched` rows. */
+function photoDb(over: {
+  photoRow?: Record<string, unknown> | null;
+  linkMatches?: boolean;
+  heroSheet?: boolean;
+} = {}) {
+  let bookSelect = 0;
+  return makeSupabase({
+    tables: {
+      consent_records: { data: { id: CONSENT, withdrawn_at: null } },
+      profiles: { data: null },
+      heroes: (op) => (op === 'insert' ? { data: { id: 'hero-1' } } : { data: { id: 'hero-9' } }),
+      character_sheets: { data: over.heroSheet ? { id: 'cs1' } : null },
+      photo_uploads: (op) =>
+        op === 'select'
+          ? { data: over.photoRow === undefined ? { id: PHOTO_ID, status: 'approved', consumed_at: null } : over.photoRow }
+          : { data: over.linkMatches === false ? [] : [{ id: PHOTO_ID }] },
+      books: (op, ctx) => {
+        if (op === 'insert') return { data: { id: 'book-1' } };
+        if (ctx.head) return { count: 0 };
+        bookSelect += 1;
+        return bookSelect === 1 ? { data: null } : { data: [{ id: 'book-1' }] };
+      },
+    },
+  });
+}
+
+describe('POST /api/v1/books — photoUploadId (feature ON)', () => {
+  beforeEach(() => { h.moderationAllowed = true; h.sends = []; h.photoFlag = 'true'; });
+
+  it('links a valid photo upload to the new hero and creates the book', async () => {
+    h.db = photoDb();
+    const res = await post(body({ photoUploadId: PHOTO_ID }));
+    expect(res.status).toBe(202);
+    expect(findOp(h.db, 'photo_uploads', 'update')?.values).toMatchObject({ hero_id: 'hero-1' });
+    expect(h.sends.map((s) => s.name)).toContain('book/preview.requested');
+  });
+
+  // The parent believes this book stars a photo-based character. A stale,
+  // consumed, rejected or foreign id must fail LOUDLY — never quietly produce an
+  // attribute-only book.
+  it('409s a consumed/expired/foreign photoUploadId — no book, no pipeline', async () => {
+    h.db = photoDb({ photoRow: null }); // owner+status filters match nothing
+    const res = await post(body({ photoUploadId: PHOTO_ID }));
+    expect(res.status).toBe(409);
+    const err = (await res.json()) as { error: { code: string } };
+    expect(err.error.code).toBe('photo_unusable');
+    expect(findOp(h.db, 'books', 'insert')).toBeUndefined();
+    expect(h.sends).toHaveLength(0);
+  });
+
+  it('409s and rolls back the created hero when the photo is consumed mid-request (link race)', async () => {
+    h.db = photoDb({ linkMatches: false }); // pre-check passes, guarded update matches 0 rows
+    const res = await post(body({ photoUploadId: PHOTO_ID }));
+    expect(res.status).toBe(409);
+    const err = (await res.json()) as { error: { code: string } };
+    expect(err.error.code).toBe('photo_unusable');
+    expect(findOp(h.db, 'heroes', 'delete')).toBeDefined(); // cleanupHero ran
+    expect(findOp(h.db, 'books', 'insert')).toBeUndefined();
+    expect(h.sends).toHaveLength(0);
+  });
+
+  // A reused hero with a cached character sheet would silently ignore the new
+  // photo (the pipeline reuses the sheet) — so the combination is refused with a
+  // way forward, not accepted and quietly wasted.
+  it('409s a new photo for a reused hero that already has an illustrated character', async () => {
+    h.db = photoDb({ heroSheet: true });
+    const res = await post(body({ photoUploadId: PHOTO_ID, heroId: '99999999-9999-4999-8999-999999999999' }));
+    expect(res.status).toBe(409);
+    const err = (await res.json()) as { error: { code: string } };
+    expect(err.error.code).toBe('likeness_exists');
+    expect(findOp(h.db, 'books', 'insert')).toBeUndefined();
+    expect(h.sends).toHaveLength(0);
+  });
 });

@@ -26,7 +26,9 @@ export const BRAND = {
     // What it costs the visitor to try. The PRICE is deliberately absent — it is
     // under test, so it is fetched per visitor rather than baked in here where
     // it would be wrong for half of them.
-    ctaMicrocopy: 'About 3 minutes · no child photo · no payment until you see the preview',
+    ctaMicrocopy: PHOTO_LIKENESS_ENABLED
+      ? 'About 3 minutes · photo optional · no payment until you see the preview'
+      : 'About 3 minutes · no child photo · no payment until you see the preview',
     trustLine: PHOTO_LIKENESS_ENABLED
       ? 'Free preview · Photo optional · Pay only when you love it'
       : 'Free preview · No child photos · Pay only when you love it',
