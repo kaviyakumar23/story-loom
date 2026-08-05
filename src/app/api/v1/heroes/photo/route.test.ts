@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   flag: 'true',
   serverFlag: 'true',
   moderationAllowed: true,
+  rateLimited: false,
   puts: [] as unknown[][],
 }));
 
@@ -18,7 +19,14 @@ vi.mock('@/server/config/env', () => ({
 vi.mock('@/server/lib/supabase', () => ({ serviceClient: () => h.db }));
 vi.mock('@/server/auth', () => ({ requireParent: async () => ({ id: 'p1' }) }));
 vi.mock('@/server/lib/beta-access', () => ({ assertBetaAccess: () => {} }));
-vi.mock('@/server/lib/rate-limit', () => ({ assertRateLimit: () => {} }));
+vi.mock('@/server/lib/rate-limit', async () => {
+  const { ApiError } = await vi.importActual<typeof import('@/server/lib/errors')>('@/server/lib/errors');
+  return {
+    assertRateLimit: () => {
+      if (h.rateLimited) throw new ApiError(429, 'rate_limited', 'Too many uploads — please try again in an hour.');
+    },
+  };
+});
 vi.mock('@/server/lib/audit', () => ({ audit: async () => {} }));
 vi.mock('@/server/providers/index', () => ({
   getProviders: () => ({ moderator: { moderateImage: async () => ({ allowed: h.moderationAllowed, reasons: h.moderationAllowed ? [] : ['minors'], raw: {} }) } }),
@@ -53,7 +61,7 @@ function form(bytes: Buffer, consentId = 'c1', type = 'image/jpeg') {
 const liveConsent = { consent_records: { data: { id: 'c1', scope: 'photo_likeness', withdrawn_at: null } } };
 
 describe('POST /api/v1/heroes/photo (integration)', () => {
-  beforeEach(() => { h.flag = 'true'; h.serverFlag = 'true'; h.moderationAllowed = true; h.puts = []; });
+  beforeEach(() => { h.flag = 'true'; h.serverFlag = 'true'; h.moderationAllowed = true; h.rateLimited = false; h.puts = []; });
 
   it('is 403 when the feature flag is off (before anything else)', async () => {
     h.flag = 'false';
@@ -105,5 +113,34 @@ describe('POST /api/v1/heroes/photo (integration)', () => {
     const res = await POST(form(JPEG));
     expect(res.status).toBe(400);
     expect(h.puts).toHaveLength(0);
+  });
+
+  it('rejects an oversized file (>8 MB) before sniffing, decoding, or storing', async () => {
+    h.db = makeSupabase({ tables: { ...liveConsent } });
+    const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(8 * 1024 * 1024)]);
+    const res = await POST(form(big));
+    expect(res.status).toBe(400);
+    expect(h.puts).toHaveLength(0);
+  });
+
+  it('rejects a spoofed extension/MIME: declared image/png, bytes are a script (400)', async () => {
+    h.db = makeSupabase({ tables: { ...liveConsent } });
+    // Declared type and filename lie; the magic-byte sniff is what must decide.
+    const fd = new FormData();
+    fd.append('photo', new Blob([new TextEncoder().encode('#!/bin/sh\nrm -rf /')], { type: 'image/png' }), 'innocent.png');
+    fd.append('consentId', 'c1');
+    const res = await POST(new Request('https://m/api/v1/heroes/photo', { method: 'POST', body: fd }));
+    expect(res.status).toBe(400);
+    expect(h.puts).toHaveLength(0);
+  });
+
+  it('is rate-limited: the 4th upload inside an hour is 429 with nothing stored', async () => {
+    h.rateLimited = true;
+    h.db = makeSupabase({ tables: { ...liveConsent } });
+    const res = await POST(form(JPEG));
+    expect(res.status).toBe(429);
+    expect(h.puts).toHaveLength(0);
+    // The limiter runs before the body is even parsed, so no DB work either.
+    expect(h.db.ops).toHaveLength(0);
   });
 });
