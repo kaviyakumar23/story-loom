@@ -116,6 +116,11 @@ export default function Create() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the server refused the photo specifically (rejected at moderation,
+  // expired, or a character already exists) — everything else about the form is
+  // fine, so we offer a one-click "continue without the photo" instead of a
+  // dead-end error.
+  const [photoBlocked, setPhotoBlocked] = useState<string | null>(null);
   // Email gate (abuse controls): a 2nd+ preview needs a confirmed email.
   const [needsEmail, setNeedsEmail] = useState(false);
   const [gateEmail, setGateEmail] = useState('');
@@ -125,6 +130,12 @@ export default function Create() {
   /** One key for this form session, so a retry replays rather than duplicates. */
   const idempotencyKey = useRef<string>('');
   if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
+  // Consents and the uploaded photo are recorded once per form session and
+  // reused across retries — a network hiccup on the books POST must not insert
+  // a second consent row or burn another photo-upload rate-limit slot.
+  const consentIdRef = useRef<string | null>(null);
+  const photoConsentIdRef = useRef<string | null>(null);
+  const photoUploadIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -264,6 +275,8 @@ export default function Create() {
 
   function pickPhoto(file: File | null) {
     setPhotoError(null);
+    // A different (or no) photo invalidates the cached upload, never the consent.
+    photoUploadIdRef.current = null;
     if (!file) {
       setPhotoFile(null);
       setPhotoUrl((u) => { if (u) URL.revokeObjectURL(u); return null; });
@@ -329,9 +342,10 @@ export default function Create() {
     });
   }
 
-  async function submit() {
+  async function submit(opts?: { withoutPhoto?: boolean }) {
     setSubmitting(true);
     setError(null);
+    setPhotoBlocked(null);
     track('preview_start');
     try {
       // Attach the email to the (anonymous) account first, so we can reach a
@@ -347,21 +361,33 @@ export default function Create() {
       }
 
       if (trimmedEmail) track('email_captured');
-      const { consentId } = await api<CreateConsentResponse>('/consent', {
-        method: 'POST',
-        body: { consentVersion: CONSENT_VERSION, method: 'explicit_checkbox' },
-      });
-      track('consent_given');
+      if (!consentIdRef.current) {
+        const { consentId } = await api<CreateConsentResponse>('/consent', {
+          method: 'POST',
+          body: { consentVersion: CONSENT_VERSION, method: 'explicit_checkbox' },
+        });
+        consentIdRef.current = consentId;
+        track('consent_given');
+      }
+      const consentId = consentIdRef.current;
 
       // Optional photo: record its own scoped consent, upload it (moderated
       // server-side before it's ever stored), and attach the id to the book.
+      // `withoutPhoto` is the one-click fallback after a photo-specific refusal —
+      // it must ignore the (stale-in-this-closure) photo state.
       let photoUploadId: string | undefined;
-      if (PHOTO_ENABLED && photoFile && photoConsent) {
-        const photoConsentRes = await api<CreateConsentResponse>('/consent', {
-          method: 'POST',
-          body: { consentVersion: PHOTO_CONSENT_VERSION, method: 'explicit_checkbox', scope: 'photo_likeness' },
-        });
-        photoUploadId = await uploadPhoto(photoFile, photoConsentRes.consentId);
+      if (PHOTO_ENABLED && photoFile && photoConsent && !opts?.withoutPhoto) {
+        if (!photoConsentIdRef.current) {
+          const photoConsentRes = await api<CreateConsentResponse>('/consent', {
+            method: 'POST',
+            body: { consentVersion: PHOTO_CONSENT_VERSION, method: 'explicit_checkbox', scope: 'photo_likeness' },
+          });
+          photoConsentIdRef.current = photoConsentRes.consentId;
+        }
+        if (!photoUploadIdRef.current) {
+          photoUploadIdRef.current = await uploadPhoto(photoFile, photoConsentIdRef.current);
+        }
+        photoUploadId = photoUploadIdRef.current;
       }
 
       const { bookId } = await api<CreateBookResponse>('/books', {
@@ -404,6 +430,15 @@ export default function Create() {
         // Email gate: show the add-your-email step instead of a bare error.
         setNeedsEmail(true);
         setError(null);
+        setSubmitting(false);
+        return;
+      }
+      if (e instanceof ApiError && ['photo_rejected', 'photo_unusable', 'likeness_exists'].includes(e.code)) {
+        // Only the photo was refused — everything else the parent typed is fine.
+        // Offer the attribute-only path instead of a dead end.
+        if (e.code === 'photo_unusable') photoUploadIdRef.current = null; // expired/consumed: a retry must re-upload
+        setPhotoBlocked(e.code);
+        setError(e.message);
         setSubmitting(false);
         return;
       }
@@ -813,6 +848,22 @@ export default function Create() {
             </div>
           )}
           {error && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 16 }}>{error}</p>}
+          {photoBlocked && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-ghost"
+                disabled={submitting}
+                onClick={() => { pickPhoto(null); void submit({ withoutPhoto: true }); }}
+              >
+                Continue without the photo
+              </button>
+              {photoBlocked === 'likeness_exists' && (
+                <Link href="/account" style={{ fontSize: 13.5, color: 'var(--brand)', fontWeight: 600 }}>
+                  Manage the illustrated character
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 14, marginTop: 22 }}>

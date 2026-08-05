@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Footer, Header } from '@/components/chrome';
 import { Icon } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, useRequireAuth } from '@/lib/auth';
+import { PHOTO_LIKENESS_ENABLED } from '@/lib/photo-likeness';
+import type { HeroListItem, ListHeroesResponse } from '@/lib/types';
 
 export default function Account() {
   const { ready } = useRequireAuth();
@@ -19,6 +21,34 @@ export default function Account() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
+  // Illustrated-character controls (privacy policy: "remove a photo-based
+  // likeness"). Only fetched when the photo feature is on — with it off there is
+  // nothing removable and the card stays hidden.
+  const [heroes, setHeroes] = useState<HeroListItem[]>([]);
+  const [removingHero, setRemovingHero] = useState<string | null>(null);
+  const [removedHeroes, setRemovedHeroes] = useState<string[]>([]);
+  const [heroError, setHeroError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ready || !PHOTO_LIKENESS_ENABLED) return;
+    api<ListHeroesResponse>('/heroes')
+      .then((res) => setHeroes(res.heroes.filter((h) => h.likeness !== null)))
+      .catch(() => setHeroes([])); // best-effort: the card just stays hidden
+  }, [ready]);
+
+  async function removeLikeness(heroId: string) {
+    setRemovingHero(heroId);
+    setHeroError(null);
+    try {
+      await api(`/heroes/${heroId}/likeness`, { method: 'DELETE' });
+      setRemovedHeroes((r) => [...r, heroId]);
+    } catch (e) {
+      setHeroError(e instanceof ApiError ? e.message : 'Could not remove the illustrated character. Please try again.');
+    } finally {
+      setRemovingHero(null);
+    }
+  }
 
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -136,6 +166,41 @@ export default function Account() {
               )}
               {withdrawError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 12 }}>{withdrawError}</p>}
             </div>
+
+            {/* Illustrated character removal — only when the photo feature is on
+                and a character actually exists to remove. */}
+            {PHOTO_LIKENESS_ENABLED && heroes.length > 0 && (
+              <div className="card" style={{ padding: '24px 26px' }}>
+                <h2 className="display" style={{ fontSize: 22, marginBottom: 6 }}>Illustrated character</h2>
+                <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginBottom: 16, lineHeight: 1.6 }}>
+                  Removes the illustrated character we created for your child, including any
+                  photo-based likeness. The next book rebuilds it from the appearance options
+                  you choose. Books already printed or delivered are not affected.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {heroes.map((h) => (
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 14.5 }}>
+                        <strong style={{ color: 'var(--ink)' }}>{h.nickname}</strong>{' '}
+                        <span style={{ color: 'var(--ink-soft)', fontSize: 13 }}>
+                          {h.likeness === 'photo' ? '· made with a photo' : '· made from appearance options'}
+                        </span>
+                      </span>
+                      {removedHeroes.includes(h.id) ? (
+                        <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+                          <Icon name="check" size={15} stroke="var(--success)" /> Removed
+                        </span>
+                      ) : (
+                        <button className="btn btn-ghost" onClick={() => void removeLikeness(h.id)} disabled={removingHero === h.id}>
+                          {removingHero === h.id ? <><span className="spinner" /> Removing…</> : 'Remove illustrated character'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {heroError && <p style={{ color: 'var(--error)', fontSize: 13.5, marginTop: 12 }}>{heroError}</p>}
+              </div>
+            )}
 
             {/* Delete */}
             <div className="card" style={{ padding: '24px 26px', border: '1.5px solid #F6D5CC' }}>
