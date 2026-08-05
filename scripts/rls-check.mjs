@@ -27,7 +27,16 @@ const OWNER_SCOPED = [
 ];
 // Parents may READ their own rows (exactly one SELECT policy); writes are service-role only.
 const OWNER_READ_ONLY = ['photo_uploads'];
-const SERVICE_ONLY = ['payments', 'generation_events', 'audit_log', 'newsletter_subscribers', 'occasion_nudges', 'preview_ip_usage'];
+// Service-role only: no parent policy at all. These are the payment audit trail,
+// the founder's operational records, and analytics that hold no personal data —
+// nothing here is a parent's to read, and RLS with no policy denies everyone.
+const SERVICE_ONLY = [
+  'payments', 'generation_events', 'audit_log', 'newsletter_subscribers',
+  'occasion_nudges', 'preview_ip_usage',
+  // Beta: payment journal, fulfilment history and the price experiment.
+  'webhook_events', 'order_events', 'order_costs', 'print_releases',
+  'price_arm_assignments', 'funnel_events',
+];
 // owner-scoped tables to hit behaviourally (must return 0 rows for a stranger)
 const BEHAVIOURAL = [
   'books', 'heroes', 'orders', 'shipping_addresses', 'fulfillments', 'book_pages', 'assets',
