@@ -143,3 +143,59 @@ Only when all of the above is true:
 3. `EMAIL_FROM` on a verified domain; `ALERT_EMAIL` set and tested.
 4. Set `NEXT_PUBLIC_PAYMENTS_ENABLED=true` and redeploy.
 5. Take one order yourself, end to end, before inviting anyone.
+
+## Enabling photo likeness (founder-gated, separate from launch)
+
+The feature is fully built, tested, and dark. It stays dark until every
+precondition below holds — none of them is optional, and the first one is the
+plan's potentially-fatal gate.
+
+### Preconditions
+
+1. **Written Google/Vertex clearance** to process an under-18 photo through the
+   Gemini image model on Vertex. Verbal or implied is not clearance.
+2. **Counsel sign-off** on the photo consent version (`2026-08-photo-v1` in
+   `src/server/config/consent.ts`) and the privacy-policy photo wording — the
+   pages flip automatically with the flag, so what they will say is reviewable
+   before the flip (render locally with the flags on).
+3. **`OPENAI_API_KEY` set in production.** The pre-storage moderation check is
+   OpenAI and fails CLOSED — without the key every upload is refused (422). This
+   is also the one deliberate second egress destination for the sanitised photo
+   (allowlisted in `assertPhotoEgressAllowed`, disclosed in the privacy policy);
+   the raw likeness call itself only ever goes to Vertex.
+4. **Backend resolves to Vertex**: `GOOGLE_SERVICE_ACCOUNT_KEY` (or the WIF
+   vars) present so `resolveGeminiBackend()` returns `vertex`. On any other
+   backend the photo is never egressed and books quietly fall back to
+   attributes — safe, but not what a parent was promised.
+
+### The flip (order matters — AND semantics, both must be true)
+
+1. Set `PHOTO_LIKENESS_SERVER_ENABLED=true` (runtime; takes effect on the next
+   request).
+2. Set `NEXT_PUBLIC_PHOTO_LIKENESS_ENABLED=true` **and redeploy** — the value is
+   baked into the bundle; without a rebuild the uploader stays hidden even
+   though the server would accept.
+
+### Verify within the first hour
+
+- Upload a test photo (your own, not a child's): `201 {photoUploadId}` and a
+  `photo.uploaded` audit row.
+- Create a book with it: `character_sheets.source = 'photo'`, the
+  `photo_uploads` row is `consumed` with `deleted_at` set, and the object is
+  gone from the `photo-intake` bucket (check Storage, not just the row).
+- Audit log shows `photo.consumed {used: true, reason: 'sheet_generated'}` —
+  `used: false` means the photo was deleted without seeding the character; the
+  parent should be offered a redo.
+- The purge cron (`photo-intake-purge`, hourly at :25) reports clean.
+- Account page shows the "Illustrated character" card and removal works.
+- Landing/legal copy flipped everywhere (hero sub, trust line, CTA microcopy,
+  privacy collection list) — grep the rendered pages for "no child photo",
+  which must be gone.
+
+### Rollback
+
+Set `PHOTO_LIKENESS_SERVER_ENABLED=false`. Refusal is immediate at request
+time — uploads 403, book creates carrying a `photoUploadId` 400, zero egress.
+The uploader may linger in the stale bundle until a rebuild; every submission
+it makes is refused with a friendly message. Photos already in the intake
+bucket are deleted by the hourly cron within 24h regardless of the flag.

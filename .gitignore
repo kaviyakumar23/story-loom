@@ -48,3 +48,7 @@ public/landing/*.png
 
 # Generated printer RFQ pack (rebuild with `npm run print:rfq`).
 /public/print-test/
+
+# Playwright output
+/test-results/
+/playwright-report/

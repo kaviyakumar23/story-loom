@@ -226,6 +226,11 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
     );
     const live = images.filter((i): i is NonNullable<typeof i> => i !== null);
     if (live.length) {
+      // A pending photo can never seed a cached sheet, so it must not sit in the
+      // intake bucket until the 24h cron — consume it now (book create refuses
+      // this combination, so reaching here means a race; deletion is deliberately
+      // flag-exempt). No approved photo may ever wait around silently.
+      await consumePendingHeroPhoto(ctx.heroId);
       return {
         images: live,
         palette: stored.palette,
@@ -254,6 +259,9 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
     }
   }
 
+  // Whether the sheet insert actually landed — decides how the photo's deletion
+  // is audited: consumed into a sheet, or deleted without ever being used.
+  let sheetBuilt = false;
   try {
     const { value, usage } = await getProviders({ imageModel: ctx.imageModel }).image.generateCharacterSheet({
       // Scrub the child's name out of free-text avatar features before it reaches
@@ -295,9 +303,19 @@ export async function resolveCharacterSheet(ctx: BookContext): Promise<Character
       source: likenessPhoto ? 'photo' : 'attributes',
       consent_id: likenessPhoto ? photo?.consentId ?? null : null,
     });
+    sheetBuilt = true;
     return value;
   } finally {
-    if (photo) await consumePhoto(photo.id, photo.storageKey);
+    // The photo is deleted on EVERY path (spec: it never outlives this call).
+    // The audit outcome distinguishes "consumed into the sheet" from "deleted
+    // unused" — a transient failure otherwise downgrades the retry to an
+    // attribute-only sheet with no trace for anyone to act on.
+    if (photo) {
+      await consumePhoto(photo.id, photo.storageKey, {
+        used: Boolean(likenessPhoto) && sheetBuilt,
+        reason: !likenessPhoto ? 'not_egressed' : sheetBuilt ? 'sheet_generated' : 'sheet_failed',
+      });
+    }
   }
 }
 
@@ -329,8 +347,14 @@ async function loadHeroPhoto(heroId: string): Promise<{ id: string; storageKey: 
   return { id: p.id, storageKey: p.storage_key, consentId: p.consent_id };
 }
 
+/** How a photo left the intake bucket — audited so an unused deletion is visible. */
+interface PhotoOutcome {
+  used: boolean;
+  reason: 'sheet_generated' | 'sheet_failed' | 'sheet_cached' | 'not_egressed';
+}
+
 /** Delete the photo object and mark the row consumed — the sheet is what survives. */
-async function consumePhoto(id: string, storageKey: string): Promise<void> {
+async function consumePhoto(id: string, storageKey: string, outcome: PhotoOutcome): Promise<void> {
   try {
     await removePhotos([storageKey]);
   } catch {
@@ -338,6 +362,28 @@ async function consumePhoto(id: string, storageKey: string): Promise<void> {
   }
   const now = new Date().toISOString();
   await serviceClient().from('photo_uploads').update({ status: 'consumed', consumed_at: now, deleted_at: now }).eq('id', id);
+  // Ids and booleans only — never bytes, keys, or child data. `used: false`
+  // means a parent expected a photo-based character and didn't get one; the
+  // founder can see that and offer a redo.
+  await audit({ actor: 'system', action: 'photo.consumed', entity: 'photo_uploads', entityId: id, metadata: { used: outcome.used, reason: outcome.reason } });
+}
+
+/**
+ * Consume any photo still pending for a hero whose sheet is already cached.
+ * Deliberately NOT loadHeroPhoto: deletion must work regardless of flags or
+ * consent state — this is a cleanup, not an egress.
+ */
+async function consumePendingHeroPhoto(heroId: string): Promise<void> {
+  const { data } = await serviceClient()
+    .from('photo_uploads')
+    .select('id, storage_key')
+    .eq('hero_id', heroId)
+    .eq('status', 'approved')
+    .is('consumed_at', null)
+    .is('deleted_at', null);
+  for (const p of (data ?? []) as { id: string; storage_key: string }[]) {
+    await consumePhoto(p.id, p.storage_key, { used: false, reason: 'sheet_cached' });
+  }
 }
 
 /** DB representation of the character bible — image keys, not inline base64. */

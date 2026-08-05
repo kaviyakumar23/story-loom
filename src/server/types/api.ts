@@ -234,6 +234,18 @@ export interface ListBooksResponse {
   books: BookListItem[];
 }
 
+/** One hero as the account page sees it — metadata only, never avatar details. */
+export interface HeroListItem {
+  id: string;
+  nickname: string;
+  /** How the illustrated character was made; null = no character sheet yet. */
+  likeness: 'photo' | 'attributes' | null;
+}
+
+export interface ListHeroesResponse {
+  heroes: HeroListItem[];
+}
+
 export interface CreateOrderRequest {
   bookId: string;
   tier: Tier;

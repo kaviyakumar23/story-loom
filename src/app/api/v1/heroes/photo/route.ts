@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import sharp from 'sharp';
 import { requireParent } from '@/server/auth';
 import { photoLikenessEnabled } from '@/server/config/beta-flags';
 import { audit } from '@/server/lib/audit';
 import { assertBetaAccess } from '@/server/lib/beta-access';
 import { badRequest, forbidden, internal } from '@/server/lib/errors';
 import { assertPhotoEgressAllowed, photoKey, putPhoto } from '@/server/lib/photo-intake';
+import { sanitizePhoto, sniffImage } from '@/server/lib/photo-sanitize';
 import { assertRateLimit } from '@/server/lib/rate-limit';
 import { jsonError } from '@/server/lib/route';
 import { serviceClient } from '@/server/lib/supabase';
@@ -15,7 +15,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 8 * 1024 * 1024;
-const MAX_DIM = 1024;
 
 // ---- POST /api/v1/heroes/photo — optional, consent-gated child photo intake ----
 //
@@ -55,19 +54,12 @@ export async function POST(req: Request): Promise<Response> {
     const raw = Buffer.from(await file.arrayBuffer());
     if (!sniffImage(raw)) throw badRequest('Please upload a JPEG, PNG, or WebP image.');
 
-    // Re-encode: normalises to JPEG, applies EXIF orientation then strips ALL
-    // metadata (including GPS), and bounds the dimensions — neutralising container
-    // tricks before the bytes are ever moderated or egressed.
-    let clean: Buffer;
-    try {
-      clean = await sharp(raw)
-        .rotate()
-        .resize(MAX_DIM, MAX_DIM, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 82 })
-        .toBuffer();
-    } catch {
-      throw badRequest('We couldn’t read that image — please try a different photo.');
-    }
+    // Re-encode (photo-sanitize.ts): normalises to JPEG, applies EXIF
+    // orientation then strips ALL metadata (including GPS), and bounds the
+    // dimensions — neutralising container tricks before the bytes are ever
+    // moderated or egressed.
+    const clean = await sanitizePhoto(raw);
+    if (!clean) throw badRequest('We couldn’t read that image — please try a different photo.');
 
     // Moderate BEFORE storing. On any block, nothing is stored and no human ever
     // sees it — the parent just falls back to attribute chips.
@@ -93,12 +85,4 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     return jsonError(err);
   }
-}
-
-function sniffImage(buf: Buffer): 'jpeg' | 'png' | 'webp' | null {
-  if (buf.length < 12) return null;
-  if (buf[0] === 0xff && buf[1] === 0xd8) return 'jpeg';
-  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
-  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
-  return null;
 }
